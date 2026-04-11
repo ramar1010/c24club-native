@@ -1,0 +1,1 @@
+export { useVideoChat as useRandomMatch } from './useVideoChat';

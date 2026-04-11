@@ -1,0 +1,5 @@
+{
+  "table": "members?or=(name.ilike.*tex*,name.ilike.*aden*)&select=id,name,membership,email",
+  "status": 200,
+  "body": "[{\"id\":\"88b9f606-8dfe-42a1-8704-4328c0f2df0e\",\"name\":\"tex\",\"membership\":\"Free\",\"email\":\"daleylady777@gmail.com\"}, \n {\"id\":\"fb9b71e9-f242-4837-b144-3e52ce308f2c\",\"name\":\"Jaden\",\"membership\":\"Free\",\"email\":\"jadenraider9@gmail.com\"}, \n {\"id\":\"2ce63263-30d4-4c14-9dfe-2da2612c3549\",\"name\":\"Aden\",\"membership\":\"Free\",\"email\":\"booman4457@gmail.com\"}]"
+}

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "212900711433",
+    "project_id": "c24club-lovable",
+    "storage_bucket": "c24club-lovable.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:212900711433:android:43f28252e72eade1bf7cd8",
+        "android_client_info": {
+          "package_name": "com.c24club.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBN8TX-nR77dqpLNW4YUtnaiqY1TfR7vc4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,2 @@
+# Prevent huge core dump files from being included in the EAS upload
+core

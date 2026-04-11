@@ -1,0 +1,211 @@
+/**
+ * useCallMinutes.ts — Matches web app's useCallMinutes.ts exactly.
+ * Reports earned minutes every 60s via earn-minutes edge function.
+ */
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Platform } from 'react-native';
+import { supabase } from '@/lib/supabase';
+
+function generateSessionId(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
+interface UseCallMinutesOptions {
+  userId: string;
+  partnerId: string | null;
+  isConnected: boolean;
+  voiceMode?: boolean;
+  isVip?: boolean;
+}
+
+export interface CapInfo {
+  cap: number;
+  isVip: boolean;
+}
+
+export interface FreezeInfo {
+  isFrozen: boolean;
+  earnRate: number;
+}
+
+export interface UseCallMinutesResult {
+  totalMinutes: number;
+  giftedMinutes: number;
+  elapsedSeconds: number;
+  capReached: boolean;
+  capInfo: CapInfo | null;
+  showCapPopup: boolean;
+  dismissCapPopup: () => void;
+  flushMinutes: () => Promise<void>;
+  freezeInfo: FreezeInfo;
+  refreshBalance: () => void;
+}
+
+export function useCallMinutes({
+  userId,
+  partnerId,
+  isConnected,
+  voiceMode = false,
+  isVip = false,
+}: UseCallMinutesOptions): UseCallMinutesResult {
+  // Not needed on web — return safe defaults
+  if (Platform.OS === 'web') {
+    return {
+      totalMinutes: 0,
+      giftedMinutes: 0,
+      elapsedSeconds: 0,
+      capReached: false,
+      capInfo: null,
+      showCapPopup: false,
+      dismissCapPopup: () => {},
+      flushMinutes: async () => {},
+      freezeInfo: { isFrozen: false, earnRate: 10 },
+      refreshBalance: () => {},
+    };
+  }
+
+  // Per-session cap: 10 min for regular, 30 min for VIP
+  const SESSION_CAP = isVip ? 30 : 10;
+
+  const [totalMinutes, setTotalMinutes] = useState(0);
+  const [giftedMinutes, setGiftedMinutes] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [capReached, setCapReached] = useState(false);
+  const [capInfo, setCapInfo] = useState<CapInfo | null>(null);
+  const [showCapPopup, setShowCapPopup] = useState(false);
+  const [freezeInfo, setFreezeInfo] = useState<FreezeInfo>({ isFrozen: false, earnRate: 10 });
+
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const elapsedRef = useRef(0);
+  const lastReportedRef = useRef(0);
+  const sessionMinutesEarnedRef = useRef(0); // tracks minutes earned THIS session
+  const partnerIdRef = useRef(partnerId);
+  const capReachedRef = useRef(false);
+  const sessionIdRef = useRef(generateSessionId());
+  const isVipRef = useRef(isVip);
+  const freezeInfoRef = useRef<FreezeInfo>({ isFrozen: false, earnRate: 10 });
+
+  useEffect(() => { partnerIdRef.current = partnerId; }, [partnerId]);
+  useEffect(() => { isVipRef.current = isVip; }, [isVip]);
+  useEffect(() => { freezeInfoRef.current = freezeInfo; }, [freezeInfo]);
+
+  // Fetch balance
+  const fetchBalance = useCallback(() => {
+    if (!userId || userId === 'anonymous') return;
+    supabase.functions
+      .invoke('earn-minutes', { body: { type: 'get_balance', userId } })
+      .then(({ data }) => {
+        if (data?.success) {
+          setTotalMinutes(data.totalMinutes);
+          setGiftedMinutes(data.giftedMinutes ?? 0);
+          setFreezeInfo({ isFrozen: data.isFrozen ?? false, earnRate: data.earnRate ?? 10 });
+        }
+      });
+  }, [userId]);
+
+  useEffect(() => { fetchBalance(); }, [fetchBalance]);
+
+  // Reset on new partner OR new connection (handles rejoining same partner)
+  useEffect(() => {
+    if (isConnected) {
+      // Full reset — new session cap starts fresh even for same partner
+      elapsedRef.current = 0;
+      lastReportedRef.current = 0;
+      sessionMinutesEarnedRef.current = 0;
+      setElapsedSeconds(0);
+      setCapReached(false);
+      capReachedRef.current = false;
+      setShowCapPopup(false);
+      sessionIdRef.current = generateSessionId();
+    }
+  }, [isConnected, partnerId]); // Resets on partner change OR reconnection
+
+  const reportMinutes = useCallback(async (minutes: number) => {
+    const pid = partnerIdRef.current;
+    const safeMinutes = Math.min(minutes, 5);
+    if (!pid || !userId || userId === 'anonymous' || safeMinutes <= 0) return;
+
+    const { data } = await supabase.functions.invoke('earn-minutes', {
+      body: {
+        type: 'earn',
+        userId,
+        partnerId: pid,
+        minutesEarned: safeMinutes,
+        sessionId: sessionIdRef.current,
+        voiceMode,
+      },
+    });
+
+    if (data?.success) {
+      setTotalMinutes(data.totalMinutes);
+      if (data.gifted_minutes !== undefined) setGiftedMinutes(data.gifted_minutes);
+
+      // Track session minutes earned
+      sessionMinutesEarnedRef.current += safeMinutes;
+
+      // Client-side session cap check (10 min regular / 30 min VIP / 2 min if frozen)
+      const frozen = freezeInfoRef.current.isFrozen;
+      const cap = frozen ? 2 : (isVipRef.current ? 30 : 10);
+      const clientCapReached = sessionMinutesEarnedRef.current >= cap;
+
+      // Server-side cap check
+      const serverCapReached = data.message === 'cap_reached';
+
+      if ((clientCapReached || serverCapReached) && !capReachedRef.current) {
+        capReachedRef.current = true;
+        setCapReached(true);
+        setCapInfo({ cap, isVip: isVipRef.current });
+        setShowCapPopup(true);
+        // Stop the timer
+        if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      }
+    }
+  }, [userId, voiceMode]);
+
+  // Timer
+  useEffect(() => {
+    if (isConnected && !capReachedRef.current) {
+      timerRef.current = setInterval(() => {
+        elapsedRef.current += 1;
+        setElapsedSeconds(elapsedRef.current);
+
+        const totalMinutesElapsed = Math.floor(elapsedRef.current / 60);
+        if (totalMinutesElapsed > lastReportedRef.current) {
+          const newMinutes = totalMinutesElapsed - lastReportedRef.current;
+          lastReportedRef.current = totalMinutesElapsed;
+          reportMinutes(newMinutes);
+        }
+      }, 1000);
+    }
+    return () => {
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    };
+  }, [isConnected, reportMinutes]);
+
+  const flushMinutes = useCallback(async () => {
+    const totalMinutesElapsed = Math.floor(elapsedRef.current / 60);
+    const unreported = totalMinutesElapsed - lastReportedRef.current;
+    if (unreported > 0) {
+      lastReportedRef.current = totalMinutesElapsed;
+      await reportMinutes(unreported);
+    }
+  }, [reportMinutes]);
+
+  const dismissCapPopup = useCallback(() => setShowCapPopup(false), []);
+
+  return {
+    totalMinutes,
+    giftedMinutes,
+    elapsedSeconds,
+    capReached,
+    capInfo,
+    showCapPopup,
+    dismissCapPopup,
+    flushMinutes,
+    freezeInfo,
+    refreshBalance: fetchBalance,
+  };
+}
