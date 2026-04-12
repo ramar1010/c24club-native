@@ -12,7 +12,7 @@ import {
   Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Check, X, User as UserIcon, Sparkles, Video, MessageCircle, Gift, Link2, ExternalLink, Star } from "lucide-react-native";
+import { Check, X, User as UserIcon, Sparkles, Video, MessageCircle, Gift, Link2, ExternalLink, Star, BookOpen, ChevronDown, ChevronUp } from "lucide-react-native";
 import { flattenStyle } from "@/utils/flatten-style";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "expo-router";
@@ -26,6 +26,7 @@ import { useCall } from "@/contexts/CallContext";
 import { Instagram, Music, DollarSign } from "lucide-react-native";
 import { Alert, Linking } from "react-native";
 import { notifyGiftAttempt } from "@/lib/gift-utils";
+import { GiftCelebration } from "@/components/GiftCelebration";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 // Use same card size as discover
@@ -112,6 +113,79 @@ const SOCIAL_CONFIG: Record<string, { icon: any; color: string; label: string; u
   },
 };
 
+// ─── Guide data ────────────────────────────────────────────────────────────────
+const GUIDE_SECTIONS = [
+  {
+    title: "🎥  Video Chatting & Collecting Minutes",
+    items: [
+      { q: "How do I collect minutes?", a: 'Tap the Chat tab and press "Start Chatting". You earn minutes for every video chat you complete. The longer you stay in a chat, the more you earn. Minutes are credited automatically after each session.' },
+      { q: "What are minutes used for?", a: "Minutes are your in-app currency. Use them to redeem items from the Reward Store, spin for rare or legendary prizes, or gift them to other members." },
+      { q: "What happens if I skip too fast?", a: "Skipping a chat too quickly (under a few seconds) will deduct minutes as a penalty. Stay in chats a bit longer to keep earning!" },
+      { q: "Is there a collection cap?", a: "Yes. There is a daily collection cap to keep things fair. Once you hit the cap, you can still chat but won't earn additional minutes until the next day. VIP members get a higher cap." },
+    ],
+  },
+  {
+    title: "🎁  Reward Store & Redeeming",
+    items: [
+      { q: "How do I redeem rewards?", a: 'Go to the Rewards tab. Browse available items and tap "Redeem" on any item you can afford. For physical items, you\'ll be asked to enter a shipping address.' },
+      { q: "What types of rewards are available?", a: "Rewards include physical fashion items (clothing, accessories, bags) and digital items. Browse by category using the filter tabs at the top of the Rewards screen." },
+      { q: "What are reward rarities?", a: "Items come in three rarities — Common, Rare, and Legendary. Common items can be redeemed directly. Rare and Legendary items require a Spin to Win." },
+      { q: "How does shipping work?", a: "After winning or redeeming a physical item, you'll fill in your shipping details. You can save a default address in your profile for faster checkout next time." },
+    ],
+  },
+  {
+    title: "🎰  Spin to Win",
+    items: [
+      { q: "Are there different types of Spin to Win?", a: "Yes — Rare spins cost fewer minutes and have a 5% base win chance. Legendary spins cost more and have a 2% base win chance but offer higher-value items." },
+      { q: "What is the Chance Enhancer?", a: "The Chance Enhancer (CE) increases your win percentage on every spin. It builds up automatically as you chat. You can see your current CE % on the spin modal." },
+      { q: "Can I buy extra spins?", a: "You can keep spinning as long as you have enough minutes. There's no limit to how many times you can spin — each spin costs the listed minutes amount." },
+    ],
+  },
+  {
+    title: "⭐  VIP Membership",
+    items: [
+      { q: "What are the VIP tiers?", a: "There are two VIP tiers — Standard VIP and Premium VIP. Both give access to gender filters, higher minute caps, and exclusive features. Premium VIP also includes a free re-spin on Legendary items." },
+      { q: "What are gender filters?", a: "VIP members can filter who they match with in random video chats — choose Male, Female, or Both. Free users are matched randomly." },
+      { q: "What is Minute Unfreezing?", a: "If your minute collection is frozen due to skipping too fast, VIP members can unfreeze their balance instantly instead of waiting for the cooldown to expire." },
+    ],
+  },
+  {
+    title: "📢  Ad Points & Promos",
+    items: [
+      { q: "What are Ad Points?", a: "Watch short ads on the Rewards tab to earn Ad Points. Ad Points can be exchanged for minutes or used toward certain rewards." },
+      { q: "How do promos work?", a: "Special promos appear from time to time offering bonus minutes or exclusive items. Keep an eye on the home screen and your notifications for active promos." },
+    ],
+  },
+  {
+    title: "🎯  Weekly Challenges",
+    items: [
+      { q: "What are Weekly Challenges?", a: "Each week you get a set of chat challenges — like chatting a certain number of times or staying in chats for a total duration. Complete them to earn bonus minutes and rewards." },
+    ],
+  },
+  {
+    title: "💝  Gifting Minutes",
+    items: [
+      { q: "How do I gift minutes?", a: "On the Home or Discover tab, tap a member's profile card and select the gift icon. Choose how many minutes to send. The recipient gets notified instantly." },
+      { q: "Can I see gifts I've received?", a: "Yes — your Profile tab shows your gift history and total minutes received from other members." },
+    ],
+  },
+  {
+    title: "📌  Topics & Socials",
+    items: [
+      { q: "What are pinned topics?", a: "You can pin interest topics to your profile. When you match with someone in a chat, your shared topics are shown so you always have something to talk about." },
+      { q: "How do I pin my socials?", a: "VIP members can pin their social media handles (Instagram, TikTok, Snapchat, CashApp, etc.) to their profile. These appear as tappable badges during video chats so your match can follow you." },
+    ],
+  },
+  {
+    title: "⚠️  Safety & Rules",
+    items: [
+      { q: "What gets you banned?", a: "Nudity, sexual content, harassment, racism, underage users, and ban evasion all result in an immediate ban. Bans are enforced by our moderation team." },
+      { q: "How do I report someone?", a: "During any video chat, tap the flag/report button on screen. Fill in the reason and submit. Our team reviews all reports promptly." },
+    ],
+  },
+];
+// ───────────────────────────────────────────────────────────────────────────────
+
 export default function HomeScreen() {
   const { user, profile, loading, minutes } = useAuth();
   const router = useRouter();
@@ -119,6 +193,10 @@ export default function HomeScreen() {
   const [warningDismissed, setWarningDismissed] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+
+  // How To Guide state
+  const [showGuide, setShowGuide] = useState(false);
+  const [openAccordion, setOpenAccordion] = useState<number | null>(null);
 
   // VIP Spotlight state
   const [vipMembers, setVipMembers] = useState<DiscoverMember[]>([]);
@@ -131,6 +209,7 @@ export default function HomeScreen() {
   // Gift & Socials state
   const [showGiftModal, setShowGiftModal] = useState(false);
   const [selectedRecipient, setSelectedRecipient] = useState<DiscoverMember | null>(null);
+  const [showGiftCelebration, setShowGiftCelebration] = useState(false);
   const [socialsSheet, setSocialsSheet] = useState<{ name: string; socials: string[] } | null>(null);
 
   const fetchVipSpotlight = useCallback(async () => {
@@ -543,6 +622,16 @@ export default function HomeScreen() {
           onSettingsPress={() => router.push('/notification-settings')}
         />
 
+        {/* How To Guide Button */}
+        <TouchableOpacity
+          style={styles.guideButton}
+          activeOpacity={0.8}
+          onPress={() => setShowGuide(true)}
+        >
+          <BookOpen size={18} color="#EF4444" style={{ marginRight: 8 }} />
+          <Text style={styles.guideButtonText}>How To Guide</Text>
+        </TouchableOpacity>
+
         <View style={styles.bottomPad} />
       </ScrollView>
 
@@ -557,7 +646,73 @@ export default function HomeScreen() {
             ? vipIds.has(selectedRecipient.id) || adminIds.has(selectedRecipient.id)
             : true
         }
+        onGiftSent={() => {
+          setShowGiftModal(false);
+          setShowGiftCelebration(true);
+        }}
       />
+
+      <GiftCelebration
+        visible={showGiftCelebration}
+        recipientName={selectedRecipient?.name || "them"}
+        onDismiss={() => setShowGiftCelebration(false)}
+      />
+
+      {/* How To Guide Modal */}
+      <Modal
+        visible={showGuide}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setShowGuide(false)}
+      >
+        <SafeAreaView style={styles.guideModal} edges={["top", "bottom"]}>
+          {/* Header */}
+          <View style={styles.guideHeader}>
+            <BookOpen size={20} color="#FACC15" />
+            <Text style={styles.guideHeaderTitle}>How To Guide</Text>
+            <TouchableOpacity onPress={() => setShowGuide(false)} style={styles.guideCloseBtn}>
+              <X size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Scrollable content */}
+          <ScrollView
+            style={styles.guideScroll}
+            contentContainerStyle={styles.guideScrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {GUIDE_SECTIONS.map((section, sIdx) => (
+              <View key={sIdx} style={styles.guideSection}>
+                {/* Section header */}
+                <TouchableOpacity
+                  style={styles.guideSectionHeader}
+                  activeOpacity={0.75}
+                  onPress={() => setOpenAccordion(openAccordion === sIdx ? null : sIdx)}
+                >
+                  <Text style={styles.guideSectionTitle}>{section.title}</Text>
+                  {openAccordion === sIdx
+                    ? <ChevronUp size={18} color="#FACC15" />
+                    : <ChevronDown size={18} color="#A1A1AA" />
+                  }
+                </TouchableOpacity>
+
+                {/* Q&A items */}
+                {openAccordion === sIdx && (
+                  <View style={styles.guideItemsContainer}>
+                    {section.items.map((item, iIdx) => (
+                      <View key={iIdx} style={styles.guideItem}>
+                        <Text style={styles.guideQuestion}>{item.q}</Text>
+                        <Text style={styles.guideAnswer}>{item.a}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            ))}
+            <View style={{ height: 32 }} />
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
 
       {/* Socials Bottom Sheet */}
       <Modal
@@ -905,6 +1060,101 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "800",
     letterSpacing: 0.3,
+  },
+  // How To Guide
+  guideButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginHorizontal: 20,
+    marginTop: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#EF4444",
+    backgroundColor: "transparent",
+  },
+  guideButtonText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+  },
+  guideModal: {
+    flex: 1,
+    backgroundColor: "#1A1A2E",
+  },
+  guideHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#2A2A4A",
+    gap: 10,
+  },
+  guideHeaderTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: 0.2,
+  },
+  guideCloseBtn: {
+    padding: 4,
+  },
+  guideScroll: {
+    flex: 1,
+  },
+  guideScrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  guideSection: {
+    marginBottom: 10,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  guideSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#16213E",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+  },
+  guideSectionTitle: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginRight: 8,
+  },
+  guideItemsContainer: {
+    backgroundColor: "#0F1928",
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 12,
+  },
+  guideItem: {
+    marginTop: 12,
+    borderLeftWidth: 2,
+    borderLeftColor: "#EF4444",
+    paddingLeft: 12,
+  },
+  guideQuestion: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FACC15",
+    marginBottom: 4,
+  },
+  guideAnswer: {
+    fontSize: 14,
+    color: "#A1A1AA",
+    lineHeight: 20,
   },
   // Socials Sheet
   socialsOverlay: {

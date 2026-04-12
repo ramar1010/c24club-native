@@ -114,17 +114,31 @@ serve(async (req: Request) => {
       sound: "default",
       channelId: channel_id ?? "default",
       priority: priority ?? "high",
+      // iOS: wake the app even when in background/killed
+      contentAvailable: true,
+      // Android: FCM high-priority delivery (bypasses Doze mode & battery optimization)
+      // TTL of 4 weeks — notification is kept by FCM until device is reachable
+      ttl: 2419200,
+      // Expo forwards this to FCM as a high-priority data message
+      _category: data?.type ?? notification_type ?? undefined,
     };
 
     console.log("[send-push-notification] Sending via Expo to:", pushToken.substring(0, 20) + "...");
 
+    const expoHeaders: Record<string, string> = {
+      "Accept": "application/json",
+      "Accept-Encoding": "gzip, deflate",
+      "Content-Type": "application/json",
+    };
+
+    const expoToken = Deno.env.get("EXPO_ACCESS_TOKEN");
+    if (expoToken) {
+      expoHeaders["Authorization"] = `Bearer ${expoToken}`;
+    }
+
     const expoResp = await fetch("https://exp.host/--/api/v2/push/send", {
       method: "POST",
-      headers: {
-        "Accept": "application/json",
-        "Accept-Encoding": "gzip, deflate",
-        "Content-Type": "application/json",
-      },
+      headers: expoHeaders,
       body: JSON.stringify(expoPayload),
     });
 

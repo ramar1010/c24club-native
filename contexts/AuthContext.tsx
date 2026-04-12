@@ -56,6 +56,9 @@ export interface MemberMinutes {
   admin_granted_vip?: boolean; // Added for video call logic
   chance_enhancer: number;
   ce_minutes_checkpoint: number;
+  // Login streak & decay
+  login_streak: number;
+  last_streak_login_at: string | null;
   // Freeze system fields
   is_frozen: boolean;
   frozen_at: string | null;

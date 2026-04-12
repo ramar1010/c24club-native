@@ -56,6 +56,7 @@ import { GiftModal } from "@/components/modals/GiftModal";
 import { CashoutModal } from "@/components/modals/CashoutModal";
 import { FemaleVipBanner } from "@/components/FemaleVipBanner";
 import { notifyGiftAttempt } from "@/lib/gift-utils";
+import { GiftCelebration } from "@/components/GiftCelebration";
 import { DiscoverMember } from "@/types/members";
 import { getTimeAgo, isEffectivelyOnline } from "@/utils/member-utils";
 import { UserCard } from "@/components/UserCard";
@@ -126,6 +127,7 @@ export default function DiscoverScreen() {
   const [showGiftModal, setShowGiftModal] = useState(false);
   const [showCashoutModal, setShowCashoutModal] = useState(false);
   const [selectedRecipient, setSelectedRecipient] = useState<{id: string, name: string} | null>(null);
+  const [showGiftCelebration, setShowGiftCelebration] = useState(false);
   const [socialsSheet, setSocialsSheet] = useState<{ name: string; socials: string[] } | null>(null);
   const [selectedMember, setSelectedMember] = useState<{
     member: DiscoverMember;
@@ -974,11 +976,21 @@ filter === pill ? styles.filterPillTextActive : null,
             ? vipIds.has(selectedRecipient.id) || adminIds.has(selectedRecipient.id)
             : true
         }
+        onGiftSent={() => {
+          setShowGiftModal(false);
+          setShowGiftCelebration(true);
+        }}
       />
 
       <CashoutModal
         isOpen={showCashoutModal}
         onClose={() => setShowCashoutModal(false)}
+      />
+
+      <GiftCelebration
+        visible={showGiftCelebration}
+        recipientName={selectedRecipient?.name || "them"}
+        onDismiss={() => setShowGiftCelebration(false)}
       />
 
       {/* ── Member Profile Modal ── */}

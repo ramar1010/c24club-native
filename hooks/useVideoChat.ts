@@ -35,6 +35,7 @@ export function useVideoChat() {
   const [partnerGender, setPartnerGender] = useState<string | null>(null);
   const [partnerTopics, setPartnerTopics] = useState<string[]>([]);
   const [partnerId, setPartnerId] = useState<string | null>(null);
+  const [partnerIsVoiceMode, setPartnerIsVoiceMode] = useState(false);
 
   // ─── Refs (stale-closure-safe mutable values) ────────────────────────────────
   const memberIdRef = useRef<string | null>(null);
@@ -333,6 +334,12 @@ export function useVideoChat() {
           processedSignalIds.current.add(sig.id);
 
           const pc = pcRef.current;
+
+          if (sig.signal_type === 'voice-mode') {
+            if (isMountedRef.current) setPartnerIsVoiceMode(sig.payload?.enabled ?? false);
+            continue;
+          }
+
           if (!pc) continue;
 
           console.log('[useVideoChat] received signal:', sig.signal_type);
@@ -419,6 +426,7 @@ export function useVideoChat() {
         roomIdRef.current = roomId;
         partnerIdRef.current = partnerId;
         setPartnerId(partnerId);
+        setPartnerIsVoiceMode(false); // reset on new match
         if (partnerId) fetchPartnerTopics(partnerId);
 
         if (partnerId) {
@@ -437,6 +445,9 @@ export function useVideoChat() {
         const offer = await pc.createOffer({});
         await pc.setLocalDescription(offer);
         await sendSignal(roomId, channelIdRef.current, 'offer', offer);
+
+        // Broadcast our voice mode status to partner
+        await sendSignal(roomId, channelIdRef.current, 'voice-mode', { enabled: voiceMode });
 
       } catch (err) {
         console.warn('[useVideoChat] startMatchPolling error:', err);
@@ -502,6 +513,9 @@ export function useVideoChat() {
         startSignalPolling(roomId, channelIdRef.current, voiceMode);
         console.log('[useVideoChat] partner_found — waiting for offer from poller...');
 
+        // Broadcast our voice mode to the poller
+        await sendSignal(roomId, channelIdRef.current, 'voice-mode', { enabled: voiceMode });
+
       } else if (data?.message === 'added_to_queue') {
         // ✅ ADDED_TO_QUEUE = POLLER: Will create offer when match is found
         console.log('[useVideoChat] added to queue — polling for match...');
@@ -519,6 +533,9 @@ export function useVideoChat() {
           updateCallState('connecting');
           createPeerConnection(roomId, channelIdRef.current, voiceMode);
           startSignalPolling(roomId, channelIdRef.current, voiceMode);
+          // Broadcast our voice mode (legacy path)
+          await sendSignal(roomId, channelIdRef.current, 'voice-mode', { enabled: voiceMode });
+
         } else if (data?.added_to_queue || data?.status === 'added_to_queue') {
           startMatchPolling(genderPreference, voiceMode);
         }
@@ -716,7 +733,11 @@ export function useVideoChat() {
     setIsVoiceMode(newVoiceMode);
     // Re-acquire stream with new constraints
     await getLocalStream(newVoiceMode);
-  }, [getLocalStream]);
+    // Notify partner of voice mode change
+    if (roomIdRef.current && channelIdRef.current) {
+      await sendSignal(roomIdRef.current, channelIdRef.current, 'voice-mode', { enabled: newVoiceMode });
+    }
+  }, [getLocalStream, sendSignal]);
 
   // Restart camera preview (called when screen is focused)
   const restartPreview = useCallback(async () => {
@@ -742,6 +763,7 @@ export function useVideoChat() {
     isMuted,
     isCameraOff,
     isVoiceMode,
+    partnerIsVoiceMode,
     skipPenaltyCount,
     showCapPopup,
     totalMinutes,

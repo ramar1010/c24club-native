@@ -37,6 +37,20 @@ serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
+    // Helper to invoke internal edge functions with service-role auth
+    const invokeFunction = async (name: string, body: unknown) => {
+      const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/${name}`;
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        },
+        body: JSON.stringify(body),
+      });
+      return resp.json();
+    };
+
     // ── Fetch invite ──────────────────────────────────────────────────────────
     const { data: invite, error: inviteErr } = await supabaseAdmin
       .from("direct_call_invites")
@@ -75,24 +89,23 @@ serve(async (req: Request) => {
         );
       }
 
-      await supabaseAdmin.functions.invoke("send-push-notification", {
-        body: {
-          user_id: invite.invitee_id,
-          title: `📹 ${callerName} wants to video chat!`,
-          body: "Tap to accept the call before it expires",
-          notification_type: "incoming_direct_call",
-          cooldown_minutes: 0,
-          channel_id: "incoming_calls",
-          priority: "high",
-          data: {
-            screen: "incoming-call",
-            type: "incoming_direct_call",
-            inviteId: invite.id,
-            inviterId: invite.inviter_id,
-            inviterName: callerName,
-            ...(callerImage ? { inviterImage: callerImage } : {}),
-            expiresAt: invite.expires_at,
-          },
+      await invokeFunction("send-push-notification", {
+        user_id: invite.invitee_id,
+        title: `📹 ${callerName} wants to video chat!`,
+        body: "Tap to accept the call before it expires",
+        notification_type: "incoming_direct_call",
+        cooldown_minutes: 0,
+        channel_id: "incoming_calls",
+        priority: "high",
+        force_send: true,
+        data: {
+          screen: "incoming-call",
+          type: "incoming_direct_call",
+          inviteId: invite.id,
+          inviterId: invite.inviter_id,
+          inviterName: callerName,
+          ...(callerImage ? { inviterImage: callerImage } : {}),
+          expiresAt: invite.expires_at,
         },
       });
 
@@ -116,20 +129,17 @@ serve(async (req: Request) => {
 
       const screen = conv?.id ? `/messages/${conv.id}` : "/discover";
 
-      await supabaseAdmin.functions.invoke("send-push-notification", {
-        body: {
-          user_id: inviteeId,
-          title: `📞 Missed call from ${callerName}`,
-          body: `${callerName} tried to video call you — tap to call back!`,
-          // Rate-limit: max 3 per caller per hour (20 min cooldown between each)
-          notification_type: `missed_direct_call_${inviterId}`,
-          cooldown_minutes: 20,
-          data: {
-            screen,
-            type: "missed_direct_call",
-            inviterId,
-            inviteId: invite.id,
-          },
+      await invokeFunction("send-push-notification", {
+        user_id: inviteeId,
+        title: `📞 Missed call from ${callerName}`,
+        body: `${callerName} tried to video call you — tap to call back!`,
+        notification_type: `missed_direct_call_${inviterId}`,
+        cooldown_minutes: 20,
+        data: {
+          screen,
+          type: "missed_direct_call",
+          inviterId,
+          inviteId: invite.id,
         },
       });
 

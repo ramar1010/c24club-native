@@ -222,7 +222,7 @@ Deno.serve(async (req) => {
                 supabase.functions.invoke("send-push-notification", {
                   body: {
                     user_id: user.id,
-                    title: "💬 A guy is looking for a video chat!",
+                    title: "💰 Money Awaits - A guy is looking to video chat!",
                     body: "Tap to join and start chatting now!",
                     data: { deepLink: "/(tabs)/chat" },
                     notification_type: "male_search_every",

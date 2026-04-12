@@ -196,10 +196,16 @@ serve(async (req) => {
       }
 
       console.log("[verify-gift] STEP 5 — recording gift transaction");
-      // Record gift transaction (non-fatal) — columns: minutes_amount, price_cents
+      // Record gift transaction (non-fatal) — using correct schema columns
       const { error: giftTxError } = await supabaseAdmin
         .from("gift_transactions")
-        .insert({ sender_id: user.id, recipient_id, minutes_amount: minutesToGift, price_cents: Math.round(cashValue * 100) });
+        .insert({
+          sender_id: user.id,
+          recipient_id,
+          minutes: minutesToGift,
+          cash_value: cashValue,
+          status: 'completed',
+        });
       if (giftTxError) console.warn("[verify-gift] STEP 5 — gift_transactions insert error:", giftTxError.message);
       else console.log("[verify-gift] STEP 5 — gift_transactions recorded ✅");
 

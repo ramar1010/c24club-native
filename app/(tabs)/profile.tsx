@@ -10,6 +10,7 @@ import {
   Image,
   TextInput,
   Share,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -76,6 +77,7 @@ interface MemberRedemption {
   shipping_state: string | null;
   shipping_zip: string | null;
   shipping_country: string | null;
+  shipping_tracking_url: string | null;
 }
 
 interface GiftTransaction {
@@ -769,7 +771,7 @@ export default function ProfileScreen() {
             <Text style={styles.progressLabel}>
               {isMaxed
                 ? `Maxed out at ${currentCE}% — keep chatting to maintain it!`
-                : `${progress} / ${threshold} minutes → next +5% boost (currently ${currentCE}%)`}
+                : `${progress} / ${threshold} minutes → next +${isVip ? "10" : "5"}% boost (currently ${currentCE}%)`}
             </Text>
           </View>
 
@@ -865,6 +867,24 @@ export default function ProfileScreen() {
                             </Text>
                           </TouchableOpacity>
                         )}
+
+                        {/* Tracking link for shipped orders */}
+                        {redemption.status === "Order shipped" &&
+                          redemption.shipping_tracking_url ? (
+                          <TouchableOpacity
+                            style={styles.trackingLinkBtn}
+                            activeOpacity={0.75}
+                            onPress={() =>
+                              Linking.openURL(redemption.shipping_tracking_url!)
+                            }
+                          >
+                            <Truck size={13} color="#22C55E" />
+                            <Text style={styles.trackingLinkText}>
+                              Track My Package →
+                            </Text>
+                          </TouchableOpacity>
+                        ) : null}
+
                       </View>
                     </View>
                   </View>
@@ -1104,27 +1124,50 @@ export default function ProfileScreen() {
                   <Text style={styles.ceInfoBold}>Chance Enhancer (CE)</Text> increases the probability
                   that your spin wins a physical reward instead of minutes.
                 </Text>
-                <Text style={[styles.ceInfoText, { marginBottom: 12 }]}>
-                  Your CE starts at <Text style={styles.ceInfoBold}>0%</Text> and increases by{" "}
-                  <Text style={styles.ceInfoBold}>+5%</Text> for every{" "}
-                  <Text style={styles.ceInfoBold}>{threshold} minutes</Text> you earn chatting.
+
+                {/* Growth */}
+                <Text style={[styles.ceInfoText, { marginBottom: 4 }]}>
+                  <Text style={styles.ceInfoBold}>📈 Growth</Text>
                 </Text>
                 <Text style={[styles.ceInfoText, { marginBottom: 12 }]}>
-                  The maximum CE is{" "}
-                  <Text style={styles.ceInfoBold}>{cap}%</Text>
-                  {isVip ? " (VIP cap)" : " (standard cap)"}.
+                  {isVip
+                    ? `Your CE grows by +10% for every 150 minutes of chat time (VIP). Minimum CE: 15%, max: 45%.`
+                    : `Your CE grows by +5% for every 200 minutes of chat time. Minimum CE: 5%, max: 25%.`}
+                </Text>
+
+                {/* Decay */}
+                <Text style={[styles.ceInfoText, { marginBottom: 4 }]}>
+                  <Text style={styles.ceInfoBold}>📉 Inactivity Decay</Text>
                 </Text>
                 <Text style={[styles.ceInfoText, { marginBottom: 12 }]}>
-                  When you win a physical reward in a spin, your CE{" "}
-                  <Text style={styles.ceInfoBold}>resets back to 0%</Text> and you start building again.
+                  {isVip
+                    ? `Miss a day and your CE decays by 50% — but never below the 15% VIP floor.`
+                    : `Miss a day and your CE decays by 60% — but never below the 5% minimum.`}
+                  {" "}Log in daily to protect your boost!
+                </Text>
+
+                {/* Where it applies */}
+                <Text style={[styles.ceInfoText, { marginBottom: 4 }]}>
+                  <Text style={styles.ceInfoBold}>🎰 Where CE Applies</Text>
                 </Text>
                 <Text style={[styles.ceInfoText, { marginBottom: 12 }]}>
-                  Keep chatting to boost your chances — the more you chat, the higher your odds!
+                  CE adds to the base win rate on Rare and Legendary spins:{"\n"}
+                  • Rare: 5% base + your CE{"\n"}
+                  • Legendary: 2% base + your CE{"\n"}
+                  Also applies to Gift Card and VIP spins.
                 </Text>
+
+                {/* Current status */}
+                <Text style={[styles.ceInfoText, { marginBottom: 12 }]}>
+                  Your current CE is{" "}
+                  <Text style={styles.ceInfoBold}>{currentCE}%</Text>
+                  {isMaxed ? " — maxed out, keep chatting to maintain it!" : ` — ${threshold - progress} more minutes to your next boost.`}
+                </Text>
+
                 {isVip && (
                   <View style={styles.ceInfoVipBadge}>
                     <Star size={12} color="#FACC15" fill="#FACC15" />
-                    <Text style={styles.ceInfoVipText}>VIP members reach max CE faster (150 min/boost) and have a higher cap (45%)</Text>
+                    <Text style={styles.ceInfoVipText}>VIP: faster growth (150 min), higher cap (45%), lower decay (50%)</Text>
                   </View>
                 )}
               </View>
@@ -1931,6 +1974,17 @@ const styles = StyleSheet.create({
   },
   changeAddressBtnText: {
     color: "#3B82F6",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  trackingLinkBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+    gap: 5,
+  },
+  trackingLinkText: {
+    color: "#22C55E",
     fontSize: 13,
     fontWeight: "600",
   },

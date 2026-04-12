@@ -85,47 +85,25 @@ function SocialCircle({ platform, username }: SocialCircleProps) {
 
 interface PinnedSocialsDisplayProps {
   socials: string[];
-  showSendCash?: boolean;
-  onSendCash?: () => void;
-  giftPulseAnim?: Animated.Value;
 }
 
 export function PinnedSocialsDisplay({
   socials,
-  showSendCash = false,
-  onSendCash,
-  giftPulseAnim,
 }: PinnedSocialsDisplayProps) {
-  const hasSocials = socials && socials.length > 0;
-  const hasContent = hasSocials || showSendCash;
-  if (!hasContent) return null;
+  if (!socials || socials.length === 0) return null;
 
-  const parsed = hasSocials
-    ? socials
-        .map(parseSocialEntry)
-        .filter((e): e is { platform: string; username: string } => e !== null)
-        .slice(0, 1) // show only the first pinned social
-    : [];
+  const parsed = socials
+    .map(parseSocialEntry)
+    .filter((e): e is { platform: string; username: string } => e !== null)
+    .slice(0, 1); // show only the first pinned social
+
+  if (parsed.length === 0) return null;
 
   return (
     <View style={styles.container}>
       {parsed.map((entry, i) => (
         <SocialCircle key={`${entry.platform}-${i}`} platform={entry.platform} username={entry.username} />
       ))}
-
-      {showSendCash && (
-        <TouchableOpacity onPress={onSendCash} activeOpacity={0.85} style={styles.sendCashBtn}>
-          <Animated.View style={[
-            styles.sendCashInner,
-            giftPulseAnim ? { transform: [{ scale: giftPulseAnim }] } : undefined,
-          ]}>
-            <View style={styles.sendCashCircle}>
-              <Text style={styles.sendCashEmoji}>🎁</Text>
-            </View>
-            <Text style={styles.sendCashLabel}>Send Cash</Text>
-          </Animated.View>
-        </TouchableOpacity>
-      )}
     </View>
   );
 }
@@ -157,36 +135,5 @@ const styles = StyleSheet.create({
   },
   circleEmoji: {
     fontSize: 22,
-  },
-  sendCashBtn: {
-    alignItems: 'center',
-  },
-  sendCashInner: {
-    alignItems: 'center',
-  },
-  sendCashCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    borderWidth: 2,
-    borderColor: '#FACC15',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#FACC15',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.7,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  sendCashEmoji: {
-    fontSize: 22,
-  },
-  sendCashLabel: {
-    color: '#FACC15',
-    fontSize: 9,
-    fontWeight: '700',
-    marginTop: 3,
-    textAlign: 'center',
   },
 });

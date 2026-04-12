@@ -19,8 +19,10 @@ import { CallProvider } from "@/contexts/CallContext";
 import { CallInviteListener } from "@/components/video-call/CallInviteListener";
 import { usePushNotifications } from "@/lib/usePushNotifications";
 import { useDmToast } from "@/hooks/useDmToast";
+import { useGiftToast } from "@/hooks/useGiftToast";
 import { useBanCheck } from "@/hooks/useBanCheck";
 import BannedScreen from "@/components/BannedScreen";
+import BatteryOptimizationPrompt from "@/components/BatteryOptimizationPrompt";
 import { useRedemptionNotifications } from "@/hooks/useRedemptionNotifications";
 
 // Custom toast config for DM notifications
@@ -58,6 +60,40 @@ const toastConfig: ToastConfig = {
         </Text>
       </View>
       <Text style={{ color: '#EF4444', fontSize: 12, marginLeft: 8, marginTop: 2 }}>Open</Text>
+    </Pressable>
+  ),
+  giftToast: ({ text1, text2 }) => (
+    <Pressable
+      style={{
+        width: '92%',
+        backgroundColor: '#1E1E3A',
+        borderLeftWidth: 4,
+        borderLeftColor: '#FACC15',
+        borderRadius: 10,
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+        flexDirection: 'row',
+        alignItems: 'center',
+        ...Platform.select({
+          native: {
+            shadowColor: '#FACC15',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            elevation: 8,
+          },
+        }),
+      }}
+    >
+      <Text style={{ fontSize: 28, marginRight: 12 }}>🎁</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: '#FACC15', fontWeight: '700', fontSize: 14, marginBottom: 3 }}>
+          {text1}
+        </Text>
+        <Text style={{ color: '#A0A0B8', fontSize: 13, lineHeight: 19 }}>
+          {text2}
+        </Text>
+      </View>
     </Pressable>
   ),
 };
@@ -118,6 +154,7 @@ function RootLayoutInner({ colorScheme, loaded }: { colorScheme: any; loaded: bo
 
   // In-app DM toast notifications
   useDmToast();
+  useGiftToast();
 
   // Realtime reward redemption status notifications
   useRedemptionNotifications(session?.user?.id);
@@ -164,6 +201,7 @@ function RootLayoutInner({ colorScheme, loaded }: { colorScheme: any; loaded: bo
       <CallInviteListener />
       <StatusBar style="auto" />
       <Toast config={toastConfig} />
+      <BatteryOptimizationPrompt isAuthenticated={!!session} />
     </GluestackInitializer>
   );
 }

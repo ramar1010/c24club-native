@@ -4,7 +4,11 @@ import { Platform } from 'react-native';
 let iap: any = null;
 
 if (Platform.OS !== 'web') {
-  iap = require('react-native-iap');
+  try {
+    iap = require('react-native-iap');
+  } catch (e) {
+    console.warn('[IAP] react-native-iap native module not available (Expo Go / web preview). IAP features disabled.');
+  }
 }
 
 export const initConnection = (...args: any[]) => iap?.initConnection?.(...args) ?? Promise.resolve();

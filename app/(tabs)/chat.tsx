@@ -86,6 +86,7 @@ export default function ChatScreen() {
     isMuted,
     isCameraOff,
     isVoiceMode,
+    partnerIsVoiceMode,
     skipPenaltyCount,
     showCapPopup,
     totalMinutes,
@@ -368,24 +369,17 @@ export default function ChatScreen() {
   useEffect(() => {
     if (showGiftIcon) {
       giftPulseAnim.setValue(1);
-      let count = 0;
-      const runPulse = () => {
-        if (count >= 3) {
-          giftPulseAnim.setValue(1);
-          return;
-        }
-        giftPulseRef.current = Animated.sequence([
-          Animated.timing(giftPulseAnim, { toValue: 1.15, duration: 350, useNativeDriver: true }),
-          Animated.timing(giftPulseAnim, { toValue: 1, duration: 350, useNativeDriver: true }),
-        ]);
-        giftPulseRef.current.start(() => {
-          count++;
-          runPulse();
-        });
-      };
-      runPulse();
+      giftPulseRef.current = Animated.loop(
+        Animated.sequence([
+          Animated.timing(giftPulseAnim, { toValue: 1.2, duration: 400, useNativeDriver: true }),
+          Animated.timing(giftPulseAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+          Animated.delay(700),
+        ])
+      );
+      giftPulseRef.current.start();
       return () => {
         giftPulseRef.current?.stop();
+        giftPulseAnim.setValue(1);
       };
     }
   }, [showGiftIcon]);
@@ -514,6 +508,20 @@ export default function ChatScreen() {
         </View>
       )}
 
+      {/* Partner Voice Mode Overlay — shown when partner has camera off (voice only) */}
+      {remoteStream && partnerIsVoiceMode && (
+        <View style={styles.partnerVoiceOverlay} pointerEvents="none">
+          <LinearGradient
+            colors={['#7C3AED', '#4F46E5']}
+            style={styles.partnerVoiceAvatarCircle}
+          >
+            <Text style={{ fontSize: 48 }}>🎙️</Text>
+          </LinearGradient>
+          <Text style={styles.partnerVoiceTitle}>Voice Only</Text>
+          <Text style={styles.partnerVoiceSubtitle}>Your match has their camera off</Text>
+        </View>
+      )}
+
       {/* Pre-blur overlay — fades out after 4 s on every new partner */}
       {isBlurred && (
         <Animated.View
@@ -524,7 +532,17 @@ export default function ChatScreen() {
           pointerEvents="none"
         >
           <BlurView
-            intensity={90}
+            intensity={100}
+            tint="dark"
+            style={StyleSheet.absoluteFillObject}
+          />
+          <BlurView
+            intensity={100}
+            tint="dark"
+            style={StyleSheet.absoluteFillObject}
+          />
+          <BlurView
+            intensity={100}
             tint="dark"
             style={StyleSheet.absoluteFillObject}
           />
@@ -589,13 +607,26 @@ export default function ChatScreen() {
         <Flag size={18} color="#EF4444" />
       </TouchableOpacity>
 
-      {/* Partner's VIP pinned socials + Send Cash — shown to their partner only */}
+      {/* Partner's VIP pinned socials — shown to their partner only */}
       <PinnedSocialsDisplay
         socials={partnerSocials}
-        showSendCash={showGiftIcon && callState === 'connected'}
-        onSendCash={() => setShowGiftOverlay(true)}
-        giftPulseAnim={giftPulseAnim}
       />
+
+      {/* Pulsing Gift button — shown when partner is VIP */}
+      {showGiftIcon && callState === 'connected' && (
+        <TouchableOpacity
+          style={styles.giftBtn}
+          onPress={() => setShowGiftOverlay(true)}
+          activeOpacity={0.85}
+        >
+          <Animated.View style={[styles.giftBtnInner, { transform: [{ scale: giftPulseAnim }] }]}>
+            <View style={styles.giftBtnCircle}>
+              <Text style={styles.giftBtnEmoji}>🎁</Text>
+            </View>
+            <Text style={styles.giftBtnLabel}>Gift</Text>
+          </Animated.View>
+        </TouchableOpacity>
+      )}
 
       {/* Local PiP */}
       <View style={styles.localPip}>
@@ -1805,5 +1836,77 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
     marginTop: 12,
+  },
+
+  // ─── Partner Voice Mode Overlay ───────────────────────────────────────────
+  partnerVoiceOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  partnerVoiceAvatarCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  partnerVoiceTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  partnerVoiceSubtitle: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+
+  // ─── Gift button ───────────────────────────────────────────────────────────
+  giftBtn: {
+    position: 'absolute',
+    top: 130,
+    left: 12,
+    zIndex: 100,
+    alignItems: 'center',
+  },
+  giftBtnInner: {
+    alignItems: 'center',
+  },
+  giftBtnCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    borderWidth: 2,
+    borderColor: '#FACC15',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#FACC15',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.85,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  giftBtnEmoji: {
+    fontSize: 22,
+  },
+  giftBtnLabel: {
+    color: '#FACC15',
+    fontSize: 9,
+    fontWeight: '700',
+    marginTop: 3,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
 });

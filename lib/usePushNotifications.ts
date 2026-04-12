@@ -34,6 +34,87 @@ export function usePushNotifications() {
   const router = useRouter();
   const notificationListener = useRef<Notifications.EventSubscription | null>(null);
   const responseListener = useRef<Notifications.EventSubscription | null>(null);
+  const coldLaunchHandled = useRef(false);
+
+  // ── Helper: handle a notification response (tap) ───────────────────────────
+  const handleNotificationResponse = async (response: Notifications.NotificationResponse) => {
+    const data = response.notification.request.content.data as Record<string, any>;
+    const type = data?.type as string | undefined;
+    console.log('[usePushNotifications] Notification tapped, type:', type, 'data:', JSON.stringify(data));
+
+    // ── Incoming direct call tap ───────────────────────────────────────────
+    if (type === 'incoming_direct_call') {
+      const inviteId = data?.inviteId as string | undefined;
+      if (!inviteId) return;
+
+      try {
+        const { data: invite } = await supabase
+          .from('direct_call_invites')
+          .select('status, expires_at')
+          .eq('id', inviteId)
+          .maybeSingle();
+
+        if (
+          !invite ||
+          invite.status !== 'pending' ||
+          new Date(invite.expires_at) < new Date()
+        ) {
+          console.log('[usePushNotifications] Incoming call invite expired or no longer pending');
+          DeviceEventEmitter.emit('incoming-call-expired', { inviteId });
+          return;
+        }
+
+        DeviceEventEmitter.emit('open-incoming-call', {
+          inviteId: data.inviteId,
+          inviterId: data.inviterId,
+          inviterName: data.inviterName,
+          inviterImage: data.inviterImage ?? null,
+          expiresAt: data.expiresAt,
+        });
+      } catch (err) {
+        console.warn('[usePushNotifications] Error validating incoming call invite:', err);
+      }
+      return;
+    }
+
+    // ── VIP gifting notification tap → /vip with gifting highlight ─────────
+    if (type === 'vip_gifting_reminder' || type === 'vip_gift_attempt') {
+      try {
+        router.push({ pathname: '/vip', params: { highlight: 'gifting' } } as any);
+      } catch (err) {
+        console.warn('[usePushNotifications] VIP nav error:', err);
+      }
+      return;
+    }
+
+    // ── Missed call tap → navigate to screen ──────────────────────────────
+    if (type === 'missed_direct_call') {
+      const screen = data?.screen as string | undefined;
+      if (screen) {
+        try {
+          router.push(screen as any);
+        } catch (err) {
+          console.warn('[usePushNotifications] Missed call nav error:', err);
+        }
+      }
+      return;
+    }
+
+    // ── Generic: navigate to data.screen or data.deepLink ─────────────────
+    if (data?.screen) {
+      try {
+        router.push(data.screen as any);
+      } catch (err) {
+        console.warn('[usePushNotifications] Navigation error:', err);
+      }
+    } else if (data?.deepLink) {
+      try {
+        router.push(data.deepLink as any);
+      } catch (err) {
+        console.warn('[usePushNotifications] DeepLink navigation error:', err);
+      }
+    }
+  };
 
   useEffect(() => {
     // Skip on web or simulators/emulators
@@ -122,6 +203,17 @@ export function usePushNotifications() {
 
     register();
 
+    // ── Cold-launch handler: catches taps that opened the app from killed state
+    if (!coldLaunchHandled.current) {
+      coldLaunchHandled.current = true;
+      Notifications.getLastNotificationResponseAsync().then((response) => {
+        if (response) {
+          // Small delay to ensure the router is fully mounted
+          setTimeout(() => handleNotificationResponse(response), 300);
+        }
+      }).catch(console.warn);
+    }
+
     // 5. Foreground listener — just log (handler above controls visibility)
     notificationListener.current = Notifications.addNotificationReceivedListener(
       (notification) => {
@@ -130,85 +222,10 @@ export function usePushNotifications() {
       }
     );
 
-    // 6. Response listener — user tapped a notification
+    // 6. Response listener — user tapped a notification (app in bg/fg)
     responseListener.current = Notifications.addNotificationResponseReceivedListener(
       async (response) => {
-        const data = response.notification.request.content.data as Record<string, any>;
-        const type = data?.type as string | undefined;
-        console.log('[usePushNotifications] Notification tapped, type:', type, 'data:', JSON.stringify(data));
-
-        // ── Incoming direct call tap ─────────────────────────────────────────
-        if (type === 'incoming_direct_call') {
-          const inviteId = data?.inviteId as string | undefined;
-          if (!inviteId) return;
-
-          try {
-            const { data: invite } = await supabase
-              .from('direct_call_invites')
-              .select('status, expires_at')
-              .eq('id', inviteId)
-              .maybeSingle();
-
-            if (
-              !invite ||
-              invite.status !== 'pending' ||
-              new Date(invite.expires_at) < new Date()
-            ) {
-              console.log('[usePushNotifications] Incoming call invite expired or no longer pending');
-              DeviceEventEmitter.emit('incoming-call-expired', { inviteId });
-              return;
-            }
-
-            DeviceEventEmitter.emit('open-incoming-call', {
-              inviteId: data.inviteId,
-              inviterId: data.inviterId,
-              inviterName: data.inviterName,
-              inviterImage: data.inviterImage ?? null,
-              expiresAt: data.expiresAt,
-            });
-          } catch (err) {
-            console.warn('[usePushNotifications] Error validating incoming call invite:', err);
-          }
-          return;
-        }
-
-        // ── VIP gifting notification tap → /vip with gifting highlight ───────
-        if (type === 'vip_gifting_reminder' || type === 'vip_gift_attempt') {
-          try {
-            router.push({ pathname: '/vip', params: { highlight: 'gifting' } } as any);
-          } catch (err) {
-            console.warn('[usePushNotifications] VIP nav error:', err);
-          }
-          return;
-        }
-
-        // ── Missed call tap → navigate to conversation or discover ──────────
-        if (type === 'missed_direct_call') {
-          const screen = data?.screen as string | undefined;
-          if (screen) {
-            try {
-              router.push(screen as any);
-            } catch (err) {
-              console.warn('[usePushNotifications] Missed call nav error:', err);
-            }
-          }
-          return;
-        }
-
-        // ── Generic: navigate to data.screen or data.deepLink ────────────────
-        if (data?.screen) {
-          try {
-            router.push(data.screen as any);
-          } catch (err) {
-            console.warn('[usePushNotifications] Navigation error:', err);
-          }
-        } else if (data?.deepLink) {
-          try {
-            router.push(data.deepLink as any);
-          } catch (err) {
-            console.warn('[usePushNotifications] DeepLink navigation error:', err);
-          }
-        }
+        await handleNotificationResponse(response);
       }
     );
 

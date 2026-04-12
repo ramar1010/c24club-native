@@ -16,6 +16,11 @@ import { Eye, EyeOff } from "lucide-react-native";
 import { supabase } from "@/lib/supabase";
 import FallingGifts from "@/components/FallingGifts";
 import { useAuth } from "@/contexts/AuthContext";
+import * as WebBrowser from "expo-web-browser";
+import * as AuthSession from "expo-auth-session";
+import * as AppleAuthentication from "expo-apple-authentication";
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -93,16 +98,65 @@ export default function SignUpScreen() {
 
   const handleOAuth = async (provider: "google" | "apple") => {
     setError("");
-    const { error: authError } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: Platform.OS === "web"
-          ? window.location.origin
-          : "myapp://",
-      },
-    });
-    if (authError) {
-      setError(authError.message);
+
+    // Native Apple Sign In (iOS only)
+    if (provider === "apple") {
+      try {
+        const credential = await AppleAuthentication.signInAsync({
+          requestedScopes: [
+            AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+            AppleAuthentication.AppleAuthenticationScope.EMAIL,
+          ],
+        });
+        const identityToken = credential.identityToken;
+        if (!identityToken) {
+          setError("Apple Sign In failed — no identity token.");
+          return;
+        }
+        const { error: authError } = await supabase.auth.signInWithIdToken({
+          provider: "apple",
+          token: identityToken,
+        });
+        if (authError) setError(authError.message);
+      } catch (e: any) {
+        if (e.code !== "ERR_REQUEST_CANCELED") {
+          setError(e.message || "Apple Sign In failed");
+        }
+      }
+      return;
+    }
+
+    // Google OAuth via browser
+    try {
+      const redirectUrl = AuthSession.makeRedirectUri({ scheme: "c24club", path: "auth/callback" });
+
+      const { data, error: authError } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: redirectUrl,
+          skipBrowserRedirect: true,
+        },
+      });
+
+      if (authError) {
+        setError(authError.message);
+        return;
+      }
+
+      if (!data?.url) return;
+
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+
+      if (result.type === "success" && result.url) {
+        const url = new URL(result.url);
+        const code = url.searchParams.get("code");
+        if (code) {
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          if (exchangeError) setError(exchangeError.message);
+        }
+      }
+    } catch (e: any) {
+      setError(e.message || "OAuth sign-in failed");
     }
   };
 

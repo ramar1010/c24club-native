@@ -592,11 +592,6 @@ isUsingSavedAddress ? styles.addressOptionSelected : null
               <Text style={styles.headerTitle}>{(reward.rarity || 'common').toUpperCase()}</Text>
             </VStack>
             
-            <View style={styles.ceBadge}>
-              <Star size={14} color="#FACC15" fill="#FACC15" />
-              <Text style={styles.ceText}>Chance Enhancer: {currentCE}%</Text>
-            </View>
-
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
               <X size={20} color="#71717A" />
             </TouchableOpacity>
@@ -656,7 +651,10 @@ isUsingSavedAddress ? styles.addressOptionSelected : null
                       <Text style={styles.infoValue}>{reward.minutes_cost} MINS</Text>
                     </VStack>
                     <View style={styles.oddsBadge}>
-                      <Text style={styles.oddsText}>{winChance}% Win Chance</Text>
+                      <Star size={12} color="#FACC15" fill="#FACC15" style={{ marginRight: 4 }} />
+                      <Text style={styles.oddsText}>
+                        {winChance}% Win Chance{currentCE > 0 ? ` (+${currentCE}% CE)` : ''}
+                      </Text>
                     </View>
                   </HStack>
                 </View>

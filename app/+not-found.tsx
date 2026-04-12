@@ -1,21 +1,45 @@
-import { LinkText } from "@/components/ui/link";
-import { Text } from "@/components/ui/text";
-import { VStack } from "@/components/ui/vstack";
 import { Link, Stack } from "expo-router";
-import { SafeAreaView } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function NotFoundScreen() {
   return (
     <>
       <Stack.Screen options={{ title: "Oops!" }} />
-      <SafeAreaView>
-        <VStack>
-          <Text size="2xl">This screen doesn&apos;t exist.</Text>
-          <Link href="/">
-            <LinkText>Go to home screen!</LinkText>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.inner}>
+          <Text style={styles.title}>This screen doesn't exist.</Text>
+          <Link href="/" style={styles.link}>
+            <Text style={styles.linkText}>Go to home screen!</Text>
           </Link>
-        </VStack>
+        </View>
       </SafeAreaView>
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#1A1A2E",
+  },
+  inner: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  title: {
+    fontSize: 20,
+    color: "#FFFFFF",
+    marginBottom: 16,
+  },
+  link: {
+    marginTop: 8,
+  },
+  linkText: {
+    fontSize: 16,
+    color: "#EF4444",
+    textDecorationLine: "underline",
+  },
+});

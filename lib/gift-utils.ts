@@ -42,14 +42,9 @@ export const checkIsVip = async (userId: string): Promise<boolean> => {
  */
 export const checkIsPremiumVip = async (userId: string): Promise<boolean> => {
   try {
-    const { data, error } = await supabase
-      .from("member_minutes")
-      .select("is_vip, admin_granted_vip")
-      .eq("user_id", userId)
-      .maybeSingle();
+    const { data, error } = await supabase.rpc("is_user_vip", { _user_id: userId });
     if (error) throw error;
-    if (!data) return false;
-    return data.admin_granted_vip === true || data.is_vip === true;
+    return !!data;
   } catch (err) {
     console.error("Error checking VIP status:", err);
     return false;
