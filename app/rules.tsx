@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { ArrowLeft } from "lucide-react-native";
+import { FooterLinks } from "@/components/FooterLinks";
 
 export default function RulesScreen() {
   const router = useRouter();
@@ -134,6 +135,7 @@ export default function RulesScreen() {
         </Text>
 
         <View style={styles.spacer} />
+        <FooterLinks />
       </ScrollView>
     </SafeAreaView>
   );

@@ -27,6 +27,7 @@ import { Instagram, Music, DollarSign } from "lucide-react-native";
 import { Alert, Linking } from "react-native";
 import { notifyGiftAttempt } from "@/lib/gift-utils";
 import { GiftCelebration } from "@/components/GiftCelebration";
+import { FooterLinks } from "@/components/FooterLinks";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 // Use same card size as discover
@@ -118,17 +119,17 @@ const GUIDE_SECTIONS = [
   {
     title: "🎥  Video Chatting & Collecting Minutes",
     items: [
-      { q: "How do I collect minutes?", a: 'Tap the Chat tab and press "Start Chatting". You earn minutes for every video chat you complete. The longer you stay in a chat, the more you earn. Minutes are credited automatically after each session.' },
+      { q: "How do I collect minutes?", a: 'Tap the Chat tab and press "Start Chatting". You earn minutes for every video chat you complete. The longer you stay in a chat, the more you earn. Minutes are credited automatically during video sessions.' },
       { q: "What are minutes used for?", a: "Minutes are your in-app currency. Use them to redeem items from the Reward Store, spin for rare or legendary prizes, or gift them to other members." },
       { q: "What happens if I skip too fast?", a: "Skipping a chat too quickly (under a few seconds) will deduct minutes as a penalty. Stay in chats a bit longer to keep earning!" },
-      { q: "Is there a collection cap?", a: "Yes. There is a daily collection cap to keep things fair. Once you hit the cap, you can still chat but won't earn additional minutes until the next day. VIP members get a higher cap." },
+      { q: "Is there a collection cap?", a: "Yes. There is a daily collection cap to keep things fair. Once you hit the cap, you can still chat but won't earn additional minutes until the next user you connect to. VIP members get a higher cap upwards to 30 mins per user." },
     ],
   },
   {
     title: "🎁  Reward Store & Redeeming",
     items: [
       { q: "How do I redeem rewards?", a: 'Go to the Rewards tab. Browse available items and tap "Redeem" on any item you can afford. For physical items, you\'ll be asked to enter a shipping address.' },
-      { q: "What types of rewards are available?", a: "Rewards include physical fashion items (clothing, accessories, bags) and digital items. Browse by category using the filter tabs at the top of the Rewards screen." },
+      { q: "What types of rewards are available?", a: "Rewards include physical fashion items (clothing, accessories, bags), cash and digital items. Browse by category using the filter tabs at the top of the Rewards screen." },
       { q: "What are reward rarities?", a: "Items come in three rarities — Common, Rare, and Legendary. Common items can be redeemed directly. Rare and Legendary items require a Spin to Win." },
       { q: "How does shipping work?", a: "After winning or redeeming a physical item, you'll fill in your shipping details. You can save a default address in your profile for faster checkout next time." },
     ],
@@ -136,36 +137,34 @@ const GUIDE_SECTIONS = [
   {
     title: "🎰  Spin to Win",
     items: [
-      { q: "Are there different types of Spin to Win?", a: "Yes — Rare spins cost fewer minutes and have a 5% base win chance. Legendary spins cost more and have a 2% base win chance but offer higher-value items." },
-      { q: "What is the Chance Enhancer?", a: "The Chance Enhancer (CE) increases your win percentage on every spin. It builds up automatically as you chat. You can see your current CE % on the spin modal." },
-      { q: "Can I buy extra spins?", a: "You can keep spinning as long as you have enough minutes. There's no limit to how many times you can spin — each spin costs the listed minutes amount." },
+      { q: "Are there different types of Spin to Win?", a: "Yes — Rare spins cost fewer minutes and chance of winning is based off your Chance Enhancer %. Legendary spins cost more and chance of winning is also based off your Chance Enhancer % — these items are higher in value." },
+      { q: "What is the Chance Enhancer?", a: "The Chance Enhancer (CE) increases your win percentage on every spin. It builds up automatically as you chat. You can see your current CE % on the spin modal or in your profile page." },
     ],
   },
   {
     title: "⭐  VIP Membership",
     items: [
-      { q: "What are the VIP tiers?", a: "There are two VIP tiers — Standard VIP and Premium VIP. Both give access to gender filters, higher minute caps, and exclusive features. Premium VIP also includes a free re-spin on Legendary items." },
+      { q: "What are the VIP tiers?", a: "There are two VIP tiers — Basic VIP and Premium VIP. Both give access to gender filters, higher minute caps, and exclusive features. Premium VIP also includes a free re-spin on Legendary items & much more!" },
       { q: "What are gender filters?", a: "VIP members can filter who they match with in random video chats — choose Male, Female, or Both. Free users are matched randomly." },
-      { q: "What is Minute Unfreezing?", a: "If your minute collection is frozen due to skipping too fast, VIP members can unfreeze their balance instantly instead of waiting for the cooldown to expire." },
+      { q: "What is Minute Unfreezing?", a: "If your minute collection is frozen due to skipping too fast, VIP members can unfreeze their balance instantly instead of having a slow earn rate." },
     ],
   },
   {
     title: "📢  Ad Points & Promos",
     items: [
-      { q: "What are Ad Points?", a: "Watch short ads on the Rewards tab to earn Ad Points. Ad Points can be exchanged for minutes or used toward certain rewards." },
-      { q: "How do promos work?", a: "Special promos appear from time to time offering bonus minutes or exclusive items. Keep an eye on the home screen and your notifications for active promos." },
+      { q: "Ad Points & Promos", a: "Coming soon! Stay tuned for updates on Ad Points and Promos." },
     ],
   },
   {
     title: "🎯  Weekly Challenges",
     items: [
-      { q: "What are Weekly Challenges?", a: "Each week you get a set of chat challenges — like chatting a certain number of times or staying in chats for a total duration. Complete them to earn bonus minutes and rewards." },
+      { q: "Weekly Challenges", a: "Coming soon! Weekly Challenges are on their way." },
     ],
   },
   {
     title: "💝  Gifting Minutes",
     items: [
-      { q: "How do I gift minutes?", a: "On the Home or Discover tab, tap a member's profile card and select the gift icon. Choose how many minutes to send. The recipient gets notified instantly." },
+      { q: "How do I gift minutes?", a: "On the Home or Discover tab, tap a member's profile card and select the gift icon. Choose how many minutes to send. The recipient gets notified instantly. You can also gift in DMs, messages & Video Calls." },
       { q: "Can I see gifts I've received?", a: "Yes — your Profile tab shows your gift history and total minutes received from other members." },
     ],
   },
@@ -631,6 +630,8 @@ export default function HomeScreen() {
           <BookOpen size={18} color="#EF4444" style={{ marginRight: 8 }} />
           <Text style={styles.guideButtonText}>How To Guide</Text>
         </TouchableOpacity>
+
+        <FooterLinks />
 
         <View style={styles.bottomPad} />
       </ScrollView>

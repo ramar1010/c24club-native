@@ -554,35 +554,8 @@ export function useVideoChat() {
     const gp = genderPrefRef.current;
     const oldRoomId = roomIdRef.current;
 
-    // Flush any partial minutes via useCallMinutes
-    await flushMinutes();
-
-    // Stop polling
-    if (signalIntervalRef.current) { clearInterval(signalIntervalRef.current); signalIntervalRef.current = null; }
-    if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
-
-    // Clean up PC
-    cleanupPC();
-
-    // Notify backend
-    if (memberIdRef.current) {
-      try {
-        await supabase.functions.invoke('videocall-match', {
-          body: { type: 'disconnect', memberId: memberIdRef.current },
-        });
-      } catch (_) {}
-    }
-
-    // Clean up room signals
-    if (oldRoomId) {
-      try {
-        await supabase.from('room_signals').delete().eq('room_id', oldRoomId);
-      } catch (_) {}
-    }
-
-    // Reset session
+    // ✅ Reset UI immediately so the screen responds on the first frame
     partnerIdRef.current = null;
-    setPartnerId(null);
     roomIdRef.current = null;
     connectionStartTimeRef.current = null;
     sessionIdRef.current = generateUUID();
@@ -593,14 +566,36 @@ export function useVideoChat() {
       setRemoteStream(null);
       setPartnerGender(null);
       setPartnerTopics([]);
+      setPartnerId(null);
+      updateCallState('waiting');
     }
+
+    // Stop polling & clean up PC
+    if (signalIntervalRef.current) { clearInterval(signalIntervalRef.current); signalIntervalRef.current = null; }
+    if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
+    cleanupPC();
+
+    // 🔥 Run all backend cleanup in parallel (non-blocking relative to join)
+    const cleanupPromise = Promise.all([
+      flushMinutes(),
+      memberIdRef.current
+        ? supabase.functions.invoke('videocall-match', {
+            body: { type: 'disconnect', memberId: memberIdRef.current },
+          }).catch(() => {})
+        : Promise.resolve(),
+      oldRoomId
+        ? (async () => { try { await supabase.from('room_signals').delete().eq('room_id', oldRoomId); } catch (_) {} })()
+        : Promise.resolve(),
+    ]);
 
     autoReconnectingRef.current = false;
 
     // Jump straight back to waiting — no idle
     if (isMountedRef.current) {
       const vm = voiceMode !== undefined ? voiceMode : isVoiceModeRef.current;
-      await join(gp, vm);
+      // Start join immediately, let cleanup finish in background
+      join(gp, vm);
+      await cleanupPromise;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cleanupPC, flushMinutes, join]);

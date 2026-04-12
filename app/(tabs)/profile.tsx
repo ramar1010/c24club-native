@@ -46,6 +46,7 @@ import { FreezeModal } from "@/components/modals/FreezeModal";
 import { CashoutModal } from "@/components/modals/CashoutModal";
 import { VipSettingsOverlay } from "@/components/videocall/VipSettingsOverlay";
 import { FemaleVipBanner } from "@/components/FemaleVipBanner";
+import { FooterLinks } from "@/components/FooterLinks";
 import {
   Modal,
   ModalBackdrop,
@@ -1058,15 +1059,7 @@ export default function ProfileScreen() {
           </TouchableOpacity>
 
           {/* ── Links Row ────────────────────────────────────────────────── */}
-          <View style={styles.linksRow}>
-            <TouchableOpacity activeOpacity={0.7}>
-              <Text style={styles.linkText}>Community Rules</Text>
-            </TouchableOpacity>
-            <Text style={styles.linkSep}>·</Text>
-            <TouchableOpacity activeOpacity={0.7}>
-              <Text style={styles.linkText}>Privacy Policy</Text>
-            </TouchableOpacity>
-          </View>
+          <FooterLinks />
 
           {/* Version label */}
           <Text style={{ color: '#52525B', fontSize: 11, textAlign: 'center', marginTop: 12, marginBottom: 4 }}>

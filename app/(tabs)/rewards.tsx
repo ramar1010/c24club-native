@@ -43,6 +43,7 @@ import {
 import { CheckIcon } from "@/components/ui/icon";
 import { RewardSpinModal } from "@/components/modals/RewardSpinModal";
 import { CashoutChoiceModal } from "@/components/modals/CashoutChoiceModal";
+import { FooterLinks } from "@/components/FooterLinks";
 
 const CATEGORY_COLORS: Record<string, string> = {
   Fashion: "#EC4899",
@@ -531,6 +532,7 @@ isLocked ? styles.lockedButton : null,
           showsVerticalScrollIndicator={false}
           columnWrapperStyle={styles.columnWrapper}
           style={styles.flatList}
+          ListFooterComponent={<FooterLinks />}
         />
       )}
 

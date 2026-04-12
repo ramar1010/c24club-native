@@ -20,6 +20,7 @@ import { FemaleVipBanner } from "@/components/FemaleVipBanner";
 import { MemberProfileModal } from "@/components/MemberProfileModal";
 import { supabase } from "@/lib/supabase";
 import { DiscoverMember } from "@/types/members";
+import { FooterLinks } from "@/components/FooterLinks";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -326,6 +327,7 @@ export default function MessagesScreen() {
                 </Text>
               </View>
             }
+            ListFooterComponent={filtered.length > 0 ? <FooterLinks /> : null}
             contentContainerStyle={
               filtered.length === 0 ? styles.emptyContent : undefined
             }

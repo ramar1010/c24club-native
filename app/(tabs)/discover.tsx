@@ -61,6 +61,7 @@ import { DiscoverMember } from "@/types/members";
 import { getTimeAgo, isEffectivelyOnline } from "@/utils/member-utils";
 import { UserCard } from "@/components/UserCard";
 import { MemberProfileModal } from "@/components/MemberProfileModal";
+import { FooterLinks } from "@/components/FooterLinks";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const CARD_WIDTH = (SCREEN_WIDTH - 16 * 2 - 12) / 2;
@@ -955,6 +956,7 @@ filter === pill ? styles.filterPillTextActive : null,
             <Text style={styles.emptyGridText}>No members found</Text>
           </View>
         }
+        ListFooterComponent={<FooterLinks />}
       />
 
       <SelfieCaptureModal

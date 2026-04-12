@@ -40,6 +40,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { IAP_SUBSCRIPTIONS } from '@/lib/iap';
+import { FooterLinks } from '@/components/FooterLinks';
 
 const BASIC_PRICE_ID = 'price_1T9ygOA5n8uAZoY1tzoTfeMH';
 const PREMIUM_PRICE_ID = 'price_1T9yhEA5n8uAZoY1zwb5wVdp';
@@ -333,6 +334,8 @@ export default function VipUpsellScreen() {
             ? 'Subscriptions are available on the mobile app.'
             : 'Subscription auto-renews. Cancel anytime in your device settings.'}
         </Text>
+
+        <FooterLinks />
       </ScrollView>
     </SafeAreaView>
   );

@@ -18,6 +18,7 @@ import FallingGifts from "@/components/FallingGifts";
 import * as WebBrowser from "expo-web-browser";
 import * as AuthSession from "expo-auth-session";
 import * as AppleAuthentication from "expo-apple-authentication";
+import { FooterLinks } from "@/components/FooterLinks";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -261,6 +262,8 @@ export default function LoginScreen() {
               <Text style={styles.bottomLinkAction}>Sign Up</Text>
             </TouchableOpacity>
           </View>
+
+          <FooterLinks />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

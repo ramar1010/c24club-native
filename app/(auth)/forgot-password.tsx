@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { ArrowLeft, Mail } from "lucide-react-native";
 import { supabase } from "@/lib/supabase";
+import { FooterLinks } from "@/components/FooterLinks";
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -134,6 +135,8 @@ export default function ForgotPasswordScreen() {
               </TouchableOpacity>
             </>
           )}
+
+          <FooterLinks />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

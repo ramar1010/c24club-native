@@ -19,6 +19,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import * as WebBrowser from "expo-web-browser";
 import * as AuthSession from "expo-auth-session";
 import * as AppleAuthentication from "expo-apple-authentication";
+import { FooterLinks } from "@/components/FooterLinks";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -354,6 +355,8 @@ gender === option ? styles.genderButtonTextActive : null,
               <Text style={styles.bottomLinkAction}>Sign In</Text>
             </TouchableOpacity>
           </View>
+
+          <FooterLinks />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
