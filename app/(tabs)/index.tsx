@@ -57,7 +57,7 @@ const STEPS = [
   },
   {
     image: BAGS_IMG,
-    title: "Shop",
+    title: "Free shop",
     desc: "Redeem your minutes for real prizes: clothes, gift cards, cash & more!",
   },
   {
@@ -443,6 +443,14 @@ export default function HomeScreen() {
                 )}
                 <Text style={styles.stepTitle}>{step.title}</Text>
                 <Text style={styles.stepDesc}>{step.desc}</Text>
+                {step.title === "Free shop" && (
+                  <TouchableOpacity 
+                    style={styles.stepButton}
+                    onPress={() => router.push("/(tabs)/rewards")}
+                  >
+                    <Text style={styles.stepButtonText}>View shop</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             ))}
           </ScrollView>
@@ -875,6 +883,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#A1A1AA",
     lineHeight: 18,
+  },
+  stepButton: {
+    backgroundColor: "#EF4444",
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginTop: 12,
+    alignItems: "center",
+  },
+  stepButtonText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "800",
   },
   comparisonCard: {
     backgroundColor: "#1E1E38",

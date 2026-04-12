@@ -3,7 +3,7 @@ import { storage } from "@/lib/storage";
 import { createClient } from "@supabase/supabase-js";
 import { Platform } from "react-native";
 
-// Always use the original C24 Club Supabase instance
+// C24 Club Supabase instance (Lovable project)
 const supabaseUrl = "https://ncpbiymnafxdfsvpxirb.supabase.co";
 const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5jcGJpeW1uYWZ4ZGZzdnB4aXJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyNDY0MjgsImV4cCI6MjA4ODgyMjQyOH0.gMgtPIrRCFfHC7yaUSxajl-uTrXIh2GYvaVgs1SXFfA";
 

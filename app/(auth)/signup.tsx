@@ -16,12 +16,13 @@ import { Eye, EyeOff } from "lucide-react-native";
 import { supabase } from "@/lib/supabase";
 import FallingGifts from "@/components/FallingGifts";
 import { useAuth } from "@/contexts/AuthContext";
-import * as WebBrowser from "expo-web-browser";
-import * as AuthSession from "expo-auth-session";
+import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { FooterLinks } from "@/components/FooterLinks";
 
-WebBrowser.maybeCompleteAuthSession();
+GoogleSignin.configure({
+  webClientId: "ref:bd19b823-7b23-4769-a00e-aa785f2c60b6",
+});
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -127,37 +128,24 @@ export default function SignUpScreen() {
       return;
     }
 
-    // Google OAuth via browser
+    // Native Google Sign In — no browser redirect needed
     try {
-      const redirectUrl = AuthSession.makeRedirectUri({ scheme: "c24club", path: "auth/callback" });
-
-      const { data, error: authError } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: redirectUrl,
-          skipBrowserRedirect: true,
-        },
-      });
-
-      if (authError) {
-        setError(authError.message);
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
+      const idToken = userInfo.data?.idToken;
+      if (!idToken) {
+        setError("Google Sign In failed — no ID token received.");
         return;
       }
-
-      if (!data?.url) return;
-
-      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
-
-      if (result.type === "success" && result.url) {
-        const url = new URL(result.url);
-        const code = url.searchParams.get("code");
-        if (code) {
-          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-          if (exchangeError) setError(exchangeError.message);
-        }
-      }
+      const { error: authError } = await supabase.auth.signInWithIdToken({
+        provider: "google",
+        token: idToken,
+      });
+      if (authError) setError(authError.message);
     } catch (e: any) {
-      setError(e.message || "OAuth sign-in failed");
+      if (e.code !== "SIGN_IN_CANCELLED") {
+        setError(e.message || "Google Sign In failed");
+      }
     }
   };
 
