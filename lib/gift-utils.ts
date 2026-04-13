@@ -169,3 +169,82 @@ export const createGiftCheckout = (
     }
   });
 };
+
+/**
+ * Initiates a native IAP purchase to unfreeze the user's minutes.
+ */
+export const purchaseUnfreeze = (): Promise<{ success: boolean; error?: string }> => {
+  return new Promise(async (resolve) => {
+    if (Platform.OS === "web") {
+      resolve({ success: false, error: "Purchases are only available on the mobile app." });
+      return;
+    }
+
+    const sku = "c24_minute_unfreeze";
+    let purchaseUpdateSub: any;
+    let purchaseErrorSub: any;
+
+    const cleanup = () => {
+      purchaseUpdateSub?.remove();
+      purchaseErrorSub?.remove();
+      endConnection();
+    };
+
+    try {
+      await initConnection();
+      await getProducts({ skus: [sku] });
+
+      purchaseUpdateSub = purchaseUpdatedListener(async (purchase: any) => {
+        if (purchase.productId !== sku) {
+          return;
+        }
+        const token = Platform.OS === "android" ? purchase.purchaseToken : purchase.transactionReceipt;
+        if (!token) return;
+
+        try {
+          const { data, error } = await supabase.functions.invoke("iap-purchases", {
+            body: {
+              action: "verify-unfreeze",
+              sku: sku,
+              purchaseToken: token,
+              platform: Platform.OS,
+            },
+          });
+          if (error) {
+            throw new Error(error.message);
+          }
+          if (!data?.success) {
+            throw new Error(data?.error || "Verification failed");
+          }
+
+          await finishTransaction({ purchase, isConsumable: true });
+          cleanup();
+          resolve({ success: true });
+        } catch (err: any) {
+          cleanup();
+          resolve({ success: false, error: err.message });
+        }
+      });
+
+      purchaseErrorSub = purchaseErrorListener((error: any) => {
+        cleanup();
+        if (error?.code === "E_USER_CANCELLED") {
+          resolve({ success: false, error: "cancelled" });
+        } else {
+          resolve({ success: false, error: error?.message || "Purchase failed" });
+        }
+      });
+
+      await requestPurchase({
+        type: 'in-app',
+        request: {
+          apple: { sku },
+          google: { skus: [sku] },
+        },
+      });
+    } catch (err: any) {
+      cleanup();
+      resolve({ success: false, error: err.message });
+    }
+  });
+};

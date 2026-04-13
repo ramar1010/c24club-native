@@ -44,7 +44,7 @@ import { usePinnedSocials } from '@/hooks/usePinnedSocials';
 import { PinTopicsOverlay } from '@/components/videocall/PinTopicsOverlay';
 import { usePinTopics } from '@/hooks/usePinTopics';
 import * as WebBrowser from 'expo-web-browser';
-import { createGiftCheckout, checkIsPremiumVip } from '@/lib/gift-utils';
+import { createGiftCheckout, checkIsPremiumVip, purchaseUnfreeze } from '@/lib/gift-utils';
 import { GiftCelebration } from '@/components/GiftCelebration';
 import { BlurView } from 'expo-blur';
 import { usePreBlur } from '@/hooks/usePreBlur';
@@ -78,7 +78,7 @@ function VoiceModeAvatar({ size = 80, label = true }: { size?: number; label?: b
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ChatScreen() {
   const router = useRouter();
-  const { profile, minutes } = useAuth();
+  const { profile, minutes, refreshProfile } = useAuth();
   const { setShowVipModal } = useCall();
 
   const {
@@ -182,6 +182,7 @@ export default function ChatScreen() {
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [showSelfieModal, setShowSelfieModal] = useState(false);
   const [showPendingPopup, setShowPendingPopup] = useState(false);
+  const [unfreezeLoading, setUnfreezeLoading] = useState(false);
   const FREEZE_SNOOZE_KEY = 'freeze_popup_snooze_until';
 
   // Animated search pulsing
@@ -263,6 +264,37 @@ export default function ChatScreen() {
     setShowCapPopup(false);
     setShowFrozen(false);
   }, [setShowCapPopup]);
+
+  const handleOneTimeUnfreeze = useCallback(async () => {
+    setUnfreezeLoading(true);
+    try {
+      const result = await purchaseUnfreeze();
+      if (result.success) {
+        await refreshProfile();
+        setShowCapPopup(false);
+        setShowFrozen(false);
+        Toast.show({
+          type: 'success',
+          text1: '❄️ Minutes Unfrozen!',
+          text2: 'You can now continue earning full minutes.',
+        });
+      } else if (result.error !== 'cancelled') {
+        Toast.show({
+          type: 'error',
+          text1: '❌ Unfreeze Failed',
+          text2: result.error || 'Something went wrong',
+        });
+      }
+    } catch (err: any) {
+      Toast.show({
+        type: 'error',
+        text1: '❌ Purchase Error',
+        text2: err?.message || 'Unknown error',
+      });
+    } finally {
+      setUnfreezeLoading(false);
+    }
+  }, [refreshProfile]);
 
   // ─── Handlers ─────────────────────────────────────────────────────────────
   const handleStart = useCallback(async () => {
@@ -529,20 +561,15 @@ export default function ChatScreen() {
         <Animated.View
           style={[
             StyleSheet.absoluteFillObject,
-            { opacity: blurOpacity, zIndex: 10, overflow: 'hidden' },
+            { 
+              opacity: blurOpacity, 
+              zIndex: 10, 
+              overflow: 'hidden',
+              backgroundColor: 'rgba(0,0,0,0.4)' 
+            },
           ]}
           pointerEvents="none"
         >
-          <BlurView
-            intensity={100}
-            tint="dark"
-            style={StyleSheet.absoluteFillObject}
-          />
-          <BlurView
-            intensity={100}
-            tint="dark"
-            style={StyleSheet.absoluteFillObject}
-          />
           <BlurView
             intensity={100}
             tint="dark"
@@ -573,17 +600,6 @@ export default function ChatScreen() {
           {partnerPinnedTopics.map((name, i) => (
             <View key={i} style={styles.partnerChip}>
               <Text style={styles.partnerChipText}>{name}</Text>
-            </View>
-          ))}
-        </View>
-      )}
-
-      {/* My pinned topics — red chips, bottom-left */}
-      {pinnedTopicNames.length > 0 && (
-        <View style={styles.myChipsContainer}>
-          {pinnedTopicNames.map((name, i) => (
-            <View key={i} style={styles.myChip}>
-              <Text style={styles.myChipText}>{name}</Text>
             </View>
           ))}
         </View>
@@ -816,7 +832,7 @@ export default function ChatScreen() {
       </Modal>
 
       {/* Cap reached / Freeze popup — unified modal */}
-      <Modal visible={showCapPopup || showFrozen} transparent animationType="fade" onRequestClose={() => { setShowCapPopup(false); setShowFrozen(false); }}>
+      <Modal visible={showCapPopup || showFrozen} transparent animationType="fade" onRequestClose={() => { if (!unfreezeLoading) { setShowCapPopup(false); setShowFrozen(false); } }}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>🥶 Your Minutes Are Frozen</Text>
@@ -829,22 +845,32 @@ export default function ChatScreen() {
               style={styles.modalRedBtn}
               onPress={() => { setShowCapPopup(false); setShowFrozen(false); router.push('/vip'); }}
               activeOpacity={0.85}
+              disabled={unfreezeLoading}
             >
               <Text style={styles.modalRedBtnText}>VIP Unfreeze ($2.49/wk)</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={flattenStyle([styles.modalGrayBtn, { borderColor: '#FACC15' }])}
-              onPress={() => { setShowCapPopup(false); setShowFrozen(false); /* one-time unfreeze flow */ }}
+              style={flattenStyle([styles.modalGrayBtn, { borderColor: '#FACC15' }, unfreezeLoading && styles.disabledBtn])}
+              onPress={handleOneTimeUnfreeze}
               activeOpacity={0.8}
+              disabled={unfreezeLoading}
             >
-              <Text style={flattenStyle([styles.modalGrayBtnText, { color: '#FACC15' }])}>One-Time Unfreeze ($1.99)</Text>
+              {unfreezeLoading ? (
+                <ActivityIndicator size="small" color="#FACC15" />
+              ) : (
+                <Text style={flattenStyle([styles.modalGrayBtnText, { color: '#FACC15' }])}>One-Time Unfreeze ($1.99)</Text>
+              )}
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleRemindIn2Days} activeOpacity={0.7} style={{ marginTop: 8, alignItems: 'center' }}>
-              <Text style={styles.remindLaterText}>Remind me in 2 days</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.modalGrayBtn} onPress={() => { setShowCapPopup(false); setShowFrozen(false); }} activeOpacity={0.8}>
-              <Text style={styles.modalGrayBtnText}>Keep Chatting</Text>
-            </TouchableOpacity>
+            {!unfreezeLoading && (
+              <>
+                <TouchableOpacity onPress={handleRemindIn2Days} activeOpacity={0.7} style={{ marginTop: 8, alignItems: 'center' }}>
+                  <Text style={styles.remindLaterText}>Remind me in 2 days</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.modalGrayBtn} onPress={() => { setShowCapPopup(false); setShowFrozen(false); }} activeOpacity={0.8}>
+                  <Text style={styles.modalGrayBtnText}>Keep Chatting</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
       </Modal>
@@ -1300,7 +1326,7 @@ const styles = StyleSheet.create({
   },
   localPip: {
     position: 'absolute',
-    bottom: 12,
+    bottom: 48,
     right: 12,
     width: 90,
     height: 124,
@@ -1323,9 +1349,9 @@ const styles = StyleSheet.create({
   },
   partnerChipsContainer: {
     position: 'absolute',
-    top: 52,
+    bottom: 10,
     right: 12,
-    zIndex: 10,
+    zIndex: 20,
     gap: 4,
     alignItems: 'flex-end',
   },
@@ -1336,25 +1362,6 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   partnerChipText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  myChipsContainer: {
-    position: 'absolute',
-    bottom: 148,
-    left: 12,
-    zIndex: 10,
-    gap: 4,
-    alignItems: 'flex-start',
-  },
-  myChip: {
-    backgroundColor: 'rgba(239,68,68,0.7)',
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  myChipText: {
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '600',
@@ -1821,9 +1828,9 @@ const styles = StyleSheet.create({
   // ── Gift button (pulsing, on video area) ──────────────────────────────────────
   giftBtn: {
     position: 'absolute',
-    bottom: 148,
-    right: 108,
-    zIndex: 20,
+    top: 124,
+    left: 12,
+    zIndex: 100,
     alignItems: 'center',
   },
   giftBtnInner: {
