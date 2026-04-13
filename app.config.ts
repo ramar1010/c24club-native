@@ -1,7 +1,6 @@
 import { ExpoConfig, ConfigContext } from "expo/config";
 import * as fs from "fs";
 import * as path from "path";
-import withAndroidAdiRegistration from "./plugins/withAndroidAdiRegistration";
 
 // Read .env file at build time so values get baked into the APK
 function loadEnv(): Record<string, string> {
@@ -83,7 +82,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-font",
     "expo-web-browser",
     "expo-apple-authentication",
-    "./plugins/withAndroidAdiRegistration",
+    "./plugins/withAndroidAdiRegistration.js",
     [
       "expo-notifications",
       {

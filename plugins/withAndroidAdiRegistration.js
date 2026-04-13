@@ -1,8 +1,8 @@
-import { ConfigPlugin, withDangerousMod } from '@expo/config-plugins';
-import * as fs from 'fs';
-import * as path from 'path';
+const { withDangerousMod } = require('@expo/config-plugins');
+const fs = require('fs');
+const path = require('path');
 
-const withAndroidAdiRegistration: ConfigPlugin = (config) => {
+const withAndroidAdiRegistration = (config) => {
   return withDangerousMod(config, [
     'android',
     async (config) => {
@@ -19,4 +19,4 @@ const withAndroidAdiRegistration: ConfigPlugin = (config) => {
   ]);
 };
 
-export default withAndroidAdiRegistration;
+module.exports = withAndroidAdiRegistration;
