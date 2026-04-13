@@ -21,7 +21,7 @@ import * as AppleAuthentication from "expo-apple-authentication";
 import { FooterLinks } from "@/components/FooterLinks";
 
 GoogleSignin.configure({
-  webClientId: "ref:bd19b823-7b23-4769-a00e-aa785f2c60b6",
+  webClientId: "212900711433-rild80si8g6sg8q5j7jl8goo6o9ecnqi.apps.googleusercontent.com",
 });
 
 export default function SignUpScreen() {
