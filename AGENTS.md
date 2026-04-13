@@ -111,3 +111,13 @@ Both Random Match (`useWebRTC`) and Direct Calls (`video-call.tsx`) are consiste
 - Ban check runs on every auth state change — never cached. Banned users see `BannedScreen` and cannot access any app route.
 - The `unban-payment` Edge Function at `https://ncpbiymnafxdfsvpxirb.supabase.co/functions/v1/unban-payment` handles all Stripe logic. App only sends `action: "create-checkout"` or `action: "verify-payment"`.
 - **VIP Pinned Socials** (`hooks/usePinnedSocials.ts` + `components/videocall/PinnedSocialsDisplay.tsx`): When a random match connects, the current user's partner's VIP status is checked via `member_minutes` (`is_vip` OR `admin_granted_vip`). If VIP, `vip_settings.pinned_socials` (text array of `"platform:username"` strings) is fetched and rendered as tappable overlay badges below the report button in `chat.tsx`. Supported platforms: cashapp, tiktok, instagram, snapchat, discord (no link), venmo, paypal. Usernames are sanitized (leading `@`, `$`, `/` stripped). Socials clear automatically on disconnect/next.
+
+## Key Files
+
+- **assets/adi-registration.properties**: Verification file for Google Play Integrity/Ownership.
+- **plugins/withAndroidAdiRegistration.ts**: Config plugin for Android assets.
+
+## Deployment
+
+- **expo-notifications**: Configured for C24 Club notifications.
+- **withAndroidAdiRegistration**: Custom plugin to include `adi-registration.properties` for Google Play verification.
