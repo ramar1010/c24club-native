@@ -11,19 +11,19 @@ function TabLayoutInner() {
           backgroundColor: "#1E1E38",
           borderTopColor: "#2A2A4A",
           borderTopWidth: 1,
-          height: 56,
+          height: 64,
         },
         tabBarActiveTintColor: "#EF4444",
         tabBarInactiveTintColor: "#71717A",
         tabBarLabelStyle: {
-          fontSize: 9,
+          fontSize: 11,
           fontWeight: "600",
         },
         tabBarIconStyle: {
-          marginBottom: -2,
+          marginBottom: 0,
         },
         tabBarItemStyle: {
-          paddingVertical: 4,
+          paddingVertical: 6,
         },
       }}
     >
@@ -32,7 +32,7 @@ function TabLayoutInner() {
         options={{
           title: "Home",
           tabBarIcon: ({ color }) => (
-            <Home size={20} color={color} />
+            <Home size={24} color={color} />
           ),
         }}
       />
@@ -41,7 +41,7 @@ function TabLayoutInner() {
         options={{
           title: "Chat",
           tabBarIcon: ({ color }) => (
-            <Video size={20} color={color} />
+            <Video size={24} color={color} />
           ),
         }}
       />
@@ -50,7 +50,7 @@ function TabLayoutInner() {
         options={{
           title: "Rewards",
           tabBarIcon: ({ color }) => (
-            <Gift size={20} color={color} />
+            <Gift size={24} color={color} />
           ),
         }}
       />
@@ -59,7 +59,7 @@ function TabLayoutInner() {
         options={{
           title: "Discover",
           tabBarIcon: ({ color }) => (
-            <Compass size={20} color={color} />
+            <Compass size={24} color={color} />
           ),
         }}
       />
@@ -68,7 +68,7 @@ function TabLayoutInner() {
         options={{
           title: "Messages",
           tabBarIcon: ({ color }) => (
-            <MessageCircle size={20} color={color} />
+            <MessageCircle size={24} color={color} />
           ),
         }}
       />
@@ -77,7 +77,7 @@ function TabLayoutInner() {
         options={{
           title: "Profile",
           tabBarIcon: ({ color }) => (
-            <User size={20} color={color} />
+            <User size={24} color={color} />
           ),
         }}
       />

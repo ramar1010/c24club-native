@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
 function generateSessionId(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -19,11 +20,13 @@ interface UseCallMinutesOptions {
   isConnected: boolean;
   voiceMode?: boolean;
   isVip?: boolean;
+  isFemale?: boolean;
 }
 
 export interface CapInfo {
   cap: number;
   isVip: boolean;
+  isVoiceMode?: boolean;
 }
 
 export interface FreezeInfo {
@@ -50,6 +53,7 @@ export function useCallMinutes({
   isConnected,
   voiceMode = false,
   isVip = false,
+  isFemale = false,
 }: UseCallMinutesOptions): UseCallMinutesResult {
   // Not needed on web — return safe defaults
   if (Platform.OS === 'web') {
@@ -91,6 +95,22 @@ export function useCallMinutes({
   useEffect(() => { partnerIdRef.current = partnerId; }, [partnerId]);
   useEffect(() => { isVipRef.current = isVip; }, [isVip]);
   useEffect(() => { freezeInfoRef.current = freezeInfo; }, [freezeInfo]);
+
+  // Sync with useAuth minutes if available (prevents needing app restart)
+  const { minutes: authMinutes, updateMinutes } = useAuth();
+  
+  // Reactive frozen state (prioritize authMinutes which is the global source of truth)
+  const currentIsFrozen = authMinutes?.is_frozen ?? freezeInfo.isFrozen;
+
+  useEffect(() => {
+    if (authMinutes) {
+      setTotalMinutes(authMinutes.total_minutes ?? authMinutes.minutes ?? 0);
+      setFreezeInfo(prev => ({ 
+        isFrozen: authMinutes.is_frozen ?? false, 
+        earnRate: prev.earnRate 
+      }));
+    }
+  }, [authMinutes?.is_frozen, authMinutes?.total_minutes]);
 
   // Fetch balance
   const fetchBalance = useCallback(() => {
@@ -142,13 +162,34 @@ export function useCallMinutes({
     if (data?.success) {
       setTotalMinutes(data.totalMinutes);
       if (data.gifted_minutes !== undefined) setGiftedMinutes(data.gifted_minutes);
+      
+      // Update local and global state including frozen status
+      if (data.isFrozen !== undefined || data.totalMinutes !== undefined) {
+        setFreezeInfo({ 
+          isFrozen: data.isFrozen ?? false, 
+          earnRate: data.earnRate ?? 10 
+        });
+
+        // Push to useAuth so top bar updates instantly
+        updateMinutes({
+          is_frozen: data.isFrozen,
+          minutes: data.totalMinutes,
+          total_minutes: data.totalMinutes,
+        });
+      }
 
       // Track session minutes earned
       sessionMinutesEarnedRef.current += safeMinutes;
 
-      // Client-side session cap check (10 min regular / 30 min VIP / 2 min if frozen)
+      // Client-side session cap check (10 min regular / 30 min VIP / 2 min if frozen / 5 min if voice)
       const frozen = freezeInfoRef.current.isFrozen;
-      const cap = frozen ? 2 : (isVipRef.current ? 30 : 10);
+      let cap = frozen ? 2 : (isVipRef.current ? 30 : 10);
+      
+      // Voice mode cap for females
+      if (isFemale && voiceMode && !frozen) {
+        cap = 5;
+      }
+
       const clientCapReached = sessionMinutesEarnedRef.current >= cap;
 
       // Server-side cap check
@@ -157,13 +198,13 @@ export function useCallMinutes({
       if ((clientCapReached || serverCapReached) && !capReachedRef.current) {
         capReachedRef.current = true;
         setCapReached(true);
-        setCapInfo({ cap, isVip: isVipRef.current });
+        setCapInfo({ cap, isVip: isVipRef.current, isVoiceMode: isFemale && voiceMode });
         setShowCapPopup(true);
         // Stop the timer
         if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
       }
     }
-  }, [userId, voiceMode]);
+  }, [userId, voiceMode, isFemale]);
 
   // Timer
   useEffect(() => {
@@ -205,7 +246,7 @@ export function useCallMinutes({
     showCapPopup,
     dismissCapPopup,
     flushMinutes,
-    freezeInfo,
+    freezeInfo: { ...freezeInfo, isFrozen: currentIsFrozen },
     refreshBalance: fetchBalance,
   };
 }

@@ -560,7 +560,7 @@ export default function ChatThreadScreen() {
                 activeOpacity={0.8}
                 onPress={() => setShowCashoutModal(true)}
               >
-                <DollarSign size={14} color="#22C55E" />
+                <DollarSign size={18} color="#22C55E" />
                 <View style={styles.headerBadge}>
                   <Text style={styles.headerBadgeText}>{gifted}</Text>
                 </View>
@@ -571,28 +571,28 @@ export default function ChatThreadScreen() {
               activeOpacity={0.8}
               onPress={handleGiftClick}
             >
-              <Gift size={14} color="#FACC15" />
+              <Gift size={18} color="#FACC15" />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.headerBtnRed}
               activeOpacity={0.8}
               onPress={() => setShowReportModal(true)}
             >
-              <Flag size={14} color="#EF4444" />
+              <Flag size={18} color="#EF4444" />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.headerBtnGray, isBlocked && styles.headerBtnGrayActive]}
               activeOpacity={0.8}
               onPress={() => setShowBlockModal(true)}
             >
-              <ShieldOff size={14} color={isBlocked ? "#EF4444" : "#A1A1AA"} />
+              <ShieldOff size={18} color={isBlocked ? "#EF4444" : "#A1A1AA"} />
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.headerBtnGreen} 
               activeOpacity={0.8}
               onPress={handleVideoCall}
             >
-              <Video size={14} color="#22C55E" />
+              <Video size={18} color="#22C55E" />
             </TouchableOpacity>
           </View>
         </View>
@@ -805,21 +805,8 @@ export default function ChatThreadScreen() {
             onPress={handleSend}
             disabled={!inputText.trim() || sendMessage.isPending || isBlocked || isBlockedByPartner}
           >
-            <Send size={16} color="#FFFFFF" />
+            <Send size={20} color="#FFFFFF" />
           </TouchableOpacity>
-        </View>
-
-        {/* Debug Panel */}
-        <View style={{ backgroundColor: '#1E1E38', padding: 10 }}>
-          <Text style={{ fontSize: 10, color: '#71717A', fontWeight: 'bold' }}>DEBUG:</Text>
-          <Text style={{ fontSize: 9, color: '#A1A1AA' }}>Partner: {partnerName} ({partnerId})</Text>
-          <Text style={{ fontSize: 9, color: '#A1A1AA' }}>Active Convo: {activeConversationId ?? "None (New)"}</Text>
-          <Text style={{ fontSize: 9, color: '#A1A1AA' }}>My Profile ID: {profile?.id ?? "None"}</Text>
-          {sendError && <Text style={{ fontSize: 9, color: '#EF4444' }}>Send Error: {sendError}</Text>}
-          <Text style={{ fontSize: 9, color: '#71717A', marginTop: 4 }}>LOGS:</Text>
-          {debugLog.map((log, i) => (
-            <Text key={i} style={{ fontSize: 8, color: '#A1A1AA' }}>{log}</Text>
-          ))}
         </View>
       </KeyboardAvoidingView>
 
@@ -867,32 +854,33 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.08)",
     rowGap: 8, columnGap: 8,
+    minHeight: 70,
   },
   backBtn: {
-    padding: 4,
+    padding: 6,
   },
   partnerAvatarContainer: {
     position: "relative",
   },
   partnerAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
   },
   partnerAvatarPlaceholder: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: "rgba(255,255,255,0.1)",
     alignItems: "center",
     justifyContent: "center",
   },
   partnerAvatarInitial: {
-    fontSize: 13,
+    fontSize: 18,
     fontWeight: "700",
     color: "rgba(255,255,255,0.6)",
   },
@@ -900,28 +888,28 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 0,
     right: 0,
-    width: 9,
-    height: 9,
-    borderRadius: 5,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
     backgroundColor: "#22C55E",
-    borderWidth: 1.5,
+    borderWidth: 2,
     borderColor: "#111111",
   },
   partnerName: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: "700",
     color: "#FFFFFF",
   },
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
-    rowGap: 6, columnGap: 6,
+    rowGap: 8, columnGap: 8,
   },
   headerBtnGreen: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "rgba(34,197,94,0.2)",
     borderWidth: 1,
     borderColor: "rgba(34,197,94,0.3)",
@@ -929,9 +917,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   headerBtnAmber: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "rgba(250,204,21,0.2)",
     borderWidth: 1,
     borderColor: "rgba(250,204,21,0.3)",
@@ -939,9 +927,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   headerBtnRed: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "rgba(239,68,68,0.2)",
     borderWidth: 1,
     borderColor: "rgba(239,68,68,0.3)",
@@ -949,9 +937,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   headerBtnGray: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "rgba(161,161,170,0.15)",
     borderWidth: 1,
     borderColor: "rgba(161,161,170,0.25)",
@@ -983,9 +971,9 @@ const styles = StyleSheet.create({
   },
   partnerAvatarTouchable: {
     position: "relative",
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     overflow: "visible",
   },
 
@@ -1007,9 +995,9 @@ const styles = StyleSheet.create({
   },
   bannerGiftText: {
     flex: 1,
-    fontSize: 12,
+    fontSize: 14,
     color: "rgba(250,204,21,0.8)",
-    lineHeight: 17,
+    lineHeight: 20,
   },
   bannerPrivacy: {
     marginHorizontal: 12,
@@ -1018,12 +1006,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.1)",
     borderRadius: 10,
-    padding: 10,
+    padding: 12,
   },
   bannerPrivacyText: {
-    fontSize: 11,
+    fontSize: 13,
     color: "rgba(255,255,255,0.5)",
-    lineHeight: 16,
+    lineHeight: 18,
   },
   bannerPrivacyLink: {
     color: "#3B82F6",
@@ -1064,8 +1052,8 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 4,
   },
   bubbleText: {
-    fontSize: 14,
-    lineHeight: 19,
+    fontSize: 16,
+    lineHeight: 22,
   },
   bubbleTextMine: {
     color: "#FFFFFF",
@@ -1125,28 +1113,28 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    paddingBottom: Platform.OS === "ios" ? 12 : 10,
+    paddingVertical: 12,
+    paddingBottom: Platform.OS === "ios" ? 14 : 12,
     backgroundColor: "#1A1A1A",
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.1)",
-    rowGap: 8, columnGap: 8,
+    rowGap: 10, columnGap: 10,
   },
   input: {
     flex: 1,
-    height: 44,
+    height: 50,
     backgroundColor: "rgba(255,255,255,0.05)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.1)",
-    borderRadius: 22,
-    paddingHorizontal: 16,
+    borderRadius: 25,
+    paddingHorizontal: 20,
     color: "#FFFFFF",
-    fontSize: 14,
+    fontSize: 16,
   },
   sendBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: "#2563EB",
     alignItems: "center",
     justifyContent: "center",

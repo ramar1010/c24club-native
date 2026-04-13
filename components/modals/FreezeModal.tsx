@@ -9,6 +9,7 @@ import {
   Platform,
   Dimensions,
   Alert,
+  Pressable,
 } from "react-native";
 import { Crown, Snowflake, X } from "lucide-react-native";
 import { useRouter } from "expo-router";
@@ -37,7 +38,11 @@ export function FreezeModal({ visible, onClose, liveMinutes }: FreezeModalProps)
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
-  if (!minutes || !minutes.is_frozen) return null;
+  useEffect(() => {
+    if (visible && Platform.OS === 'web') {
+      console.log("[FreezeModal] Modal is now visible on Web");
+    }
+  }, [visible]);
 
   // IAP setup for unfreeze purchase
   useEffect(() => {
@@ -56,6 +61,7 @@ export function FreezeModal({ visible, onClose, liveMinutes }: FreezeModalProps)
           if (!token) return;
 
           try {
+            setLoading(true);
             const { data, error } = await supabase.functions.invoke("iap-purchases", {
               body: { action: "verify-unfreeze", purchaseToken: token, platform: Platform.OS },
             });
@@ -123,20 +129,30 @@ export function FreezeModal({ visible, onClose, liveMinutes }: FreezeModalProps)
   };
 
   const handleVipUnfreeze = async () => {
-    if (!session?.access_token) return;
+    console.log("[FreezeModal] handleVipUnfreeze triggered");
+    if (!user?.id || !minutes) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("unfreeze-purchase", {
-        body: { action: "vip_unfreeze" },
-        headers: { Authorization: `Bearer ${session.access_token}` },
+      // Set freeze_free_until 7 days out so earn-minutes won't immediately re-freeze
+      const freezeFreeUntil = new Date();
+      freezeFreeUntil.setDate(freezeFreeUntil.getDate() + 7);
+
+      // Use updateMinutes — it updates the DB AND immediately sets local React state
+      await updateMinutes({
+        is_frozen: false,
+        frozen_at: null,
+        freeze_free_until: freezeFreeUntil.toISOString(),
+        vip_unfreezes_used: (minutes.vip_unfreezes_used || 0) + 1,
       });
-      if (error) throw error;
-      if (data?.success) {
-        await refreshProfile();
-        onClose();
+      console.log("[FreezeModal] updateMinutes complete, closing modal");
+      onClose();
+    } catch (err: any) {
+      console.error("[FreezeModal] VIP unfreeze exception:", err);
+      if (Platform.OS === 'web') {
+        window.alert("Unfreeze ERROR: " + (err.message || "Unknown error"));
+      } else {
+        Alert.alert("Error", err.message || "Could not unfreeze account. Please try again.");
       }
-    } catch (err) {
-      console.error("VIP unfreeze error:", err);
     } finally {
       setLoading(false);
     }
@@ -147,19 +163,34 @@ export function FreezeModal({ visible, onClose, liveMinutes }: FreezeModalProps)
     onClose();
   };
 
-  const canVipUnfreeze = minutes.is_vip && (minutes.vip_unfreezes_used < (freezeSettings?.vip_unfreezes_per_month ?? 3));
-  const remainingUnfreezes = (freezeSettings?.vip_unfreezes_per_month ?? 3) - (minutes.vip_unfreezes_used ?? 0);
+  const canVipUnfreeze = !!(minutes?.is_vip || minutes?.admin_granted_vip) && (minutes.vip_unfreezes_used < (freezeSettings?.vip_unfreezes_per_month ?? 3));
+  const remainingUnfreezes = (freezeSettings?.vip_unfreezes_per_month ?? 3) - (minutes?.vip_unfreezes_used ?? 0);
+
+  if (!minutes) return null;
+
+  const ModalComponent = Platform.OS === 'web' ? View : Modal;
+  const modalProps = Platform.OS === 'web' ? {} : {
+    transparent: true,
+    animationType: "fade",
+    onRequestClose: onClose,
+  };
+
+  if (Platform.OS === 'web' && !visible) return null;
 
   return (
-    <Modal
+    <ModalComponent
       visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
+      {...modalProps}
     >
-      <View style={styles.overlay}>
-        <View style={styles.modalContainer}>
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+      <View style={styles.overlay} pointerEvents="auto">
+        <View style={styles.modalContainer} pointerEvents="auto">
+          <TouchableOpacity 
+            style={styles.closeButton} 
+            onPress={() => {
+              console.log("[FreezeModal] Close button clicked");
+              onClose();
+            }}
+          >
             <X size={20} color="#71717A" />
           </TouchableOpacity>
 
@@ -172,42 +203,106 @@ export function FreezeModal({ visible, onClose, liveMinutes }: FreezeModalProps)
             You've earned <Text style={styles.highlight}>{liveMinutes ?? minutes.total_minutes ?? minutes.minutes ?? 0}</Text> minutes! 
             To keep earning at the full rate (10min/30 mins a partner), please unfreeze your account.
           </Text>
-
+          
           {loading ? (
             <ActivityIndicator color="#EF4444" size="large" style={styles.loader} />
           ) : (
-            <View style={styles.buttonContainer}>
-              {minutes.is_vip ? (
-                <TouchableOpacity
-                  style={[styles.primaryButton,!canVipUnfreeze ? styles.disabledButton : null]}
-                  onPress={handleVipUnfreeze}
-                  disabled={!canVipUnfreeze}
-                >
-                  <Crown size={18} color="#000" style={styles.buttonIcon} />
-                  <Text style={styles.primaryButtonText}>
-                    {canVipUnfreeze 
-                      ? `Use Free Unfreeze (${remainingUnfreezes} left)` 
-                      : "No free unfreezes left"}
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                <>
-                  <TouchableOpacity style={styles.vipButton} onPress={handleVipUpgrade}>
-                    <Crown size={20} color="#000" style={styles.buttonIcon} />
-                    <View>
-                      <Text style={styles.vipButtonText}>Become VIP — $2.49/week</Text>
-                      <Text style={styles.vipButtonSubtext}>Never freeze + Gender filters</Text>
-                    </View>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity style={styles.primaryButton} onPress={handleUnfreezePurchase}>
-                    <Text style={styles.primaryButtonText}>Unfreeze Now — $1.99</Text>
-                    <Text style={styles.buttonSubtext}>Lasts for 7 days</Text>
-                  </TouchableOpacity>
-                </>
+            <View style={styles.buttonContainer} pointerEvents="auto">
+              {(minutes.is_vip || minutes.admin_granted_vip) && canVipUnfreeze && (
+                Platform.OS === 'web' ? (
+                  <button 
+                    onClick={() => {
+                      console.log("[FreezeModal] HTML Button Clicked (VIP)");
+                      handleVipUnfreeze();
+                    }}
+                    style={{
+                      backgroundColor: '#FACC15',
+                      borderRadius: '16px',
+                      padding: '14px 16px',
+                      border: '2px solid #EF4444',
+                      cursor: 'pointer',
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '15px',
+                      fontWeight: '900',
+                      color: '#000',
+                      marginBottom: '12px',
+                      fontFamily: 'inherit'
+                    }}
+                  >
+                    👑 Use Free Unfreeze ({remainingUnfreezes} left)
+                  </button>
+                ) : (
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.vipUnfreezeButton,
+                      { 
+                        opacity: pressed ? 0.5 : 1, 
+                        backgroundColor: pressed ? '#EAB308' : '#FACC15',
+                      }
+                    ]}
+                    onPress={() => {
+                      console.log("[FreezeModal] VIP Unfreeze Clicked");
+                      handleVipUnfreeze();
+                    }}
+                  >
+                    <Crown size={18} color="#000" style={styles.buttonIcon} />
+                    <Text style={styles.vipUnfreezeButtonText}>
+                      Use Free Unfreeze ({remainingUnfreezes} left)
+                    </Text>
+                  </Pressable>
+                )
               )}
 
-              <TouchableOpacity style={styles.secondaryButton} onPress={handleDismiss24h}>
+              {Platform.OS === 'web' ? (
+                <button 
+                  onClick={() => {
+                    console.log("[FreezeModal] HTML Button Clicked (Regular)");
+                    handleUnfreezePurchase();
+                  }}
+                  style={{
+                    backgroundColor: '#EF4444',
+                    borderRadius: '16px',
+                    padding: '14px 16px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    width: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '16px',
+                    fontWeight: '800',
+                    color: '#FFF',
+                    marginBottom: '12px',
+                    fontFamily: 'inherit'
+                  }}
+                >
+                  Unfreeze Now — $1.99
+                  <span style={{ fontSize: '11px', opacity: 0.7, fontWeight: '500', marginTop: '2px' }}>Lasts for 7 days</span>
+                </button>
+              ) : (
+                <Pressable 
+                  style={({ pressed }) => [
+                    styles.primaryButton,
+                    { opacity: pressed ? 0.5 : 1 }
+                  ]}
+                  onPress={() => {
+                    console.log("[FreezeModal] Regular Unfreeze Clicked");
+                    handleUnfreezePurchase();
+                  }}
+                >
+                  <Text style={styles.primaryButtonText}>Unfreeze Now — $1.99</Text>
+                  <Text style={styles.buttonSubtext}>Lasts for 7 days</Text>
+                </Pressable>
+              )}
+
+              <TouchableOpacity 
+                style={[styles.secondaryButton, Platform.OS === 'web' ? { cursor: 'pointer' } as any : {}]} 
+                onPress={handleDismiss24h}
+              >
                 <Text style={styles.secondaryButtonText}>Dismiss for 24 hours</Text>
               </TouchableOpacity>
             </View>
@@ -218,7 +313,7 @@ export function FreezeModal({ visible, onClose, liveMinutes }: FreezeModalProps)
           </Text>
         </View>
       </View>
-    </Modal>
+    </ModalComponent>
   );
 }
 
@@ -229,6 +324,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
+    zIndex: 999999,
+    ...(Platform.OS === 'web' ? {
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      width: '100vw',
+      height: '100vh',
+    } : {}),
   },
   modalContainer: {
     backgroundColor: "#1E1E38",
@@ -240,6 +345,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(59, 130, 246, 0.3)",
     position: "relative",
+    zIndex: 1000000,
   },
   closeButton: {
     position: "absolute",
@@ -288,6 +394,22 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     width: "100%",
+  },
+  vipUnfreezeButton: {
+    backgroundColor: "#FACC15",
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+    borderWidth: 2,
+    borderColor: "#EF4444",
+  },
+  vipUnfreezeButtonText: {
+    color: "#000000",
+    fontSize: 15,
+    fontWeight: "900",
   },
   vipButtonText: {
     color: "#000000",

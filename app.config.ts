@@ -34,7 +34,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   // Must match the existing EAS project slug for extra.eas.projectId
   slug: "template",
   name: "C24 Club",
-  version: "1.5.8",
+  version: "1.6.0",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: "c24club",
@@ -54,7 +54,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     package: "com.c24club.app",
     googleServicesFile: "./google-services.json",
-    versionCode: 50,
+    versionCode: 52,
     permissions: [
       "android.permission.CAMERA",
       "android.permission.RECORD_AUDIO",
@@ -111,7 +111,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "https://ncpbiymnafxdfsvpxirb.supabase.co",
     supabaseAnonKey:
       process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5jcGJpeW1uYWZ4ZGZzdnB4aXJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyNDY0MjgsImV4cCI6MjA4ODgyMjQyOH0.gMgtPIrRCFfHC7yaUSxajl-uTrXIh2GYvaVgs1SXFfA",
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5jcGJpeW1uYWZ4ZGZzdnB4aXJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyNDY0MjgsImV4cCI6MjA4ODgyMjQyOH0.gMgtPIrRCFfHC7yaUSxajl-uTrXIh2GYvaVgs1SXFvA",
     eas: { projectId: "3f21aa81-c90d-4050-b1a6-80b40a69cf31" },
   },
 });

@@ -122,7 +122,7 @@ const GUIDE_SECTIONS = [
       { q: "How do I collect minutes?", a: 'Tap the Chat tab and press "Start Chatting". You earn minutes for every video chat you complete. The longer you stay in a chat, the more you earn. Minutes are credited automatically during video sessions.' },
       { q: "What are minutes used for?", a: "Minutes are your in-app currency. Use them to redeem items from the Reward Store, spin for rare or legendary prizes, or gift them to other members." },
       { q: "What happens if I skip too fast?", a: "Skipping a chat too quickly (under a few seconds) will deduct minutes as a penalty. Stay in chats a bit longer to keep earning!" },
-      { q: "Is there a collection cap?", a: "Yes. There is a daily collection cap to keep things fair. Once you hit the cap, you can still chat but won't earn additional minutes until the next user you connect to. VIP members get a higher cap upwards to 30 mins per user." },
+      { q: "Is there a collection cap?", a: "Yes. To keep things fair and reward participation, there are session limits: \n\n• Video Mode: 10 mins per session (Free users) / 30 mins per session (VIP members).\n• Voice Mode: 5 mins per session (Female users).\n• Frozen Minutes: 2 mins per session.\n\nOnce you hit a limit, earning pauses for that match. Start a new match to continue earning!" },
     ],
   },
   {

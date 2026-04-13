@@ -373,6 +373,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq("user_id", user.id)
         .select()
         .maybeSingle();
+
+      if (error) {
+        console.error("[AuthContext] updateMinutes DB error:", error.message);
+        throw error;
+      }
       
       if (data) {
         const transformedData = {
@@ -380,9 +385,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           total_minutes: (data.minutes || 0) + (data.ad_points || 0) + (data.gifted_minutes || 0),
         };
         setMinutes(transformedData as MemberMinutes);
+      } else {
+        // No data returned — update local state optimistically
+        setMinutes(prev => prev ? {
+          ...prev,
+          ...updates,
+          total_minutes: (prev.minutes || 0) + (prev.ad_points || 0) + (prev.gifted_minutes || 0),
+        } : prev);
       }
     } catch (err) {
       console.error("Error updating minutes:", err);
+      throw err;
     }
   }, [user]);
 

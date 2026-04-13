@@ -78,7 +78,7 @@ function VoiceModeAvatar({ size = 80, label = true }: { size?: number; label?: b
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ChatScreen() {
   const router = useRouter();
-  const { profile, minutes, refreshProfile } = useAuth();
+  const { profile, minutes, refreshProfile, updateMinutes } = useAuth();
   const { setShowVipModal } = useCall();
 
   const {
@@ -97,6 +97,7 @@ export default function ChatScreen() {
     partnerGender,
     partnerTopics,
     partnerId,
+    capInfo,
     toggleMute,
     toggleCamera,
     toggleVoiceMode,
@@ -185,6 +186,41 @@ export default function ChatScreen() {
   const [unfreezeLoading, setUnfreezeLoading] = useState(false);
   const FREEZE_SNOOZE_KEY = 'freeze_popup_snooze_until';
 
+  // ─── Modal Content Helper ──────────────────────────────────────────────────
+  const getCapContent = () => {
+    if (capInfo?.isVoiceMode) {
+      return {
+        title: '🎙️ Voice Mode Limit',
+        subtitle: 'Female users in Voice Mode earn up to 5 minutes per session. Switch to Video Mode to earn up to 10 minutes (or 30 mins as VIP)!',
+      };
+    }
+    if (isFrozen || capInfo?.cap === 2) {
+      return {
+        title: '🥶 Minutes Are Frozen',
+        subtitle: 'Your minutes are frozen because you\'ve hit the freeze threshold. While frozen, you can only earn 2 minutes per session. Upgrade to VIP or do a one-time unfreeze to continue earning.',
+      };
+    }
+    if (capInfo?.cap === 10 && !capInfo?.isVip) {
+      return {
+        title: '⏰ Session Limit Reached',
+        subtitle: 'You\'ve reached the 10-minute session limit! Upgrade to VIP for a 30-minute session cap and earn 3x more every time you chat.',
+      };
+    }
+    if (capInfo?.cap === 30) {
+      return {
+        title: '🌟 VIP Session Limit',
+        subtitle: 'You\'ve reached the 30-minute VIP session limit. Amazing chatting! Start a new session to continue earning.',
+      };
+    }
+    // Fallback
+    return {
+      title: '⏰ Session Limit',
+      subtitle: 'You\'ve hit your session minute cap. Upgrade to VIP for 3× more minutes per session, or start a new match to continue.',
+    };
+  };
+
+  const capContent = getCapContent();
+
   // Animated search pulsing
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -244,19 +280,25 @@ export default function ChatScreen() {
 
   // ─── Frozen check ─────────────────────────────────────────────────────────
   useEffect(() => {
-    if (isFrozen && callState === 'connected') setShowFrozen(true);
+    if (isFrozen && callState === 'connected') {
+      AsyncStorage.getItem(FREEZE_SNOOZE_KEY).then((val) => {
+        if (!val || Date.now() >= parseInt(val, 10)) {
+          setShowFrozen(true);
+        }
+      });
+    }
   }, [isFrozen, callState]);
 
-  // Suppress freeze/cap popup if user snoozed it
+  // Suppress automatic cap popup if snoozed
   useEffect(() => {
-    if (!showCapPopup && !showFrozen) return;
-    AsyncStorage.getItem(FREEZE_SNOOZE_KEY).then((val) => {
-      if (val && Date.now() < parseInt(val, 10)) {
-        setShowCapPopup(false);
-        setShowFrozen(false);
-      }
-    });
-  }, [showCapPopup, showFrozen]);
+    if (showCapPopup) {
+      AsyncStorage.getItem(FREEZE_SNOOZE_KEY).then((val) => {
+        if (val && Date.now() < parseInt(val, 10)) {
+          setShowCapPopup(false);
+        }
+      });
+    }
+  }, [showCapPopup, setShowCapPopup]);
 
   const handleRemindIn2Days = useCallback(async () => {
     const snoozeUntil = Date.now() + 2 * 24 * 60 * 60 * 1000; // 2 days
@@ -270,7 +312,10 @@ export default function ChatScreen() {
     try {
       const result = await purchaseUnfreeze();
       if (result.success) {
+        // Optimistically update local state so UI responds instantly
+        await updateMinutes({ is_frozen: false });
         await refreshProfile();
+        
         setShowCapPopup(false);
         setShowFrozen(false);
         Toast.show({
@@ -294,7 +339,7 @@ export default function ChatScreen() {
     } finally {
       setUnfreezeLoading(false);
     }
-  }, [refreshProfile]);
+  }, [refreshProfile, updateMinutes]);
 
   // ─── Handlers ─────────────────────────────────────────────────────────────
   const handleStart = useCallback(async () => {
@@ -835,12 +880,8 @@ export default function ChatScreen() {
       <Modal visible={showCapPopup || showFrozen} transparent animationType="fade" onRequestClose={() => { if (!unfreezeLoading) { setShowCapPopup(false); setShowFrozen(false); } }}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>🥶 Your Minutes Are Frozen</Text>
-            <Text style={styles.modalSubtitle}>
-              {showCapPopup
-                ? `You've hit your ${isFrozen ? 'freeze' : 'session'} minute cap. ${isFrozen ? 'While frozen, you can only earn 2 minutes per session. ' : ''}Upgrade to VIP for 3× more minutes per session, or do a one-time unfreeze.`
-                : 'Your minutes are frozen because you\'ve hit the freeze threshold. Unfreeze to continue earning. While frozen, you can only earn 2 minutes per session.'}
-            </Text>
+            <Text style={styles.modalTitle}>{capContent.title}</Text>
+            <Text style={styles.modalSubtitle}>{capContent.subtitle}</Text>
             <TouchableOpacity
               style={styles.modalRedBtn}
               onPress={() => { setShowCapPopup(false); setShowFrozen(false); router.push('/vip'); }}

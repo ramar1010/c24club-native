@@ -74,12 +74,14 @@ export function useVideoChat() {
     flushMinutes,
     freezeInfo,
     refreshBalance,
+    capInfo,
   } = useCallMinutes({
     userId: user?.id ?? '',
     partnerId: partnerIdRef.current,
     isConnected: callState === 'connected',
     voiceMode: isVoiceMode,
     isVip: minutes?.is_vip ?? false,
+    isFemale: profile?.gender?.toLowerCase() === 'female',
   });
 
   // ─── useSkipPenalty — deducts minutes on quick skips ────────────────────────
@@ -768,6 +770,7 @@ export function useVideoChat() {
     partnerGender,
     partnerTopics,
     partnerId,
+    capInfo,
     minutesLost,
     showPenaltyToast,
     dismissPenaltyToast: dismissToast,

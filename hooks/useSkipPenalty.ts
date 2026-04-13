@@ -11,7 +11,7 @@ const QUICK_SKIP_THRESHOLD_SECONDS = 30;
 const SKIP_PENALTY_MINUTES = 1;
 
 export function useSkipPenalty(userId: string) {
-  const { minutes } = useAuth();
+  const { minutes, updateMinutes } = useAuth();
   const [minutesLost, setMinutesLost] = useState(0);
   const [showPenaltyToast, setShowPenaltyToast] = useState(false);
 
@@ -33,6 +33,16 @@ export function useSkipPenalty(userId: string) {
     if (data?.success) {
       setMinutesLost(SKIP_PENALTY_MINUTES);
       setShowPenaltyToast(true);
+
+      // Update local minutes state including frozen status
+      if (data.isFrozen !== undefined || data.totalMinutes !== undefined) {
+        updateMinutes({
+          is_frozen: data.isFrozen ?? minutes?.is_frozen,
+          minutes: data.totalMinutes ?? minutes?.minutes,
+          total_minutes: data.totalMinutes ?? minutes?.total_minutes,
+        });
+      }
+
       // Auto-dismiss after 2.8s (matches MinuteLossToast)
       setTimeout(() => setShowPenaltyToast(false), 2800);
       return true;
