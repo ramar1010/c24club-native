@@ -217,6 +217,12 @@ export const purchaseUnfreeze = (): Promise<{ success: boolean; error?: string }
             throw new Error(data?.error || "Verification failed");
           }
 
+          // Trigger a manual refresh of auth data to clear frozen state and update UI
+          const { refreshProfile } = useAuth.getState?.() || {};
+          if (refreshProfile) {
+            await refreshProfile();
+          }
+
           await finishTransaction({ purchase, isConsumable: true });
           cleanup();
           resolve({ success: true });

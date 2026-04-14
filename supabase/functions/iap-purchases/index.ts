@@ -163,17 +163,17 @@ serve(async (req) => {
 
       const { data: current, error: fetchError } = await supabaseAdmin
         .from("member_minutes")
-        .select("total_minutes")
+        .select("minutes")
         .eq("user_id", user.id)
         .maybeSingle();
 
       if (fetchError) throw fetchError;
 
-      const existingMinutes = current?.total_minutes ?? 0;
+      const existingMinutes = current?.minutes ?? 0;
 
       const { error: updateError } = await supabaseAdmin
         .from("member_minutes")
-        .upsert({ user_id: user.id, total_minutes: existingMinutes + minutesToAdd }, { onConflict: "user_id" });
+        .upsert({ user_id: user.id, minutes: existingMinutes + minutesToAdd }, { onConflict: "user_id" });
 
       if (updateError) throw updateError;
 
@@ -245,17 +245,17 @@ serve(async (req) => {
         console.log(`[verify-gift] STEP 6 — crediting sender bonus +${senderBonus}`);
         const { data: senderData, error: senderFetchError } = await supabaseAdmin
           .from("member_minutes")
-          .select("total_minutes")
+          .select("minutes")
           .eq("user_id", user.id)
           .maybeSingle();
 
         if (senderFetchError) {
           console.warn("[verify-gift] STEP 6 FAILED — senderFetchError:", senderFetchError.message);
         } else if (senderData) {
-          const existingSenderMinutes = senderData.total_minutes ?? 0;
+          const existingSenderMinutes = senderData.minutes ?? 0;
           const { error: senderUpdateError } = await supabaseAdmin
             .from("member_minutes")
-            .update({ total_minutes: existingSenderMinutes + senderBonus })
+            .update({ minutes: existingSenderMinutes + senderBonus })
             .eq("user_id", user.id);
           if (senderUpdateError) console.warn("[verify-gift] STEP 6 FAILED — senderUpdateError:", senderUpdateError.message);
           else console.log(`[verify-gift] STEP 6 — sender bonus +${senderBonus} credited ✅`);
