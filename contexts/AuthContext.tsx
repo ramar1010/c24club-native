@@ -261,16 +261,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log("[AuthProvider] Profile found:", profileData.id);
         setProfile(profileData as MemberProfile);
         await loadLocalAddress(profileData as MemberProfile);
-
-        // Deleted: Register push token
-        // try {
-        //   const token = await registerForPushNotifications();
-        //   if (token && token !== (profileData as any).push_token) {
-        //     await supabase.from('members').update({ push_token: token }).eq('id', userId);
-        //     setProfile(prev => prev ? { ...prev, push_token: token } : null);
-        //   }
-        // } catch (_) {}
-
       } else {
         addLog("No profile found.");
         console.warn("[AuthProvider] No profile row found for user:", userId, "Creating one...");
@@ -349,6 +339,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (settingsData) {
         setFreezeSettings(settingsData as FreezeSettings);
+      }
+
+      // NEW: Trigger female search notification check for male users
+      const gender = profileData?.gender || (authUser?.user_metadata?.gender as string);
+      if (gender?.toLowerCase() === 'male') {
+        supabase.functions.invoke("notify-searching-users", { body: {} }).catch(() => {});
       }
     } catch (err) {
       console.error("Error fetching user data:", err);
