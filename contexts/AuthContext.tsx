@@ -22,6 +22,9 @@ export interface MemberProfile {
   gender: string | null;
   is_discoverable: boolean;
   notify_enabled: boolean;
+  notify_female_searching: boolean;
+  call_notify_enabled: boolean;
+  male_search_notify_mode: 'every' | 'batched' | 'off';
   push_token: string | null;
   membership: string | null;
   title: string | null;

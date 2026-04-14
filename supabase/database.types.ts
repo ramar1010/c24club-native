@@ -208,6 +208,32 @@ export type Database = {
           },
         ]
       }
+      male_search_batch_log: {
+        Row: {
+          female_user_id: string
+          join_count: number | null
+          last_reset_at: string | null
+        }
+        Insert: {
+          female_user_id: string
+          join_count?: number | null
+          last_reset_at?: string | null
+        }
+        Update: {
+          female_user_id?: string
+          join_count?: number | null
+          last_reset_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "male_search_batch_log_female_user_id_fkey"
+            columns: ["female_user_id"]
+            isOneToOne: true
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       member_minutes: {
         Row: {
           ad_points: number | null
@@ -283,6 +309,7 @@ export type Database = {
         Row: {
           bio: string | null
           birthdate: string | null
+          call_notify_enabled: boolean | null
           call_slug: string | null
           city: string | null
           country: string | null
@@ -296,9 +323,11 @@ export type Database = {
           is_discoverable: boolean | null
           is_test_account: boolean | null
           last_active_at: string | null
+          male_search_notify_mode: string | null
           membership: string | null
           name: string | null
           notify_enabled: boolean | null
+          notify_female_searching: boolean | null
           phone_number: string | null
           profession: string | null
           push_token: string | null
@@ -311,6 +340,7 @@ export type Database = {
         Insert: {
           bio?: string | null
           birthdate?: string | null
+          call_notify_enabled?: boolean | null
           call_slug?: string | null
           city?: string | null
           country?: string | null
@@ -324,9 +354,11 @@ export type Database = {
           is_discoverable?: boolean | null
           is_test_account?: boolean | null
           last_active_at?: string | null
+          male_search_notify_mode?: string | null
           membership?: string | null
           name?: string | null
           notify_enabled?: boolean | null
+          notify_female_searching?: boolean | null
           phone_number?: string | null
           profession?: string | null
           push_token?: string | null
@@ -339,6 +371,7 @@ export type Database = {
         Update: {
           bio?: string | null
           birthdate?: string | null
+          call_notify_enabled?: boolean | null
           call_slug?: string | null
           city?: string | null
           country?: string | null
@@ -352,9 +385,11 @@ export type Database = {
           is_discoverable?: boolean | null
           is_test_account?: boolean | null
           last_active_at?: string | null
+          male_search_notify_mode?: string | null
           membership?: string | null
           name?: string | null
           notify_enabled?: boolean | null
+          notify_female_searching?: boolean | null
           phone_number?: string | null
           profession?: string | null
           push_token?: string | null
@@ -494,6 +529,10 @@ export type Database = {
       get_partner_pinned_socials: {
         Args: { p_partner_id: string }
         Returns: string[]
+      }
+      increment_male_search_count: {
+        Args: { p_female_id: string }
+        Returns: undefined
       }
       is_blocked_by: { Args: { partner_id: string }; Returns: boolean }
       send_vip_gifting_reminders: { Args: never; Returns: undefined }

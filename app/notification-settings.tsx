@@ -38,12 +38,12 @@ export default function NotificationSettingsScreen() {
   // ── Load settings from profile ─────────────────────────────────────────────
   useEffect(() => {
     if (profile) {
-      setDmNotifyEnabledState((profile as any).notify_enabled !== false);
+      setDmNotifyEnabledState(profile.notify_enabled !== false);
       setDmNotifyLoading(false);
-      setCallNotifyEnabledState((profile as any).call_notify_enabled !== false);
+      setCallNotifyEnabledState(profile.call_notify_enabled !== false);
       setCallNotifyLoading(false);
 
-      const mode = (profile as any).male_search_notify_mode;
+      const mode = profile.male_search_notify_mode;
       if (mode === 'every' || mode === 'batched' || mode === 'off') {
         setNotifyMode(mode);
       }
@@ -55,24 +55,18 @@ export default function NotificationSettingsScreen() {
     async (value: boolean) => {
       if (!user?.id) return;
       setDmNotifyEnabledState(value);
-      await supabase
-        .from('members')
-        .update({ notify_enabled: value } as any)
-        .eq('id', user.id);
+      await updateProfile({ notify_enabled: value });
     },
-    [user?.id]
+    [user?.id, updateProfile]
   );
 
   const setCallNotifyEnabled = useCallback(
     async (value: boolean) => {
       if (!user?.id) return;
       setCallNotifyEnabledState(value);
-      await supabase
-        .from('members')
-        .update({ call_notify_enabled: value } as any)
-        .eq('id', user.id);
+      await updateProfile({ call_notify_enabled: value });
     },
-    [user?.id]
+    [user?.id, updateProfile]
   );
 
   const handleNotifyModeChange = async (mode: 'every' | 'batched' | 'off') => {
@@ -80,10 +74,7 @@ export default function NotificationSettingsScreen() {
     setNotifyMode(mode);
     setIsSavingNotifyMode(true);
     try {
-      await supabase
-        .from('members')
-        .update({ male_search_notify_mode: mode } as any)
-        .eq('id', user.id);
+      await updateProfile({ male_search_notify_mode: mode });
     } catch (_err) {}
     setIsSavingNotifyMode(false);
   };

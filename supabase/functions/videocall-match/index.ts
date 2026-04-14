@@ -161,7 +161,7 @@ Deno.serve(async (req) => {
           .from("members")
           .select("id")
           .ilike("gender", "male")
-          .eq("notify_enabled", true)
+          .eq("notify_female_searching", true)
           .gt("last_active_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
           .limit(100);
 
