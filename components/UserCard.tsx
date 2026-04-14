@@ -253,6 +253,8 @@ export const UserCard = React.memo(({
   );
 });
 
+UserCard.displayName = "UserCard";
+
 const styles = StyleSheet.create({
   card: {
     borderRadius: 16,

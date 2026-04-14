@@ -60,7 +60,7 @@ export const notifyGiftAttempt = async (recipientId: string): Promise<void> => {
     await supabase.functions.invoke("send-push-notification", {
       body: {
         user_id: recipientId,
-        title: "💝 A guy wanted to send you a gift!",
+        title: "\uD83D\uDC9D A guy wanted to send you a gift!",
         body: "Become Premium VIP to start receiving cash gifts from guys. Tap to upgrade!",
         data: {
           screen: "/vip",
@@ -217,11 +217,7 @@ export const purchaseUnfreeze = (): Promise<{ success: boolean; error?: string }
             throw new Error(data?.error || "Verification failed");
           }
 
-          // Trigger a manual refresh of auth data to clear frozen state and update UI
-          const { refreshProfile } = useAuth.getState?.() || {};
-          if (refreshProfile) {
-            await refreshProfile();
-          }
+          // Removed invalid auth refresh call here
 
           await finishTransaction({ purchase, isConsumable: true });
           cleanup();

@@ -272,9 +272,16 @@ serve(async (req) => {
     if (action === "verify-unfreeze") {
       await verifyReceipt();
 
+      const sevenDaysFromNow = new Date();
+      sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+
       const { error: updateError } = await supabaseAdmin
         .from("member_minutes")
-        .update({ is_frozen: false, frozen_at: null })
+        .update({ 
+          is_frozen: false, 
+          frozen_at: null,
+          freeze_free_until: sevenDaysFromNow.toISOString()
+        })
         .eq("user_id", user.id);
 
       if (updateError) throw updateError;

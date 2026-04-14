@@ -46,9 +46,6 @@ interface SocialCircleProps {
 }
 
 function SocialCircle({ platform, username }: SocialCircleProps) {
-  const config = SOCIAL_CONFIG[platform];
-  if (!config) return null;
-
   const cleanUsername = sanitizeUsername(username);
   const scaleAnim = React.useRef(new Animated.Value(1)).current;
 
@@ -59,6 +56,9 @@ function SocialCircle({ platform, username }: SocialCircleProps) {
   const handlePressOut = useCallback(() => {
     Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, speed: 50, bounciness: 4 }).start();
   }, [scaleAnim]);
+
+  const config = SOCIAL_CONFIG[platform];
+  if (!config) return null;
 
   const handlePress = useCallback(() => {
     if (!config.buildUrl) return;
