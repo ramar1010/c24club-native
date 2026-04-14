@@ -100,14 +100,6 @@ export function useVideoChat() {
     }
   }, [minutes]);
 
-  useEffect(() => {
-    // Default voice mode ON for female users
-    if (profile?.gender === 'female' || profile?.gender === 'Female') {
-      setIsVoiceMode(true);
-      isVoiceModeRef.current = true;
-    }
-  }, [profile?.gender]);
-
   // ─── Cleanup on unmount ──────────────────────────────────────────────────────
   useEffect(() => {
     isMountedRef.current = true;
