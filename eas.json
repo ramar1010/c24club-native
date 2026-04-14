@@ -16,9 +16,6 @@
     },
     "verify": {
       "distribution": "internal",
-      "env": {
-        "VERIFY_BUILD": "true"
-      },
       "android": {
         "buildType": "apk",
         "gradleCommand": ":app:assembleRelease"

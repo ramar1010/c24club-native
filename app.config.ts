@@ -39,7 +39,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   icon: "./assets/images/icon.png",
   scheme: "c24club",
   userInterfaceStyle: "automatic",
-  newArchEnabled: process.env.VERIFY_BUILD ? false : true,
+  newArchEnabled: true,
   ios: {
     supportsTablet: true,
     bundleIdentifier: "com.c24club.app",
