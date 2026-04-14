@@ -112,6 +112,14 @@ export function useCallMinutes({
     }
   }, [authMinutes?.is_frozen, authMinutes?.total_minutes]);
 
+  // Handle capReached state from outside (e.g. from useVideoChat which might be causing resets)
+  useEffect(() => {
+    if (isConnected && capReached) {
+      // If we are connected and cap was reached, don't let it be cleared unless connection changes
+      capReachedRef.current = true;
+    }
+  }, [isConnected, capReached]);
+
   // Fetch balance
   const fetchBalance = useCallback(() => {
     if (!userId || userId === 'anonymous') return;
@@ -131,15 +139,24 @@ export function useCallMinutes({
   // Reset on new partner OR new connection (handles rejoining same partner)
   useEffect(() => {
     if (isConnected) {
-      // Full reset — new session cap starts fresh even for same partner
-      elapsedRef.current = 0;
-      lastReportedRef.current = 0;
-      sessionMinutesEarnedRef.current = 0;
-      setElapsedSeconds(0);
-      setCapReached(false);
+      console.log("[useCallMinutes] Session Connected. isConnected:", isConnected, "partnerId:", partnerId);
+      // Only reset if this is a DIFFERENT session (new partner or explicit reset)
+      // If we're just re-rendering, we shouldn't wipe the cap
+      if (!capReachedRef.current) {
+        elapsedRef.current = 0;
+        lastReportedRef.current = 0;
+        sessionMinutesEarnedRef.current = 0;
+        setElapsedSeconds(0);
+        setCapReached(false);
+        setShowCapPopup(false);
+        sessionIdRef.current = generateSessionId();
+      }
+    } else {
+      // When disconnected, we can clear the flags for the next session
+      console.log("[useCallMinutes] Session Disconnected.");
       capReachedRef.current = false;
+      setCapReached(false);
       setShowCapPopup(false);
-      sessionIdRef.current = generateSessionId();
     }
   }, [isConnected, partnerId]); // Resets on partner change OR reconnection
 
