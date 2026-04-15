@@ -16,34 +16,12 @@ export function useFreeMsgLimit(partnerId?: string) {
   const isVip = !!minutes?.is_vip;
 
   const { data: usedCount = 0, isLoading } = useQuery({
-    queryKey: ["free_msg_count", user?.id, partnerId],
+    queryKey: ["free_msg_count", user?.id], // Removed partnerId from key to make it global
     // Only count for non-VIP users who are logged in
     enabled: !!user && !isVip,
     staleTime: 10_000,
     queryFn: async () => {
       if (!user) return 0;
-
-      // If we have a partnerId, we can just count messages in the conversation with that partner
-      if (partnerId) {
-        // Find the conversation with this partner
-        const { data: convo } = await supabase
-          .from("conversations")
-          .select("id")
-          .or(`and(participant_1.eq.${user.id},participant_2.eq.${partnerId}),and(participant_1.eq.${partnerId},participant_2.eq.${user.id})`)
-          .maybeSingle();
-
-        if (!convo) return 0;
-
-        // Count messages sent by user in this conversation
-        const { count, error } = await supabase
-          .from("dm_messages")
-          .select("*", { count: 'exact', head: true })
-          .eq("conversation_id", convo.id)
-          .eq("sender_id", user.id);
-
-        if (error) throw error;
-        return count ?? 0;
-      }
 
       // 1. Get all messages sent by this user
       const { data: sentMsgs } = await supabase
