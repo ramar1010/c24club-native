@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Dimensions,
   FlatList,
   Image,
@@ -39,6 +40,7 @@ import {
   Music,
   Pencil,
   Shield,
+  Shuffle,
   Sparkles,
   Trash2,
   User,
@@ -62,6 +64,7 @@ import { getTimeAgo, isEffectivelyOnline } from "@/utils/member-utils";
 import { UserCard } from "@/components/UserCard";
 import { MemberProfileModal } from "@/components/MemberProfileModal";
 import { FooterLinks } from "@/components/FooterLinks";
+import { LinearGradient } from "expo-linear-gradient";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const CARD_WIDTH = (SCREEN_WIDTH - 16 * 2 - 12) / 2;
@@ -117,6 +120,11 @@ export default function DiscoverScreen() {
 
   // UI state
   const [filter, setFilter] = useState<FilterType>("All");
+  const [shuffleSeed, setShuffleSeed] = useState(0);
+  const [isShuffling, setIsShuffling] = useState(false);
+  const shuffleOpacity = useRef(new Animated.Value(1)).current;
+  const shuffleRotation = useRef(new Animated.Value(0)).current;
+  const flatListRef = useRef<FlatList>(null);
   const [editExpanded, setEditExpanded] = useState(false);
   const [interestsExpanded, setInterestsExpanded] = useState(false);
   const [bioText, setBioText] = useState(profile?.bio ?? "");
@@ -369,6 +377,52 @@ export default function DiscoverScreen() {
       return isEffectivelyOnline(m.id, m.gender, m.last_active_at);
     return true;
   });
+
+  // ─── Seeded Fisher-Yates shuffle ─────────────────────────────────────────
+
+  const seededShuffle = useCallback(<T,>(arr: T[], seed: number): T[] => {
+    if (seed === 0) return arr;
+    const result = [...arr];
+    let s = seed;
+    for (let i = result.length - 1; i > 0; i--) {
+      s = (s * 16807) % 2147483647;
+      const j = s % (i + 1);
+      [result[i], result[j]] = [result[j], result[i]];
+    }
+    return result;
+  }, []);
+
+  const displayedMembers = seededShuffle(filteredMembers, shuffleSeed);
+
+  // ─── Shuffle handler ──────────────────────────────────────────────────────
+
+  const handleShuffle = useCallback(() => {
+    if (isShuffling) return;
+    setIsShuffling(true);
+
+    // Spin the icon
+    shuffleRotation.setValue(0);
+    Animated.timing(shuffleRotation, {
+      toValue: 1,
+      duration: 400,
+      useNativeDriver: true,
+    }).start();
+
+    // Fade out → reshuffle → fade in
+    Animated.timing(shuffleOpacity, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      setShuffleSeed(Date.now());
+      flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+      Animated.timing(shuffleOpacity, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => setIsShuffling(false));
+    });
+  }, [isShuffling, shuffleOpacity, shuffleRotation]);
 
   // ─── Interest handling ───────────────────────────────────────────────────
 
@@ -908,8 +962,10 @@ filter === pill ? styles.filterPillTextActive : null,
       </View>
 
       {/* ── FlatList with header sections ── */}
+      <Animated.View style={{ flex: 1, opacity: shuffleOpacity }}>
       <FlatList
-        data={filteredMembers}
+        ref={flatListRef}
+        data={displayedMembers}
         keyExtractor={(item) => item.id}
         numColumns={2}
         ListHeaderComponent={renderHeader}
@@ -958,6 +1014,35 @@ filter === pill ? styles.filterPillTextActive : null,
         }
         ListFooterComponent={<FooterLinks />}
       />
+      </Animated.View>
+
+      {/* ── Floating Shuffle Button ── */}
+      <TouchableOpacity
+        style={styles.shuffleBtn}
+        onPress={handleShuffle}
+        activeOpacity={0.85}
+        disabled={isShuffling}
+      >
+        <LinearGradient
+          colors={["#EC4899", "#8B5CF6", "#6366F1"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.shuffleBtnGradient}
+        >
+          <Animated.View style={{
+            transform: [{
+              rotate: shuffleRotation.interpolate({
+                inputRange: [0, 1],
+                outputRange: ['0deg', '360deg'],
+              })
+            }],
+            marginRight: 6,
+          }}>
+            <Shuffle size={18} color="#fff" />
+          </Animated.View>
+          <Text style={styles.shuffleBtnText}>Shuffle</Text>
+        </LinearGradient>
+      </TouchableOpacity>
 
       <SelfieCaptureModal
         visible={selfieModalVisible}
@@ -1566,5 +1651,33 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#71717A",
     marginTop: 2,
+  },
+
+  // ── Shuffle Button ─────────────────────────────────────────────────────────
+  shuffleBtn: {
+    position: "absolute",
+    bottom: 20,
+    alignSelf: "center",
+    left: "50%",
+    transform: [{ translateX: -60 }],
+    borderRadius: 100,
+    shadowColor: "#8B5CF6",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  shuffleBtnGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 22,
+    borderRadius: 100,
+  },
+  shuffleBtnText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
   },
 });
