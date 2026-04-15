@@ -99,10 +99,10 @@ export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
   const toast = useToast();
   const [step, setStep] = useState<'idle' | 'spinning' | 'result'>('idle');
   const [won, setWon] = useState(false);
+  const [consolationItem, setConsolationItem] = useState<RewardItem | null>(null);
   const [commonItems, setCommonItems] = useState<RewardItem[]>([]);
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [hasUsedSecondChance, setHasUsedSecondChance] = useState(false);
-  const [showCashoutChoice, setShowCashoutChoice] = useState(false);
   const [showShippingForm, setShowShippingForm] = useState(false);
   const [isUsingSavedAddress, setIsUsingSavedAddress] = useState(true);
   const [currentRedemptionId, setCurrentRedemptionId] = useState<string | null>(null);
@@ -124,13 +124,19 @@ export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
     const items: (RewardItem | null)[] = [];
     for (let i = 0; i < TOTAL_SLOTS; i++) {
       if (i === WINNER_INDEX) {
-        items.push(won ? reward : commonItems[Math.floor(Math.random() * commonItems.length)]);
+        if (won) {
+          items.push(reward);
+        } else if (consolationItem) {
+          items.push(consolationItem);
+        } else {
+          items.push(commonItems[Math.floor(Math.random() * commonItems.length)]);
+        }
       } else {
         items.push(commonItems[Math.floor(Math.random() * commonItems.length)]);
       }
     }
     return items;
-  }, [commonItems, won, reward]);
+  }, [commonItems, won, reward, consolationItem]);
 
   useEffect(() => {
     if (isOpen) {
@@ -186,9 +192,9 @@ export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
   const resetState = () => {
     setStep('idle');
     setWon(false);
+    setConsolationItem(null);
     setIsRedeeming(false);
     setHasUsedSecondChance(false);
-    setShowCashoutChoice(false);
     setShowShippingForm(false);
     setSaveAsDefault(false);
     spinAnim.setValue(0);
@@ -222,6 +228,11 @@ export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
     const isWinner = Math.random() * 100 < winChance;
     
     setWon(isWinner);
+    if (!isWinner && commonItems.length > 0) {
+      setConsolationItem(commonItems[Math.floor(Math.random() * commonItems.length)]);
+    } else {
+      setConsolationItem(null);
+    }
     setStep('spinning');
 
     // Deduct minutes if not a second chance
@@ -253,38 +264,44 @@ export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
       setStep('result');
       setIsRedeeming(false);
 
-      if (isWinner && user) {
-        // Create redemption record (initially without address or with default if we had it)
+      const winItem = isWinner ? reward : (consolationItem || (commonItems.length > 0 ? commonItems[0] : null));
+
+      if (winItem && user) {
+        // Create redemption record
         try {
           const selectionText = [selectedSize, selectedColor].filter(Boolean).join(', ');
           const { data, error } = await supabase.from('member_redemptions').insert({
             user_id: user.id,
-            reward_id: reward.id,
-            reward_title: reward.name + (selectionText ? ` (${selectionText})` : ''),
-            reward_rarity: reward.rarity,
-            reward_image_url: reward.image_url,
-            minutes_cost: reward.minutes_cost,
+            reward_id: winItem.id,
+            reward_title: winItem.name + (selectionText ? ` (${selectionText})` : ''),
+            reward_rarity: winItem.rarity,
+            reward_image_url: winItem.image_url,
+            minutes_cost: isSecondChance ? 0 : reward.minutes_cost,
             status: 'processing',
           }).select('id').single();
 
           if (data?.id) {
             setCurrentRedemptionId(data.id);
-            if (onWin) onWin(data.id);
+            if (isWinner && onWin) onWin(data.id);
           }
         } catch (e) {
           console.error('Error creating redemption:', e);
         }
 
-        // For non-legendary physical rewards, show shipping form here.
-        // For legendary rewards, onWin (above) will handle triggering the Choice modal in the parent.
-        if (reward.rarity !== 'legendary' && reward.type === 'physical') {
-          setShowShippingForm(true);
+        // For physical rewards, show shipping form.
+        // For legendary rewards, onWin (above) handles triggering the Choice modal in the parent if it was a winner.
+        // If it's a consolation prize, we show shipping form if it's physical.
+        if (winItem.type === 'physical') {
+          if (winItem.rarity !== 'legendary') {
+            setShowShippingForm(true);
+          }
         }
       }
     });
   };
 
   const handleSecondChance = () => {
+    if (won) return; // Safety check
     setHasUsedSecondChance(true);
     setWon(false);
     setStep('idle');
@@ -293,31 +310,6 @@ export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
     setTimeout(() => {
       handleSpin(true);
     }, 100);
-  };
-
-  const handleCashout = async (choice: 'item' | 'cash') => {
-    if (choice === 'cash') {
-      toast.show({
-        placement: 'top',
-        render: ({ id }) => (
-          <Toast nativeID={'toast-' + id} action="success" variant="solid">
-            <VStack space="xs">
-              <ToastTitle>Cashout Selected</ToastTitle>
-              <ToastDescription>You will receive ${reward.cashout_value.toFixed(2)} shortly.</ToastDescription>
-            </VStack>
-          </Toast>
-        ),
-      });
-      setShowCashoutChoice(false);
-      onClose();
-    } else {
-      setShowCashoutChoice(false);
-      if (reward.type === 'physical') {
-        setShowShippingForm(true);
-      } else {
-        onClose();
-      }
-    }
   };
 
   const handleShippingSubmit = async () => {
@@ -381,66 +373,6 @@ export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
   const baseRate = reward.rarity === 'legendary' ? 2 : 5;
   const winChance = baseRate + currentCE;
 
-  if (showCashoutChoice) {
-    return (
-      <Modal isOpen={isOpen} onClose={onClose} size="lg">
-        <ModalBackdrop />
-        <ModalContent style={[styles.modalContent, { backgroundColor: '#1A1A2E' }]}>
-          <ModalHeader style={[styles.modalHeader, { backgroundColor: '#1A1A2E' }]}>
-            <Heading style={styles.whiteText}>Legendary Win!</Heading>
-            <ModalCloseButton onPress={onClose}>
-              <X size={24} color="#71717A" />
-            </ModalCloseButton>
-          </ModalHeader>
-          <ModalBody style={[styles.modalBody, { backgroundColor: '#1A1A2E' }]}>
-            <VStack space="lg" style={styles.cashoutContainer}>
-              <View style={styles.cashoutIconWrapper}>
-                <DollarSign size={48} color="#FACC15" />
-              </View>
-              <VStack space="xs" style={styles.centerItems}>
-                <Text style={styles.mutedTextCenter}>Choose how you want to receive your reward.</Text>
-              </VStack>
-              
-              <View style={styles.itemPreview}>
-                <Image 
-                  source={{ uri: reward.image_url || 'https://via.placeholder.com/150' }} 
-                  style={styles.previewImage}
-                />
-                <Text style={styles.itemTitle}>{reward.name}</Text>
-              </View>
-
-              <VStack space="md" style={styles.fullWidth}>
-                <TouchableOpacity 
-                  style={styles.choiceButton}
-                  onPress={() => handleCashout('item')}
-                >
-                  <Package size={20} color="#FFFFFF" />
-                  <View style={styles.choiceContent}>
-                    <Text style={styles.whiteTextBold}>Keep the Item</Text>
-                    <Text style={styles.mutedTextSmall}>We'll ship it to your address.</Text>
-                  </View>
-                  <ChevronRight size={20} color="#71717A" />
-                </TouchableOpacity>
-
-                <TouchableOpacity 
-                  style={flattenStyle([styles.choiceButton, { borderColor: '#FACC15', backgroundColor: 'rgba(250, 204, 21, 0.05)' }])}
-                  onPress={() => handleCashout('cash')}
-                >
-                  <DollarSign size={20} color="#FACC15" />
-                  <View style={styles.choiceContent}>
-                    <Text style={styles.goldTextBold}>Cash Out ${reward.cashout_value.toFixed(2)}</Text>
-                    <Text style={styles.mutedTextSmall}>Instant credit to your account.</Text>
-                  </View>
-                  <ChevronRight size={20} color="#FACC15" />
-                </TouchableOpacity>
-              </VStack>
-            </VStack>
-          </ModalBody>
-        </ModalContent>
-      </Modal>
-    );
-  }
-
   if (showShippingForm) {
     return (
       <Modal isOpen={isOpen} onClose={onClose} size="md">
@@ -461,7 +393,7 @@ export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
                 <TouchableOpacity 
                   style={[
                     styles.addressOption,
-isUsingSavedAddress ? styles.addressOptionSelected : null
+                    isUsingSavedAddress ? styles.addressOptionSelected : null
                   ]}
                   onPress={() => setIsUsingSavedAddress(true)}
                   activeOpacity={0.7}
@@ -483,7 +415,7 @@ isUsingSavedAddress ? styles.addressOptionSelected : null
               <TouchableOpacity 
                 style={[
                   styles.addressOption,
-!isUsingSavedAddress ? styles.addressOptionSelected : null
+                  !isUsingSavedAddress ? styles.addressOptionSelected : null
                 ]}
                 onPress={() => setIsUsingSavedAddress(false)}
                 activeOpacity={0.7}
@@ -696,12 +628,13 @@ isUsingSavedAddress ? styles.addressOptionSelected : null
                     <Button 
                       style={styles.continueButton}
                       onPress={() => {
-                        if (reward.rarity !== 'legendary') {
-                          if (reward.type === 'physical') {
-                            setShowShippingForm(true);
-                          } else {
-                            onClose();
-                          }
+                        if (reward.rarity === 'legendary') {
+                          // Parent handles legendary win via onWin which unmounts this
+                          onClose();
+                        } else if (reward.type === 'physical') {
+                          setShowShippingForm(true);
+                        } else {
+                          onClose();
                         }
                       }}
                     >
@@ -710,11 +643,18 @@ isUsingSavedAddress ? styles.addressOptionSelected : null
                   </VStack>
                 ) : (
                   <VStack style={styles.resultContainer} space="sm">
-                    <View style={styles.loseIconWrapper}>
-                      <AlertCircle size={48} color="#71717A" />
+                    <View style={styles.winIconWrapper}>
+                      <Trophy size={48} color="#22C55E" />
                     </View>
-                    <Heading style={styles.whiteTextLg}>SO CLOSE!</Heading>
-                    <Text style={styles.mutedTextCenter}>Better luck next time!</Text>
+                    <Heading style={styles.whiteTextLg}>CONSOLATION PRIZE!</Heading>
+                    <VStack space="xs" style={styles.centerItems}>
+                      <Text style={styles.mutedTextCenter}>
+                        You didn't get the {reward.name}, but you won:
+                      </Text>
+                      <Text style={styles.consolationName}>
+                        {consolationItem?.name || 'Common Item'}
+                      </Text>
+                    </VStack>
                     
                     {canHaveSecondChance ? (
                       <VStack style={styles.perkCard} space="md">
@@ -731,14 +671,22 @@ isUsingSavedAddress ? styles.addressOptionSelected : null
                         >
                           <ButtonText style={styles.perkButtonText}>USE FREE RE-SPIN</ButtonText>
                         </Button>
+                        <TouchableOpacity onPress={onClose} style={{ alignSelf: 'center', marginTop: 8 }}>
+                          <Text style={styles.mutedTextSmall}>No thanks, I'll keep the consolation prize</Text>
+                        </TouchableOpacity>
                       </VStack>
                     ) : (
                       <Button 
-                        variant="outline"
-                        style={styles.closeOutlineButton}
-                        onPress={onClose}
+                        style={styles.continueButton}
+                        onPress={() => {
+                          if (consolationItem?.type === 'physical') {
+                            setShowShippingForm(true);
+                          } else {
+                            onClose();
+                          }
+                        }}
                       >
-                        <ButtonText style={styles.whiteTextBold}>CLOSE</ButtonText>
+                        <ButtonText style={styles.continueButtonText}>CONTINUE</ButtonText>
                       </Button>
                     )}
                   </VStack>
@@ -1139,6 +1087,13 @@ const styles = StyleSheet.create({
   goldTextBold: {
     color: '#FACC15',
     fontWeight: '700',
+  },
+  consolationName: {
+    color: '#22C55E',
+    fontSize: 20,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginTop: 4,
   },
   formContainer: {
     paddingVertical: 8,

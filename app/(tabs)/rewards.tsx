@@ -565,8 +565,9 @@ isLocked ? styles.lockedButton : null,
                 cashout_value: selectedReward.cashout_value,
                 requires_shipping: selectedReward.type === 'physical'
               });
-              // Close spin modal first, then open cashout modal
+              // Close spin modal and unmount it immediately
               setShowSpinModal(false);
+              setSelectedReward(null);
               setShowCashoutModal(true);
             } else if (selectedReward.type === 'physical') {
               // Address form is now handled inside RewardSpinModal for wins
