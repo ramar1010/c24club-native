@@ -86,6 +86,7 @@ export default function ChatScreen() {
     isMuted,
     isCameraOff,
     isVoiceMode,
+    partnerIsVoiceMode,
     skipPenaltyCount,
     showCapPopup,
     totalMinutes,
@@ -543,7 +544,11 @@ export default function ChatScreen() {
   const renderVideoArea = () => (
     <View style={styles.videoArea}>
       {/* Remote video */}
-      {remoteStream ? (
+      {partnerIsVoiceMode ? (
+        <View style={styles.remoteVideoPlaceholder}>
+          <VoiceModeAvatar size={120} />
+        </View>
+      ) : remoteStream ? (
         <RTCView
           streamURL={typeof remoteStream.toURL === 'function' ? remoteStream.toURL() : remoteStream}
           style={styles.remoteVideo}

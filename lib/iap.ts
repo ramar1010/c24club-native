@@ -7,6 +7,8 @@ export const IAP_PRODUCTS = {
   MINUTE_UNFREEZE: 'c24_minute_unfreeze',
 };
 
+export const UNBAN_PRODUCT_ID = IAP_PRODUCTS.UNBAN;
+
 export const IAP_SUBSCRIPTIONS = {
   BASIC_VIP: 'c24_basic_vip',
   PREMIUM_VIP: 'c24_premium_vip',

@@ -49,6 +49,8 @@ export function useNotifyFemaleOnline() {
     // Update DB if user is logged in
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
+      // NOTE: We do not clear push_token here because this is a specific toggle.
+      // The master toggle (notify_enabled) handles the global token state.
       await supabase
         .from('members')
         .update({ notify_female_searching: value } as any)

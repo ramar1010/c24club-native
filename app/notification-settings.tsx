@@ -14,6 +14,7 @@ import { ChevronLeft, Bell, MessageSquare, Users, Gift, Heart, Video } from 'luc
 import { useNotifyFemaleOnline } from '@/hooks/useNotifyFemaleOnline';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { registerForPushNotifications } from '@/lib/notifications';
 
 export default function NotificationSettingsScreen() {
   const router = useRouter();
@@ -24,8 +25,8 @@ export default function NotificationSettingsScreen() {
   const isFemale = profile?.gender?.toLowerCase() === 'female';
 
   // ── DM Notifications (all users) ──────────────────────────────────────────
-  const [dmNotifyEnabled, setDmNotifyEnabledState] = useState<boolean>(true);
-  const [dmNotifyLoading, setDmNotifyLoading] = useState<boolean>(true);
+  const [masterNotifyEnabled, setMasterNotifyEnabledState] = useState<boolean>(true);
+  const [masterNotifyLoading, setMasterNotifyLoading] = useState<boolean>(true);
 
   // ── Female: Chat (male-searching) notify mode ──────────────────────────────
   const [notifyMode, setNotifyMode] = useState<'every' | 'batched' | 'off'>('every');
@@ -38,8 +39,8 @@ export default function NotificationSettingsScreen() {
   // ── Load settings from profile ─────────────────────────────────────────────
   useEffect(() => {
     if (profile) {
-      setDmNotifyEnabledState(profile.notify_enabled !== false);
-      setDmNotifyLoading(false);
+      setMasterNotifyEnabledState(profile.notify_enabled !== false);
+      setMasterNotifyLoading(false);
       setCallNotifyEnabledState(profile.call_notify_enabled !== false);
       setCallNotifyLoading(false);
 
@@ -51,11 +52,25 @@ export default function NotificationSettingsScreen() {
   }, [profile]);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
-  const setDmNotifyEnabled = useCallback(
+  const setMasterNotifyEnabled = useCallback(
     async (value: boolean) => {
       if (!user?.id) return;
-      setDmNotifyEnabledState(value);
-      await updateProfile({ notify_enabled: value });
+      setMasterNotifyEnabledState(value);
+      
+      try {
+        if (value) {
+          // Toggling ON: Register token and enable
+          const token = await registerForPushNotifications();
+          await updateProfile({ notify_enabled: true, push_token: token });
+        } else {
+          // Toggling OFF: Disable and clear token as requested by database rules
+          await updateProfile({ notify_enabled: false, push_token: null });
+        }
+      } catch (err) {
+        console.error("[NotificationSettings] Error toggling notify_enabled:", err);
+        // Revert UI state on error
+        setMasterNotifyEnabledState(!value);
+      }
     },
     [user?.id, updateProfile]
   );
@@ -99,8 +114,35 @@ export default function NotificationSettingsScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── MESSAGES ──────────────────────────────────────────────────────── */}
+        {/* ── GLOBAL SETTINGS ───────────────────────────────────────────────── */}
         <View style={styles.section}>
+          <View style={styles.sectionLabelRow}>
+            <Bell size={13} color="#6B7280" />
+            <Text style={styles.sectionLabel}>GLOBAL</Text>
+          </View>
+          <View style={styles.settingRow}>
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingTitle}>Allow Push Notifications</Text>
+              <Text style={styles.settingDesc}>
+                Master toggle for all notifications including messages, calls, and matching
+              </Text>
+            </View>
+            {masterNotifyLoading ? (
+              <ActivityIndicator size="small" color="#EF4444" />
+            ) : (
+              <Switch
+                value={masterNotifyEnabled}
+                onValueChange={setMasterNotifyEnabled}
+                trackColor={{ false: '#3F3F5A', true: '#EF4444' }}
+                thumbColor={masterNotifyEnabled ? '#FFFFFF' : '#A1A1AA'}
+                ios_backgroundColor="#3F3F5A"
+              />
+            )}
+          </View>
+        </View>
+
+        {/* ── MESSAGES ──────────────────────────────────────────────────────── */}
+        <View style={[styles.section, !masterNotifyEnabled && { opacity: 0.5 }]}>
           <View style={styles.sectionLabelRow}>
             <MessageSquare size={13} color="#6B7280" />
             <Text style={styles.sectionLabel}>MESSAGES</Text>
@@ -112,22 +154,19 @@ export default function NotificationSettingsScreen() {
                 Get notified when someone sends you a DM
               </Text>
             </View>
-            {dmNotifyLoading ? (
-              <ActivityIndicator size="small" color="#EF4444" />
-            ) : (
-              <Switch
-                value={dmNotifyEnabled}
-                onValueChange={setDmNotifyEnabled}
-                trackColor={{ false: '#3F3F5A', true: '#EF4444' }}
-                thumbColor={dmNotifyEnabled ? '#FFFFFF' : '#A1A1AA'}
-                ios_backgroundColor="#3F3F5A"
-              />
-            )}
+            <Switch
+              value={masterNotifyEnabled} // Inherits from master since notify_enabled is the only field for DMs
+              onValueChange={setMasterNotifyEnabled}
+              disabled={!masterNotifyEnabled}
+              trackColor={{ false: '#3F3F5A', true: '#EF4444' }}
+              thumbColor={masterNotifyEnabled ? '#FFFFFF' : '#A1A1AA'}
+              ios_backgroundColor="#3F3F5A"
+            />
           </View>
         </View>
 
         {/* ── CALLS ─────────────────────────────────────────────────────────── */}
-        <View style={styles.section}>
+        <View style={[styles.section, !masterNotifyEnabled && { opacity: 0.5 }]}>
           <View style={styles.sectionLabelRow}>
             <Video size={13} color="#6B7280" />
             <Text style={styles.sectionLabel}>CALLS</Text>
@@ -155,7 +194,7 @@ export default function NotificationSettingsScreen() {
 
         {/* ── MATCHMAKING — Male users only ─────────────────────────────────── */}
         {isMale && (
-          <View style={styles.section}>
+          <View style={[styles.section, !masterNotifyEnabled && { opacity: 0.5 }]}>
             <View style={styles.sectionLabelRow}>
               <Heart size={13} color="#6B7280" />
               <Text style={styles.sectionLabel}>MATCHMAKING</Text>
@@ -168,10 +207,11 @@ export default function NotificationSettingsScreen() {
                 </Text>
               </View>
               <Switch
-                value={femaleOnlineEnabled}
+                value={femaleOnlineEnabled && masterNotifyEnabled}
                 onValueChange={setFemaleOnlineEnabled}
+                disabled={!masterNotifyEnabled}
                 trackColor={{ false: '#3F3F5A', true: '#EC4899' }}
-                thumbColor={femaleOnlineEnabled ? '#FFFFFF' : '#A1A1AA'}
+                thumbColor={femaleOnlineEnabled && masterNotifyEnabled ? '#FFFFFF' : '#A1A1AA'}
                 ios_backgroundColor="#3F3F5A"
               />
             </View>
@@ -180,7 +220,7 @@ export default function NotificationSettingsScreen() {
 
         {/* ── CHAT NOTIFICATIONS — Female users only ────────────────────────── */}
         {isFemale && (
-          <View style={styles.section}>
+          <View style={[styles.section, !masterNotifyEnabled && { opacity: 0.5 }]}>
             <View style={styles.sectionLabelRow}>
               <Users size={13} color="#6B7280" />
               <Text style={styles.sectionLabel}>CHAT NOTIFICATIONS</Text>
@@ -193,17 +233,18 @@ export default function NotificationSettingsScreen() {
               <TouchableOpacity
                 style={[
                   styles.modeOption,
-notifyMode === 'every' ? styles.modeOptionSelected : null,
+                  notifyMode === 'every' ? styles.modeOptionSelected : null,
                 ]}
                 activeOpacity={0.8}
                 onPress={() => handleNotifyModeChange('every')}
+                disabled={!masterNotifyEnabled}
               >
                 <View style={styles.modeOptionInner}>
-                  <View style={[styles.modeRadio,notifyMode === 'every' ? styles.modeRadioSelected : null]}>
+                  <View style={[styles.modeRadio, notifyMode === 'every' ? styles.modeRadioSelected : null]}>
                     {notifyMode === 'every' && <View style={styles.modeRadioDot} />}
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.modeOptionTitle,notifyMode === 'every' ? styles.modeOptionTitleSelected : null]}>
+                    <Text style={[styles.modeOptionTitle, notifyMode === 'every' ? styles.modeOptionTitleSelected : null]}>
                       Every time
                     </Text>
                     <Text style={styles.modeOptionDesc}>
@@ -218,17 +259,18 @@ notifyMode === 'every' ? styles.modeOptionSelected : null,
                 style={[
                   styles.modeOption,
                   styles.modeOptionBorder,
-notifyMode === 'batched' ? styles.modeOptionSelected : null,
+                  notifyMode === 'batched' ? styles.modeOptionSelected : null,
                 ]}
                 activeOpacity={0.8}
                 onPress={() => handleNotifyModeChange('batched')}
+                disabled={!masterNotifyEnabled}
               >
                 <View style={styles.modeOptionInner}>
-                  <View style={[styles.modeRadio,notifyMode === 'batched' ? styles.modeRadioSelected : null]}>
+                  <View style={[styles.modeRadio, notifyMode === 'batched' ? styles.modeRadioSelected : null]}>
                     {notifyMode === 'batched' && <View style={styles.modeRadioDot} />}
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.modeOptionTitle,notifyMode === 'batched' ? styles.modeOptionTitleSelected : null]}>
+                    <Text style={[styles.modeOptionTitle, notifyMode === 'batched' ? styles.modeOptionTitleSelected : null]}>
                       Batched
                     </Text>
                     <Text style={styles.modeOptionDesc}>
@@ -243,17 +285,18 @@ notifyMode === 'batched' ? styles.modeOptionSelected : null,
                 style={[
                   styles.modeOption,
                   styles.modeOptionBorder,
-notifyMode === 'off' ? styles.modeOptionSelected : null,
+                  notifyMode === 'off' ? styles.modeOptionSelected : null,
                 ]}
                 activeOpacity={0.8}
                 onPress={() => handleNotifyModeChange('off')}
+                disabled={!masterNotifyEnabled}
               >
                 <View style={styles.modeOptionInner}>
-                  <View style={[styles.modeRadio,notifyMode === 'off' ? styles.modeRadioSelected : null]}>
+                  <View style={[styles.modeRadio, notifyMode === 'off' ? styles.modeRadioSelected : null]}>
                     {notifyMode === 'off' && <View style={styles.modeRadioDot} />}
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.modeOptionTitle,notifyMode === 'off' ? styles.modeOptionTitleSelected : null]}>
+                    <Text style={[styles.modeOptionTitle, notifyMode === 'off' ? styles.modeOptionTitleSelected : null]}>
                       Off
                     </Text>
                     <Text style={styles.modeOptionDesc}>
@@ -291,7 +334,7 @@ notifyMode === 'off' ? styles.modeOptionSelected : null,
               key={toggle.id}
               style={[
                 styles.settingRow,
-                i >0 ? styles.settingRowBorder : null,
+                i > 0 ? styles.settingRowBorder : null,
               ]}
             >
               <View style={styles.settingInfo}>

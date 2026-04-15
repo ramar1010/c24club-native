@@ -156,13 +156,17 @@ export const createGiftCheckout = (
         }
       });
 
-      await requestPurchase({
-        type: 'in-app',
-        request: {
-          apple: { sku: tier.sku },
-          google: { skus: [tier.sku] },
-        },
-      });
+      // Use standard v14+ requestPurchase format
+      if (Platform.OS === 'android') {
+        await requestPurchase({
+          skus: [tier.sku],
+        });
+      } else {
+        await requestPurchase({
+          sku: tier.sku,
+          andDangerouslyFinishTransactionAutomatically: false,
+        });
+      }
     } catch (err: any) {
       cleanup();
       resolve({ success: false, error: err.message });
@@ -237,13 +241,17 @@ export const purchaseUnfreeze = (): Promise<{ success: boolean; error?: string }
         }
       });
 
-      await requestPurchase({
-        type: 'in-app',
-        request: {
-          apple: { sku },
-          google: { skus: [sku] },
-        },
-      });
+      // Use standard v14+ requestPurchase format
+      if (Platform.OS === 'android') {
+        await requestPurchase({
+          skus: [sku],
+        });
+      } else {
+        await requestPurchase({
+          sku,
+          andDangerouslyFinishTransactionAutomatically: false,
+        });
+      }
     } catch (err: any) {
       cleanup();
       resolve({ success: false, error: err.message });

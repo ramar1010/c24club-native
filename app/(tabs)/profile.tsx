@@ -79,6 +79,7 @@ interface MemberRedemption {
   shipping_zip: string | null;
   shipping_country: string | null;
   shipping_tracking_url: string | null;
+  notes: string | null;
 }
 
 interface GiftTransaction {
@@ -388,6 +389,12 @@ export default function ProfileScreen() {
           label: "🚚 Your order has been shipped!",
           color: "#22C55E",
           icon: <Truck size={14} color="#22C55E" />,
+        };
+      case "Item Out of stock":
+        return {
+          label: "❌ Out of stock — minutes refunded to your balance!",
+          color: "#EF4444",
+          icon: <X size={14} color="#EF4444" />,
         };
       default:
         return {
@@ -855,9 +862,18 @@ export default function ProfileScreen() {
                           {new Date(redemption.created_at).toLocaleDateString()}
                         </Text>
 
+                        {/* Notes (e.g. refund info) */}
+                        {redemption.notes && (
+                          <Text style={styles.redemptionNotes}>
+                            Note: {redemption.notes}
+                          </Text>
+                        )}
+
                         {/* Change address for processing orders */}
                         {(redemption.status === "processing" ||
-                          redemption.status === "pending_shipping") && (
+                          redemption.status === "pending_shipping" ||
+                          redemption.status === "Order placed") &&
+                          redemption.status !== "Item Out of stock" && (
                           <TouchableOpacity
                             style={styles.changeAddressBtn}
                             onPress={() => handleEditRedemptionAddress(redemption)}
@@ -1914,6 +1930,12 @@ const styles = StyleSheet.create({
     color: "#52525B",
     fontSize: 12,
     marginTop: 6,
+  },
+  redemptionNotes: {
+    color: "#A1A1AA",
+    fontSize: 12,
+    fontStyle: "italic",
+    marginTop: 4,
   },
   statusBadgeRow: {
     flexDirection: "row",

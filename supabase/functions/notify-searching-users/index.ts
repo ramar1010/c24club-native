@@ -61,11 +61,11 @@ serve(async (req: Request) => {
 
     const { data: candidates, error: candidateErr } = await supabaseAdmin
       .from("members")
-      .select("id")
+      .select("id, gender, notify_female_searching, male_search_notify_mode")
       .eq("notify_enabled", true)
       .lt("last_active_at", thirtyMinAgo)
       .gt("last_active_at", twentyFourHoursAgo)
-      .limit(50);
+      .limit(100);
 
     if (candidateErr) {
       console.error("[notify-searching-users] candidate fetch error:", candidateErr.message);
@@ -84,8 +84,28 @@ serve(async (req: Request) => {
     }
 
     // Filter out users currently in an active room
-    const eligible = candidates.filter((m) => !activeMemberIds.has(m.id));
-    console.log(`[notify-searching-users] Eligible users to notify: ${eligible.length}`);
+    // AND filter based on specific searching notification preferences
+    const eligible = candidates.filter((m) => {
+      if (activeMemberIds.has(m.id)) return false;
+
+      const isMale = m.gender?.toLowerCase() === 'male';
+      const isFemale = m.gender?.toLowerCase() === 'female';
+
+      if (isMale) {
+        // Males must have notify_female_searching enabled
+        return m.notify_female_searching === true;
+      }
+
+      if (isFemale) {
+        // Females must have male_search_notify_mode set to 'every'
+        // (batched is handled by a different function)
+        return m.male_search_notify_mode === 'every';
+      }
+
+      return false;
+    });
+
+    console.log(`[notify-searching-users] Eligible users after filtering: ${eligible.length}`);
 
     // ── 3. Send push notifications (fire-and-forget per user) ────────────────
     let notified = 0;

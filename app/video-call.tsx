@@ -90,6 +90,7 @@ export default function VideoCallScreen() {
   const [callStatus, setCallStatus] = useState<'Connecting...' | 'Calling...' | 'Connected' | 'Ended' | 'Searching...'>('Connecting...');
   const [isMuted, setIsMuted] = useState(false);
   const [isCameraOff, setIsCameraOff] = useState(false);
+  const [partnerIsVoiceMode, setPartnerIsVoiceMode] = useState(false);
   const [showGiftOverlay, setShowGiftOverlay] = useState(false);
   const [showGiftCelebration, setShowGiftCelebration] = useState(false);
   const [giftLoading, setGiftLoading] = useState<number | null>(null);
@@ -344,7 +345,12 @@ export default function VideoCallScreen() {
         sendSignal('offer', offer);
       }
 
-      // 6. Monitor call status (hangup/declined) - Only for direct calls
+      // 6. Broadcast our voice mode status (native app is usually video but can be voice)
+      // For now, VideoCallScreen doesn't have a voice mode toggle, but it should respect partner's
+      // We send false by default for native app video calls
+      sendSignal('voice-mode', { enabled: false });
+
+      // 7. Monitor call status (hangup/declined) - Only for direct calls
       if (inviteId) {
         inviteStatusInterval.current = setInterval(async () => {
            const { data } = await supabase.from('direct_call_invites').select('status').eq('id', inviteId).single();
@@ -398,6 +404,11 @@ export default function VideoCallScreen() {
 
           const payload = signal.payload;
           
+          if (signal.signal_type === 'voice-mode') {
+            setPartnerIsVoiceMode(payload?.enabled ?? false);
+            continue;
+          }
+
           if (signal.signal_type === 'offer') {
             await pc.current.setRemoteDescription(new RTCSessionDescription(payload));
             // Flush pending ICE candidates
@@ -522,18 +533,23 @@ export default function VideoCallScreen() {
     <View style={styles.container}>
       {/* Remote Video (Background) */}
       <View style={styles.remoteVideoContainer}>
-        {remoteStream ? (
+        {partnerIsVoiceMode ? (
+          <View style={styles.remoteVideoPlaceholder}>
+            <View style={styles.voiceAvatarContainer}>
+               <Mic size={64} color="#FFFFFF" />
+               <Text style={styles.voiceModeLabel}>Voice Mode</Text>
+            </View>
+          </View>
+        ) : remoteStream ? (
           <RTCView
-            streamURL={Platform.OS === 'web' ? remoteStream : remoteStream.toURL()}
+            streamURL={typeof remoteStream.toURL === 'function' ? remoteStream.toURL() : remoteStream}
             style={styles.remoteVideo}
             objectFit="cover"
           />
         ) : (
-          <View style={styles.placeholderContainer}>
-             <ActivityIndicator size="large" color="#EF4444" />
-             <Text style={styles.placeholderText}>
-               {matchStatus === 'searching' ? 'Searching for partner...' : callStatus}
-             </Text>
+          <View style={styles.remoteVideoPlaceholder}>
+            <ActivityIndicator size="large" color="#EF4444" />
+            <Text style={{ color: '#9CA3AF', marginTop: 12 }}>{callStatus}</Text>
           </View>
         )}
       </View>
@@ -751,6 +767,23 @@ const styles = StyleSheet.create({
   remoteVideo: {
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT,
+  },
+  remoteVideoPlaceholder: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  voiceAvatarContainer: {
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 32,
+    padding: 16,
+    rowGap: 8, columnGap: 8,
+    alignSelf: 'flex-start',
+  },
+  voiceModeLabel: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
   placeholderContainer: {
     alignItems: 'center',
