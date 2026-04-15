@@ -88,9 +88,26 @@ const ConversationRow = React.memo(function ConversationRow({
         onPress={onPress}
       >
         <View style={styles.rowTopRow}>
-          <Text style={styles.rowName} numberOfLines={1}>
-            {item.other_user?.name ?? "Unknown"}
-          </Text>
+          <View style={styles.rowNameContainer}>
+            <Text style={styles.rowName} numberOfLines={1}>
+              {item.other_user?.name ?? "Unknown"}
+            </Text>
+            {item.other_user?.role === "admin" && (
+              <View style={[styles.roleBadge, styles.badgeOwner]}>
+                <Text style={[styles.badgeText, styles.badgeTextOwner]}>OWNER</Text>
+              </View>
+            )}
+            {item.other_user?.role === "mod" && (
+              <View style={[styles.roleBadge, styles.badgeMod]}>
+                <Text style={[styles.badgeText, styles.badgeTextMod]}>MOD</Text>
+              </View>
+            )}
+            {item.other_user?.is_vip && (
+              <View style={[styles.roleBadge, styles.badgeVip]}>
+                <Text style={[styles.badgeText, styles.badgeTextVip]}>VIP</Text>
+              </View>
+            )}
+          </View>
           <Text style={styles.rowTime}>
             {getTimeAgo(item.last_message_at)}
           </Text>
@@ -163,7 +180,7 @@ export default function MessagesScreen() {
       const [memberRes, vipRes, minutesRes] = await Promise.all([
         supabase
           .from("members")
-          .select("id, name, bio, gender, image_url, image_thumb_url, image_status, is_discoverable, last_active_at, country, created_at, membership, is_test_account, role")
+          .select("*")
           .eq("id", otherUser.id)
           .single(),
         supabase
@@ -488,12 +505,17 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 6,
   },
-  rowName: {
+  rowNameContainer: {
     flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginRight: 8,
+  },
+  rowName: {
     fontSize: 20,
     fontWeight: "700",
     color: "#FFFFFF",
-    marginRight: 8,
   },
   rowTime: {
     fontSize: 14,
@@ -523,6 +545,39 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "700",
+  },
+
+  // ── Role Badges ────────────────────────────────────────────────────────────
+  roleBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+  },
+  badgeOwner: {
+    backgroundColor: "rgba(239,68,68,0.1)",
+    borderColor: "rgba(239,68,68,0.3)",
+  },
+  badgeMod: {
+    backgroundColor: "rgba(59,130,246,0.1)",
+    borderColor: "rgba(59,130,246,0.3)",
+  },
+  badgeVip: {
+    backgroundColor: "rgba(250,204,21,0.1)",
+    borderColor: "rgba(250,204,21,0.3)",
+  },
+  badgeText: {
+    fontSize: 10,
+    fontWeight: "900",
+  },
+  badgeTextOwner: {
+    color: "#EF4444",
+  },
+  badgeTextMod: {
+    color: "#3B82F6",
+  },
+  badgeTextVip: {
+    color: "#FACC15",
   },
 
   // ── Empty ──────────────────────────────────────────────────────────────────

@@ -162,7 +162,7 @@ export default function ChatThreadScreen() {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(
     conversationId
   );
-  const [partnerProfile, setPartnerProfile] = useState<{ gender?: string | null } | null>(null);
+  const [partnerProfile, setPartnerProfile] = useState<{ gender?: string | null, role?: string | null } | null>(null);
   const [partnerIsVip, setPartnerIsVip] = useState(false);
   const [partnerVipLoaded, setPartnerVipLoaded] = useState(false);
 
@@ -211,7 +211,7 @@ export default function ChatThreadScreen() {
       const [memberRes, vipRes, minutesRes] = await Promise.all([
         supabase
           .from("members")
-          .select("id, name, bio, gender, image_url, image_thumb_url, image_status, is_discoverable, last_active_at, country, created_at, membership, is_test_account, role")
+          .select("*")
           .eq("id", partnerId)
           .single(),
         supabase
@@ -266,13 +266,21 @@ export default function ChatThreadScreen() {
       }
 
       // 2. Fetch partner profile (to ensure we have gender for limit enforcement)
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from("members")
-        .select("gender")
+        .select("gender, role")
         .eq("id", partnerId)
         .maybeSingle();
       
-      if (profile) {
+      if (profileError) {
+        // Retry without role
+        const { data: retryProfile } = await supabase
+          .from("members")
+          .select("gender")
+          .eq("id", partnerId)
+          .maybeSingle();
+        if (retryProfile) setPartnerProfile(retryProfile);
+      } else if (profile) {
         setPartnerProfile(profile);
       }
 
@@ -549,9 +557,26 @@ export default function ChatThreadScreen() {
             {partnerOnline && <View style={styles.partnerOnlineDot} />}
           </TouchableOpacity>
 
-          <Text style={styles.partnerName} numberOfLines={1}>
-            {partnerName}
-          </Text>
+          <View style={styles.partnerNameContainer}>
+            <Text style={styles.partnerName} numberOfLines={1}>
+              {partnerName}
+            </Text>
+            {partnerProfile?.role === "admin" && (
+              <View style={[styles.roleBadge, styles.badgeOwner]}>
+                <Text style={[styles.badgeText, styles.badgeTextOwner]}>OWNER</Text>
+              </View>
+            )}
+            {partnerProfile?.role === "mod" && (
+              <View style={[styles.roleBadge, styles.badgeMod]}>
+                <Text style={[styles.badgeText, styles.badgeTextMod]}>MOD</Text>
+              </View>
+            )}
+            {partnerIsVip && (
+              <View style={[styles.roleBadge, styles.badgeVip]}>
+                <Text style={[styles.badgeText, styles.badgeTextVip]}>VIP</Text>
+              </View>
+            )}
+          </View>
 
           <View style={styles.headerActions}>
             {gifted > 0 && (
@@ -857,8 +882,13 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.08)",
-    rowGap: 8, columnGap: 8,
+    gap: 8,
     minHeight: 70,
+  },
+  headerTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
   backBtn: {
     padding: 6,
@@ -896,15 +926,26 @@ const styles = StyleSheet.create({
     borderColor: "#111111",
   },
   partnerName: {
-    flex: 1,
     fontSize: 18,
     fontWeight: "700",
     color: "#FFFFFF",
+    marginRight: 4,
+  },
+  partnerNameContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  headerActionsRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    paddingLeft: 42,
   },
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
-    rowGap: 8, columnGap: 8,
+    gap: 8,
   },
   headerBtnGreen: {
     width: 40,
@@ -950,6 +991,41 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(239,68,68,0.15)",
     borderColor: "rgba(239,68,68,0.3)",
   },
+
+  // ── Role Badges ────────────────────────────────────────────────────────────
+  roleBadge: {
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+    borderWidth: 1,
+    marginLeft: 4,
+  },
+  badgeOwner: {
+    backgroundColor: "rgba(239,68,68,0.1)",
+    borderColor: "rgba(239,68,68,0.3)",
+  },
+  badgeMod: {
+    backgroundColor: "rgba(59,130,246,0.1)",
+    borderColor: "rgba(59,130,246,0.3)",
+  },
+  badgeVip: {
+    backgroundColor: "rgba(250,204,21,0.1)",
+    borderColor: "rgba(250,204,21,0.3)",
+  },
+  badgeText: {
+    fontSize: 8,
+    fontWeight: "900",
+  },
+  badgeTextOwner: {
+    color: "#EF4444",
+  },
+  badgeTextMod: {
+    color: "#3B82F6",
+  },
+  badgeTextVip: {
+    color: "#FACC15",
+  },
+
   headerBadge: {
     position: "absolute",
     top: -5,

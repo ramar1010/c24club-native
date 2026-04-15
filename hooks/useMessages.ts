@@ -18,6 +18,8 @@ export interface Conversation {
     image_url: string | null;
     gender: string | null;
     last_active_at: string | null;
+    role?: string | null;
+    is_vip?: boolean;
   };
   last_message?: string;
   unread_count?: number;
@@ -76,15 +78,45 @@ export function useConversations() {
       );
 
       // 2. Fetch other user profiles & last messages
-      const { data: membersData, error: memberError } = await supabase
+      let { data: membersData, error: memberError } = await supabase
         .from("members")
-        .select("id, name, image_url, gender, last_active_at")
+        .select("id, name, image_url, gender, last_active_at, role")
         .in("id", otherUserIds);
 
-      if (memberError) console.error("[useConversations] Members error:", memberError);
+      if (memberError) {
+        console.error("[useConversations] Members error:", memberError);
+        // Fallback: try without 'role' if that was the issue
+        const { data: retryData } = await supabase
+          .from("members")
+          .select("id, name, image_url, gender, last_active_at")
+          .in("id", otherUserIds);
+        if (retryData) membersData = retryData;
+      }
+
+      // 3. Fetch VIP status for other users
+      let { data: minutesData, error: minutesError } = await supabase
+        .from("member_minutes")
+        .select("user_id, is_vip, admin_granted_vip")
+        .in("user_id", otherUserIds);
+
+      if (minutesError) {
+        console.error("[useConversations] Minutes error:", minutesError);
+        // Fallback: try without 'admin_granted_vip'
+        const { data: retryMin } = await supabase
+          .from("member_minutes")
+          .select("user_id, is_vip")
+          .in("user_id", otherUserIds);
+        if (retryMin) minutesData = retryMin;
+      }
       
       const memberMap = new Map();
-      (membersData ?? []).forEach((m) => memberMap.set(m.id, m));
+      (membersData ?? []).forEach((m) => {
+        const minutes = minutesData?.find(min => min.user_id === m.id);
+        memberMap.set(m.id, {
+          ...m,
+          is_vip: !!(minutes?.is_vip || minutes?.admin_granted_vip)
+        });
+      });
       
       const enriched: Conversation[] = await Promise.all(
         convos.map(async (convo) => {
