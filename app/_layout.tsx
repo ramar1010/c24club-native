@@ -105,9 +105,12 @@ initCatDoesWatch();
 if (Platform.OS === "android") {
   Notifications.setNotificationChannelAsync("default", {
     name: "C24 Club",
-    importance: Notifications.AndroidImportance.HIGH,
+    importance: Notifications.AndroidImportance.MAX,
     vibrationPattern: [0, 250, 250, 250],
     lightColor: "#EF4444",
+    showBadge: true,
+    enableLights: true,
+    enableVibrate: true,
   });
 
   // High-priority channel for incoming direct video calls
@@ -119,6 +122,9 @@ if (Platform.OS === "android") {
     sound: "default",
     bypassDnd: true,
     lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    showBadge: true,
+    enableLights: true,
+    enableVibrate: true,
   });
 
   // Promotions channel for VIP gifting reminders and gift attempt alerts

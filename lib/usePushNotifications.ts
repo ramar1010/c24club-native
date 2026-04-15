@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 import { Platform, DeviceEventEmitter } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -9,12 +10,12 @@ import { supabase } from '@/lib/supabase';
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
     const type = notification.request.content.data?.type as string | undefined;
+    console.log('[usePushNotifications] Foreground notification received handler, type:', type);
 
     // Suppress incoming call banners — in-app modal handles these via polling
     if (type === 'incoming_direct_call') {
       return {
-        shouldShowBanner: false,
-        shouldShowList: false,
+        shouldShowAlert: false,
         shouldPlaySound: false,
         shouldSetBadge: false,
       };
@@ -22,8 +23,7 @@ Notifications.setNotificationHandler({
 
     // Show all other notifications normally
     return {
-      shouldShowBanner: true,
-      shouldShowList: true,
+      shouldShowAlert: true,
       shouldPlaySound: true,
       shouldSetBadge: false,
     };
@@ -127,28 +127,36 @@ export function usePushNotifications() {
     let cancelled = false;
 
     async function register() {
+      console.log('[usePushNotifications] Starting registration process...');
       try {
         // 1. Request permissions
         const { status: existingStatus } = await Notifications.getPermissionsAsync();
         let finalStatus = existingStatus;
 
+        console.log('[usePushNotifications] Existing permission status:', existingStatus);
+
         if (existingStatus !== 'granted') {
           const { status } = await Notifications.requestPermissionsAsync();
           finalStatus = status;
+          console.log('[usePushNotifications] Requested permission status:', finalStatus);
         }
 
         if (finalStatus !== 'granted') {
-          console.log('[usePushNotifications] Permission not granted');
+          console.log('[usePushNotifications] Permission not granted, aborting registration');
           return;
         }
 
         // 2. Set up Android notification channels
         if (Platform.OS === 'android') {
+          console.log('[usePushNotifications] Setting up Android notification channels...');
           await Notifications.setNotificationChannelAsync('default', {
             name: 'C24 Club',
-            importance: Notifications.AndroidImportance.HIGH,
+            importance: Notifications.AndroidImportance.MAX,
             vibrationPattern: [0, 250, 250, 250],
             lightColor: '#EF4444',
+            showBadge: true,
+            enableLights: true,
+            enableVibrate: true,
           });
           await Notifications.setNotificationChannelAsync('incoming_calls', {
             name: 'Incoming Calls',
@@ -159,32 +167,48 @@ export function usePushNotifications() {
             enableLights: true,
             enableVibrate: true,
             showBadge: true,
+            bypassDnd: true,
+            lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
           });
           await Notifications.setNotificationChannelAsync('promotions', {
             name: 'Promotions & Offers',
             importance: Notifications.AndroidImportance.DEFAULT,
             sound: 'default',
           });
+          console.log('[usePushNotifications] Android notification channels configured');
         }
 
         // 3. Get the Expo push token
+        console.log('[usePushNotifications] Fetching Expo push token...');
+        const projectId = Constants?.expoConfig?.extra?.eas?.projectId || '3f21aa81-c90d-4050-b1a6-80b40a69cf31';
+        console.log('[usePushNotifications] Using projectId:', projectId);
+
         const tokenData = await Notifications.getExpoPushTokenAsync({
-          projectId: '3f21aa81-c90d-4050-b1a6-80b40a69cf31',
+          projectId,
         });
         const token: string = tokenData.data;
 
-        if (!token || cancelled) return;
+        if (!token) {
+          console.warn('[usePushNotifications] Received empty token from Expo');
+          return;
+        }
 
-        console.log('[usePushNotifications] Expo push token:', token);
+        if (cancelled) {
+          console.log('[usePushNotifications] Registration cancelled before token could be saved');
+          return;
+        }
+
+        console.log('[usePushNotifications] Expo push token acquired:', token);
 
         // 4. Save token to Supabase members table
         const { data: userData, error: userError } = await supabase.auth.getUser();
         if (userError || !userData?.user?.id) {
-          console.warn('[usePushNotifications] Could not get current user:', userError?.message);
+          console.warn('[usePushNotifications] Could not get current user for token storage:', userError?.message);
           return;
         }
 
         const userId = userData.user.id;
+        console.log('[usePushNotifications] Saving token for user:', userId);
 
         const { error: updateError } = await supabase
           .from('members')
@@ -192,12 +216,12 @@ export function usePushNotifications() {
           .eq('id', userId);
 
         if (updateError) {
-          console.warn('[usePushNotifications] Failed to save push token:', updateError.message);
+          console.warn('[usePushNotifications] Failed to save push token to database:', updateError.message);
         } else {
-          console.log('[usePushNotifications] Expo push token saved for user:', userId);
+          console.log('[usePushNotifications] Expo push token successfully saved to backend');
         }
       } catch (err) {
-        console.warn('[usePushNotifications] Registration error:', err);
+        console.warn('[usePushNotifications] Registration error occurred:', err);
       }
     }
 
