@@ -108,16 +108,13 @@ export function FreezeModal({ visible, onClose, liveMinutes }: FreezeModalProps)
     }
     setLoading(true);
     try {
-      if (Platform.OS === 'android') {
-        await requestPurchase({
-          skus: [IAP_PRODUCTS.MINUTE_UNFREEZE],
-        });
-      } else {
-        await requestPurchase({
-          sku: IAP_PRODUCTS.MINUTE_UNFREEZE,
-          andDangerouslyFinishTransactionAutomatically: false,
-        });
-      }
+      await requestPurchase({
+        request: {
+          ios: { sku: IAP_PRODUCTS.MINUTE_UNFREEZE, quantity: 1 },
+          android: { skus: [IAP_PRODUCTS.MINUTE_UNFREEZE] },
+        },
+        type: 'inapp',
+      });
     } catch (err: any) {
       if (err?.code !== "E_USER_CANCELLED") {
         Alert.alert("Error", err?.message || "Could not initiate purchase.");

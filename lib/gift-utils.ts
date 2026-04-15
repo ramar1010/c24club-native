@@ -112,7 +112,7 @@ export const createGiftCheckout = (
 
     try {
       await initConnection();
-      await getProducts({ skus: GIFT_TIERS.map((t) => t.sku) });
+      await getProducts({ skus: GIFT_TIERS.map((t) => t.sku), type: 'inapp' });
 
       purchaseUpdateSub = purchaseUpdatedListener(async (purchase: any) => {
         if (purchase.productId !== tier.sku) {
@@ -156,17 +156,14 @@ export const createGiftCheckout = (
         }
       });
 
-      // Use standard v14+ requestPurchase format
-      if (Platform.OS === 'android') {
-        await requestPurchase({
-          skus: [tier.sku],
-        });
-      } else {
-        await requestPurchase({
-          sku: tier.sku,
-          andDangerouslyFinishTransactionAutomatically: false,
-        });
-      }
+      // Use correct v14 requestPurchase format with request wrapper + type
+      await requestPurchase({
+        request: {
+          ios: { sku: tier.sku, quantity: 1 },
+          android: { skus: [tier.sku] },
+        },
+        type: 'inapp',
+      });
     } catch (err: any) {
       cleanup();
       resolve({ success: false, error: err.message });
@@ -196,7 +193,7 @@ export const purchaseUnfreeze = (): Promise<{ success: boolean; error?: string }
 
     try {
       await initConnection();
-      await getProducts({ skus: [sku] });
+      await getProducts({ skus: [sku], type: 'inapp' });
 
       purchaseUpdateSub = purchaseUpdatedListener(async (purchase: any) => {
         if (purchase.productId !== sku) {
@@ -241,17 +238,14 @@ export const purchaseUnfreeze = (): Promise<{ success: boolean; error?: string }
         }
       });
 
-      // Use standard v14+ requestPurchase format
-      if (Platform.OS === 'android') {
-        await requestPurchase({
-          skus: [sku],
-        });
-      } else {
-        await requestPurchase({
-          sku,
-          andDangerouslyFinishTransactionAutomatically: false,
-        });
-      }
+      // Use correct v14 requestPurchase format with request wrapper + type
+      await requestPurchase({
+        request: {
+          ios: { sku, quantity: 1 },
+          android: { skus: [sku] },
+        },
+        type: 'inapp',
+      });
     } catch (err: any) {
       cleanup();
       resolve({ success: false, error: err.message });

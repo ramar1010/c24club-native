@@ -186,17 +186,14 @@ export default function BannedScreen({ ban, onUnbanned }: BannedScreenProps) {
 
     setPaymentLoading(true);
     try {
-      // Use standard v14+ requestPurchase format
-      if (Platform.OS === 'android') {
-        await requestPurchase({
-          skus: [UNBAN_PRODUCT_ID],
-        });
-      } else {
-        await requestPurchase({
-          sku: UNBAN_PRODUCT_ID,
-          andDangerouslyFinishTransactionAutomatically: false,
-        });
-      }
+      // Use correct v14 requestPurchase format with request wrapper + type
+      await requestPurchase({
+        request: {
+          ios: { sku: UNBAN_PRODUCT_ID, quantity: 1 },
+          android: { skus: [UNBAN_PRODUCT_ID] },
+        },
+        type: 'inapp',
+      });
       // Purchase result is handled by purchaseUpdatedListener
     } catch (err: any) {
       setPaymentLoading(false);
