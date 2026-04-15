@@ -44,7 +44,7 @@ import { usePinnedSocials } from '@/hooks/usePinnedSocials';
 import { PinTopicsOverlay } from '@/components/videocall/PinTopicsOverlay';
 import { usePinTopics } from '@/hooks/usePinTopics';
 import * as WebBrowser from 'expo-web-browser';
-import { createGiftCheckout, checkIsPremiumVip } from '@/lib/gift-utils';
+import { createGiftCheckout, checkIsPremiumVip, purchaseUnfreeze } from '@/lib/gift-utils';
 import { GiftCelebration } from '@/components/GiftCelebration';
 import { BlurView } from 'expo-blur';
 import { usePreBlur } from '@/hooks/usePreBlur';
