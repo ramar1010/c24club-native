@@ -159,15 +159,18 @@ Deno.serve(async (req) => {
       if (memberGender?.toLowerCase() === "female") {
         const { data: maleUsers } = await supabase
           .from("members")
-          .select("id")
+          .select("id, push_token")
           .ilike("gender", "male")
           .eq("notify_female_searching", true)
-          .gt("last_active_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+          .not("push_token", "is", null)
+          .neq("id", memberId)
           .limit(100);
 
-        if (maleUsers && maleUsers.length > 0) {
+        const eligibleMales = (maleUsers ?? []).filter((u) => u.push_token);
+
+        if (eligibleMales.length > 0) {
           Promise.all(
-            maleUsers.map((user) =>
+            eligibleMales.map((user) =>
               supabase.functions.invoke("send-push-notification", {
                 body: {
                   user_id: user.id,
