@@ -148,6 +148,7 @@ export default function ProfileScreen() {
   const [showFreezeModal, setShowFreezeModal] = useState(false);
   const [isRedemptionsLoading, setIsRedemptionsLoading] = useState(false);
   const [showCashoutModal, setShowCashoutModal] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // ── Gift History ────────────────────────────────────────────────────────────
   const [giftHistory, setGiftHistory] = useState<GiftTransaction[]>([]);
@@ -410,6 +411,45 @@ export default function ProfileScreen() {
     router.replace("/(auth)/login");
   };
 
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      // 1. Refresh Auth Profile & Minutes
+      await refreshProfile();
+
+      // 2. Fetch live balance from edge function
+      if (profile?.id) {
+        const { data } = await supabase.functions.invoke("earn-minutes", {
+          body: { type: "get_balance", userId: profile.id },
+        });
+        if (data?.totalMinutes !== undefined) setLiveMinutes(data.totalMinutes);
+      }
+
+      // 3. Re-fetch histories
+      await Promise.all([
+        fetchRedemptions(),
+        fetchRedemptionCount(),
+        fetchGiftHistory(),
+        fetchCashoutHistory(),
+      ]);
+
+      toast.show({
+        placement: "top",
+        render: ({ id }) => (
+          <Toast nativeID={"toast-" + id} action="success" variant="solid">
+            <ToastTitle>Refreshed</ToastTitle>
+            <ToastDescription>Your balances have been updated.</ToastDescription>
+          </Toast>
+        ),
+      });
+    } catch (err: any) {
+      console.error("[Profile] Refresh error:", err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
 
   // ─── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
@@ -516,6 +556,18 @@ export default function ProfileScreen() {
               <Text style={styles.balanceCardSub}>minutes</Text>
             </View>
             <View style={[styles.balanceCard, styles.balanceCardGold]}>
+              <TouchableOpacity 
+                style={styles.refreshBadge} 
+                onPress={handleRefresh}
+                disabled={isRefreshing}
+                activeOpacity={0.7}
+              >
+                {isRefreshing ? (
+                  <ActivityIndicator size={12} color="#FACC15" />
+                ) : (
+                  <RefreshCcw size={12} color="#FACC15" />
+                )}
+              </TouchableOpacity>
               <Text style={styles.balanceCardEmoji}>🎁</Text>
               <Text style={styles.balanceCardTitle}>Gifted Minutes</Text>
               <Text style={styles.balanceCardNumber}>{giftedMinutes}</Text>
@@ -1479,6 +1531,15 @@ const styles = StyleSheet.create({
   balanceCardGold: {
     backgroundColor: "#231A00",
     borderColor: "#FACC15",
+  },
+  refreshBadge: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    backgroundColor: "rgba(250, 204, 21, 0.1)",
+    borderRadius: 20,
+    padding: 6,
+    zIndex: 10,
   },
   balanceCardEmoji: {
     fontSize: 20,

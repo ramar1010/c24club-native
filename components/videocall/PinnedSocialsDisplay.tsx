@@ -85,25 +85,43 @@ function SocialCircle({ platform, username }: SocialCircleProps) {
 
 interface PinnedSocialsDisplayProps {
   socials: string[];
+  showSendCash?: boolean;
+  onSendCash?: () => void;
+  giftPulseAnim?: Animated.Value;
 }
 
 export function PinnedSocialsDisplay({
   socials,
+  showSendCash,
+  onSendCash,
+  giftPulseAnim,
 }: PinnedSocialsDisplayProps) {
-  if (!socials || socials.length === 0) return null;
+  if ((!socials || socials.length === 0) && !showSendCash) return null;
 
   const parsed = socials
-    .map(parseSocialEntry)
-    .filter((e): e is { platform: string; username: string } => e !== null)
-    .slice(0, 1); // show only the first pinned social
-
-  if (parsed.length === 0) return null;
+    ? socials
+        .map(parseSocialEntry)
+        .filter((e): e is { platform: string; username: string } => e !== null)
+        .slice(0, 1)
+    : []; // show only the first pinned social
 
   return (
     <View style={styles.container}>
       {parsed.map((entry, i) => (
         <SocialCircle key={`${entry.platform}-${i}`} platform={entry.platform} username={entry.username} />
       ))}
+
+      {showSendCash && (
+        <Animated.View style={giftPulseAnim ? { transform: [{ scale: giftPulseAnim }] } : {}}>
+          <TouchableOpacity
+            style={[styles.circle, styles.giftCircle]}
+            onPress={onSendCash}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.circleEmoji}>🎁</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -132,6 +150,11 @@ const styles = StyleSheet.create({
     elevation: 6,
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.25)',
+  },
+  giftCircle: {
+    backgroundColor: '#EF4444',
+    borderColor: '#FACC15',
+    borderWidth: 3,
   },
   circleEmoji: {
     fontSize: 22,

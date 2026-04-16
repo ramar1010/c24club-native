@@ -45,8 +45,8 @@ export const IncomingCallModal = () => {
             </View>
             
             <VStack space="xs" style={styles.centerItems}>
-              <Text style={styles.nameText}>{inviter.name}</Text>
-              <Text style={styles.inviteText}>is inviting you to a video call</Text>
+              <Text style={styles.nameText}>📹 {inviter.name} wants to video chat!</Text>
+              <Text style={styles.inviteText}>Earn rewards before they leave! Join now</Text>
             </VStack>
           </VStack>
         </ModalBody>
