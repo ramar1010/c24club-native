@@ -152,21 +152,22 @@ export default function ChatThreadScreen() {
   }>();
 
   const conversationId = params.id === "new" ? null : params.id;
-  const partnerId = params.partnerId ?? "";
+  const [resolvedPartnerId, setResolvedPartnerId] = useState<string>(params.partnerId ?? "");
+  const partnerId = resolvedPartnerId;
   
-  // Use profile name as primary source of truth if available, then params
-  const partnerName = partnerProfile?.name ?? params.partnerName ?? "User";
-  const partnerImage = partnerProfile?.image_url ?? params.partnerImage ?? null;
-
-  const { hasReachedLimit, usedCount, isLoading: limitLoading, isVip, remaining, FREE_MSG_LIMIT } = useFreeMsgLimit(partnerId);
-
   // Track the actual conversation id (may be set after first send or resolved on mount)
   const [activeConversationId, setActiveConversationId] = useState<string | null>(
     conversationId
   );
-  const [partnerProfile, setPartnerProfile] = useState<{ gender?: string | null, role?: string | null } | null>(null);
+  const [partnerProfile, setPartnerProfile] = useState<{ id?: string; name?: string | null; gender?: string | null; role?: string | null; image_url?: string | null } | null>(null);
   const [partnerIsVip, setPartnerIsVip] = useState(false);
   const [partnerVipLoaded, setPartnerVipLoaded] = useState(false);
+
+  // Use fetched profile data as primary source of truth, then fall back to params
+  const partnerName = partnerProfile?.name ?? params.partnerName ?? "User";
+  const partnerImage = partnerProfile?.image_url ?? params.partnerImage ?? null;
+
+  const { hasReachedLimit, usedCount, isLoading: limitLoading, isVip, remaining, FREE_MSG_LIMIT } = useFreeMsgLimit(partnerId);
 
   // Gift celebration state
   const [showCelebration, setShowCelebration] = useState(false);
@@ -243,21 +244,42 @@ export default function ChatThreadScreen() {
   // Resolve conversation ID if "new" and fetch partner profile
   useEffect(() => {
     async function resolveData() {
-      if (!user || !partnerId) return;
+      if (!user) return;
 
-      // 1. Resolve conversation ID
+      let effectivePartnerId = resolvedPartnerId;
+
+      // ── If partnerId is missing, resolve it from the conversation ──────────
+      if (!effectivePartnerId && conversationId) {
+        const { data: conv } = await supabase
+          .from("conversations")
+          .select("participant_1, participant_2")
+          .eq("id", conversationId)
+          .maybeSingle();
+
+        if (conv) {
+          const pid = conv.participant_1 === user.id ? conv.participant_2 : conv.participant_1;
+          if (pid) {
+            setResolvedPartnerId(pid);
+            effectivePartnerId = pid;
+          }
+        }
+      }
+
+      if (!effectivePartnerId) return;
+
+      // 1. Resolve conversation ID if "new"
       if (params.id === "new") {
         const { data: existing1 } = await supabase
           .from("conversations")
           .select("id")
           .eq("participant_1", user.id)
-          .eq("participant_2", partnerId)
+          .eq("participant_2", effectivePartnerId)
           .maybeSingle();
         
         const { data: existing2 } = await supabase
           .from("conversations")
           .select("id")
-          .eq("participant_1", partnerId)
+          .eq("participant_1", effectivePartnerId)
           .eq("participant_2", user.id)
           .maybeSingle();
 
@@ -267,11 +289,11 @@ export default function ChatThreadScreen() {
         }
       }
 
-      // 2. Fetch partner profile (to ensure we have gender for limit enforcement)
-      const { data: profile, error: profileError } = await supabase
+      // 2. Fetch partner profile
+      const { data: fetchedProfile, error: profileError } = await supabase
         .from("members")
         .select("id, name, gender, role, image_url")
-        .eq("id", partnerId)
+        .eq("id", effectivePartnerId)
         .maybeSingle();
       
       if (profileError) {
@@ -279,33 +301,24 @@ export default function ChatThreadScreen() {
         const { data: retryProfile } = await supabase
           .from("members")
           .select("id, name, gender, image_url")
-          .eq("id", partnerId)
+          .eq("id", effectivePartnerId)
           .maybeSingle();
         if (retryProfile) {
           setPartnerProfile(retryProfile);
-          // If we had "User" placeholder or missing info, update it now
-          if (partnerName === 'User' && retryProfile.name) {
-             params.partnerName = retryProfile.name;
-          }
         }
-      } else if (profile) {
-        setPartnerProfile(profile);
-        // Ensure we update local variables if we got better data
-        if (profile.name) {
-           // We can't mutate params directly effectively for the UI in all cases, 
-           // but we can use the profile data in our UI renders.
-        }
+      } else if (fetchedProfile) {
+        setPartnerProfile(fetchedProfile);
       }
 
       // 3. Fetch partner VIP status for gift modal gating — use RPC to bypass RLS
-      const { data: isVipData } = await supabase.rpc('is_user_vip', { _user_id: partnerId });
+      const { data: isVipData } = await supabase.rpc('is_user_vip', { _user_id: effectivePartnerId });
       const vipResult = !!isVipData;
-      console.log("[GiftModal] partnerVip check via RPC:", { partnerId, result: vipResult });
+      console.log("[GiftModal] partnerVip check via RPC:", { effectivePartnerId, result: vipResult });
       setPartnerIsVip(vipResult);
       setPartnerVipLoaded(true);
     }
     resolveData();
-  }, [params.id, user, partnerId]);
+  }, [params.id, user, resolvedPartnerId, conversationId]);
 
   const [inputText, setInputText] = useState("");
   const flatListRef = useRef<FlatList<DisplayMessage>>(null);

@@ -88,11 +88,12 @@ serve(async (req: Request) => {
     // ── 3. Look up sender name ────────────────────────────────────────────────
     const { data: sender } = await supabaseAdmin
       .from("members")
-      .select("name")
+      .select("name, image_url")
       .eq("id", message.sender_id)
       .maybeSingle();
 
     const senderName = sender?.name ?? "Someone";
+    const senderImage = sender?.image_url ?? null;
 
     // ── 4. Check how many unread messages since last notification ─────────────
     //    This drives the grouping: if the cooldown in send-push-notification
@@ -143,6 +144,12 @@ serve(async (req: Request) => {
           body,
           data: {
             screen: `/messages/${message.conversation_id}`,
+            params: JSON.stringify({
+              id: message.conversation_id,
+              partnerId: message.sender_id,
+              partnerName: senderName,
+              partnerImage: senderImage ?? "",
+            }),
             conversationId: message.conversation_id,
             senderId: message.sender_id,
           },

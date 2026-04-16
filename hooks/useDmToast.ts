@@ -21,6 +21,8 @@ export function useDmToast() {
   const router = useRouter();
   const pendingCount = useRef(0);
   const pendingSender = useRef<string | null>(null);
+  const pendingSenderImage = useRef<string | null>(null);
+  const pendingSenderId = useRef<string | null>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const conversationId = useRef<string | null>(null);
 
@@ -90,16 +92,19 @@ export function useDmToast() {
           // Look up sender name
           const { data: sender } = await supabase
             .from('members')
-            .select('name')
+            .select('name, image_url')
             .eq('id', msg.sender_id)
             .maybeSingle();
 
           const senderName = sender?.name ?? 'Someone';
+          const senderImage = sender?.image_url ?? null;
           const messageText = (msg.text || msg.content || '').slice(0, 80);
 
           // Batch rapid messages within a 3-second window
           pendingCount.current += 1;
           pendingSender.current = senderName;
+          pendingSenderImage.current = senderImage;
+          pendingSenderId.current = msg.sender_id;
           conversationId.current = msg.conversation_id;
 
           if (debounceTimer.current) clearTimeout(debounceTimer.current);
@@ -107,6 +112,8 @@ export function useDmToast() {
           debounceTimer.current = setTimeout(() => {
             const count = pendingCount.current;
             const name = pendingSender.current ?? 'Someone';
+            const senderImg = pendingSenderImage.current;
+            const senderId = pendingSenderId.current;
             const convId = conversationId.current;
 
             Toast.show({
@@ -120,7 +127,15 @@ export function useDmToast() {
               onPress: () => {
                 Toast.hide();
                 if (convId) {
-                  router.push(`/messages/${convId}` as any);
+                  router.push({
+                    pathname: '/messages/[id]',
+                    params: {
+                      id: convId,
+                      partnerId: senderId ?? '',
+                      partnerName: name,
+                      partnerImage: senderImg ?? '',
+                    },
+                  } as any);
                 } else {
                   router.push('/(tabs)/messages' as any);
                 }
@@ -130,6 +145,8 @@ export function useDmToast() {
             // Reset
             pendingCount.current = 0;
             pendingSender.current = null;
+            pendingSenderImage.current = null;
+            pendingSenderId.current = null;
             conversationId.current = null;
             debounceTimer.current = null;
           }, 3000);
