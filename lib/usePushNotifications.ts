@@ -103,9 +103,12 @@ export function usePushNotifications() {
     // ── Generic: navigate to data.screen or data.deepLink ─────────────────
     if (data?.screen) {
       try {
-        router.push(data.screen as any);
+        const params = data?.params ? (typeof data.params === 'string' ? JSON.parse(data.params) : data.params) : {};
+        router.push({ pathname: data.screen, params } as any);
       } catch (err) {
         console.warn('[usePushNotifications] Navigation error:', err);
+        // Fallback to simple push if params parsing fails
+        router.push(data.screen as any);
       }
     } else if (data?.deepLink) {
       try {

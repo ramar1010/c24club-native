@@ -153,8 +153,10 @@ export default function ChatThreadScreen() {
 
   const conversationId = params.id === "new" ? null : params.id;
   const partnerId = params.partnerId ?? "";
-  const partnerName = params.partnerName ?? "User";
-  const partnerImage = params.partnerImage ?? null;
+  
+  // Use profile name as primary source of truth if available, then params
+  const partnerName = partnerProfile?.name ?? params.partnerName ?? "User";
+  const partnerImage = partnerProfile?.image_url ?? params.partnerImage ?? null;
 
   const { hasReachedLimit, usedCount, isLoading: limitLoading, isVip, remaining, FREE_MSG_LIMIT } = useFreeMsgLimit(partnerId);
 
@@ -268,7 +270,7 @@ export default function ChatThreadScreen() {
       // 2. Fetch partner profile (to ensure we have gender for limit enforcement)
       const { data: profile, error: profileError } = await supabase
         .from("members")
-        .select("gender, role")
+        .select("id, name, gender, role, image_url")
         .eq("id", partnerId)
         .maybeSingle();
       
@@ -276,12 +278,23 @@ export default function ChatThreadScreen() {
         // Retry without role
         const { data: retryProfile } = await supabase
           .from("members")
-          .select("gender")
+          .select("id, name, gender, image_url")
           .eq("id", partnerId)
           .maybeSingle();
-        if (retryProfile) setPartnerProfile(retryProfile);
+        if (retryProfile) {
+          setPartnerProfile(retryProfile);
+          // If we had "User" placeholder or missing info, update it now
+          if (partnerName === 'User' && retryProfile.name) {
+             params.partnerName = retryProfile.name;
+          }
+        }
       } else if (profile) {
         setPartnerProfile(profile);
+        // Ensure we update local variables if we got better data
+        if (profile.name) {
+           // We can't mutate params directly effectively for the UI in all cases, 
+           // but we can use the profile data in our UI renders.
+        }
       }
 
       // 3. Fetch partner VIP status for gift modal gating — use RPC to bypass RLS
