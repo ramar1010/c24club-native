@@ -284,6 +284,7 @@ export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
             reward_rarity: winItem.rarity,
             reward_image_url: winItem.image_url,
             minutes_cost: isSecondChance ? 0 : reward.minutes_cost,
+            selected_color: selectedColor ?? null,
             status: 'processing',
           }).select('id').single();
 

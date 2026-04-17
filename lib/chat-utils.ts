@@ -99,6 +99,7 @@ export async function redeemReward(
     image_url?: string | null;
     rarity?: string;
     type?: string;
+    selectedColor?: string | null;
   },
   shipping?: {
     name: string;
@@ -119,6 +120,7 @@ export async function redeemReward(
       reward_image_url: reward.image_url ?? null,
       reward_rarity: reward.rarity ?? 'common',
       reward_type: reward.type ?? 'physical',
+      selected_color: reward.selectedColor ?? null,
       status: 'pending',
       shipping_name: shipping?.name ?? null,
       shipping_address: shipping?.address ?? null,

@@ -89,7 +89,7 @@ export default function ProductDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
-  const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  const [selectedColorIndex, setSelectedColorIndex] = useState<number | null>(null);
   const [redeeming, setRedeeming] = useState(false);
   const [liveMinutes, setLiveMinutes] = useState<number | null>(null);
 
@@ -156,12 +156,15 @@ export default function ProductDetailScreen() {
   const colors = useMemo(() => {
     if (!item?.color_options) return [];
     if (Array.isArray(item.color_options)) return item.color_options;
-    // Fallback if it's a string for some reason
-    if (typeof item.color_options === 'string') {
-      return (item.color_options as string).split(',').map(c => ({ name: c.trim(), hex: '#71717A' }));
-    }
     return [];
   }, [item]);
+
+  const displayImage = useMemo(() => {
+    if (selectedColorIndex !== null && colors[selectedColorIndex]?.image_url) {
+      return colors[selectedColorIndex].image_url;
+    }
+    return images[activeImageIndex] || 'https://via.placeholder.com/400';
+  }, [selectedColorIndex, colors, images, activeImageIndex]);
 
   useEffect(() => {
     fetchProduct();
@@ -195,6 +198,15 @@ export default function ProductDetailScreen() {
     setActiveImageIndex((prev) => (prev - 1 + images.length) % images.length);
   };
 
+  const handleColorSelect = (index: number) => {
+    if (selectedColorIndex === index) {
+      setSelectedColorIndex(null);
+    } else {
+      setSelectedColorIndex(index);
+      setActiveImageIndex(0);
+    }
+  };
+
   const handleRedeem = async () => {
     if (!user || !item) return;
 
@@ -213,7 +225,7 @@ export default function ProductDetailScreen() {
       return;
     }
 
-    if (colors.length > 0 && !selectedColor) {
+    if (colors.length > 0 && selectedColorIndex === null) {
       toast.show({
         placement: 'top',
         render: ({ id }) => (
@@ -281,14 +293,17 @@ export default function ProductDetailScreen() {
       }
 
       // 2. Insert redemption record with address
+      const selectedColor = selectedColorIndex !== null ? colors[selectedColorIndex].name : null;
       const selectionText = [selectedSize, selectedColor].filter(Boolean).join(', ');
+      
       const { error: redeemError } = await redeemReward(profile.id, {
         id: item.id,
         title: item.title + (selectionText ? ` (${selectionText})` : ''),
         minutes_cost: item.minutes_cost,
-        image_url: item.image_url,
+        image_url: displayImage,
         rarity: item.rarity ?? undefined,
         type: item.type ?? undefined,
+        selectedColor: selectedColor,
       }, {
         name: shippingAddress.name,
         address: shippingAddress.street,
@@ -368,7 +383,7 @@ export default function ProductDetailScreen() {
         {/* Image Carousel */}
         <View style={styles.carouselContainer}>
           <Image 
-            source={{ uri: images[activeImageIndex] || 'https://via.placeholder.com/400' }} 
+            source={{ uri: displayImage }} 
             style={styles.mainImage}
             resizeMode="cover"
           />
@@ -443,16 +458,16 @@ export default function ProductDetailScreen() {
                 {colors.map((colorObj, index) => {
                   const colorName = colorObj.name;
                   const colorHex = colorObj.hex;
-                  const isSelected = selectedColor === colorName;
+                  const isSelected = selectedColorIndex === index;
                   
                   return (
                     <TouchableOpacity
                       key={`${colorName}-${index}`}
-                      onPress={() => setSelectedColor(colorName)}
+                      onPress={() => handleColorSelect(index)}
                       style={[
                         styles.colorButton,
-isSelected ? styles.colorButtonActive : null,
-isSelected ? styles.colorButtonTextActiveBg : null
+                        isSelected ? styles.colorButtonActive : null,
+                        isSelected ? styles.colorButtonTextActiveBg : null
                       ]}
                     >
                       <View style={[styles.colorSwatch, { backgroundColor: colorHex }]}>
@@ -591,7 +606,7 @@ isSelected ? styles.colorButtonTextActiveBg : null
         isOpen={showSpinModal}
         onClose={() => setShowSpinModal(false)}
         selectedSize={selectedSize}
-        selectedColor={selectedColor}
+        selectedColor={selectedColorIndex !== null ? colors[selectedColorIndex].name : null}
         reward={{
           ...item,
           name: item.title,
