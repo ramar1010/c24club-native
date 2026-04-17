@@ -556,7 +556,7 @@ export default function ChatScreen() {
               transform: [{
                 scale: blurOpacity.interpolate({
                   inputRange: [0, 1],
-                  outputRange: [1, 1.1]
+                  outputRange: [1, 1.15]
                 })
               }]
             }
@@ -570,10 +570,18 @@ export default function ChatScreen() {
           </Animated.View>
           {isBlurred && (
             <Animated.View 
-              style={[StyleSheet.absoluteFill, { opacity: blurOpacity }]}
+              style={[
+                StyleSheet.absoluteFill, 
+                { 
+                  opacity: blurOpacity,
+                  zIndex: 20,
+                  elevation: 20,
+                  backgroundColor: 'rgba(0,0,0,0.1)' 
+                }
+              ]}
               pointerEvents="none"
             >
-              <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="dark" />
+              <BlurView intensity={100} style={StyleSheet.absoluteFill} tint="dark" />
             </Animated.View>
           )}
         </View>
