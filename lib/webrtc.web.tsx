@@ -16,7 +16,7 @@ const mediaDevices =
     : null;
 
 // RTCView shim for web — renders a <video> element
-const RTCView = ({ streamURL, style, objectFit, mirror }: any) => {
+const RTCView = ({ streamURL, style, objectFit, mirror, className }: any) => {
   // Flatten React Native style (may be a StyleSheet ID / array) into a plain object
   const flatStyle: Record<string, any> = style
     ? (StyleSheet.flatten(style) as Record<string, any>) ?? {}
@@ -26,6 +26,7 @@ const RTCView = ({ streamURL, style, objectFit, mirror }: any) => {
     <video
       autoPlay
       playsInline
+      className={className}
       style={{
         ...flatStyle,
         transform: mirror ? 'scaleX(-1)' : 'none',

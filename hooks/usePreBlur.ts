@@ -4,14 +4,14 @@ import { Animated } from 'react-native';
 /**
  * usePreBlur — applies a timed blur effect whenever a new partner connects.
  *
- * @param partnerId   - The current partner's ID (null when no partner).
  * @param isConnected - Whether the call is in 'connected' state.
+ * @param partnerId   - The current partner's ID (null when no partner).
  * @param durationMs  - How long to keep the blur before fading out (default 4000ms).
  * @returns           - { isBlurred, blurOpacity } where blurOpacity is an Animated.Value (1 → 0).
  */
 export function usePreBlur(
-  partnerId: string | null | undefined,
   isConnected: boolean,
+  partnerId: string | null | undefined,
   durationMs = 4000,
 ) {
   const [isBlurred, setIsBlurred] = useState(false);
@@ -45,16 +45,18 @@ export function usePreBlur(
     blurOpacity.setValue(1);
     setIsBlurred(true);
 
-    // After durationMs, fade out over 500 ms
+    // After durationMs, fade out
     timerRef.current = setTimeout(() => {
+      // Set isBlurred to false so Tailwind/CSS transitions can start
+      setIsBlurred(false);
+      
+      // Also run Animated.timing for backward compatibility or other uses
       fadeRef.current = Animated.timing(blurOpacity, {
         toValue: 0,
         duration: 500,
         useNativeDriver: true,
       });
-      fadeRef.current.start(({ finished }) => {
-        if (finished) setIsBlurred(false);
-      });
+      fadeRef.current.start();
     }, durationMs);
 
     return () => {

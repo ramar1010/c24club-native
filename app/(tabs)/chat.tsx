@@ -46,7 +46,6 @@ import { usePinTopics } from '@/hooks/usePinTopics';
 import * as WebBrowser from 'expo-web-browser';
 import { createGiftCheckout, checkIsPremiumVip, purchaseUnfreeze } from '@/lib/gift-utils';
 import { GiftCelebration } from '@/components/GiftCelebration';
-import { BlurView } from 'expo-blur';
 import { usePreBlur } from '@/hooks/usePreBlur';
 
 const { width, height } = Dimensions.get('window');
@@ -467,8 +466,8 @@ export default function ChatScreen() {
 
   // ─── Pre-blur on new partner ───────────────────────────────────────────────
   const { isBlurred, blurOpacity } = usePreBlur(
-    partnerId,
     callState === 'connected',
+    partnerId,
     4000,
   );
 
@@ -552,6 +551,7 @@ export default function ChatScreen() {
         <RTCView
           streamURL={typeof remoteStream.toURL === 'function' ? remoteStream.toURL() : remoteStream}
           style={styles.remoteVideo}
+          className={isBlurred ? "blur-2xl scale-110 transition-all duration-500" : "blur-0 scale-100 transition-all duration-500"}
           objectFit="cover"
           zOrder={0}
         />
@@ -560,23 +560,6 @@ export default function ChatScreen() {
           <ActivityIndicator size="large" color="#EF4444" />
           <Text style={{ color: '#A1A1AA', marginTop: 12 }}>Connecting...</Text>
         </View>
-      )}
-
-      {/* Pre-blur overlay — fades out after 4 s on every new partner */}
-      {isBlurred && (
-        <Animated.View
-          style={[
-            StyleSheet.absoluteFillObject,
-            { opacity: blurOpacity, zIndex: 10, overflow: 'hidden' },
-          ]}
-          pointerEvents="none"
-        >
-          <BlurView
-            intensity={90}
-            tint="dark"
-            style={StyleSheet.absoluteFillObject}
-          />
-        </Animated.View>
       )}
 
       {/* Partner topics (from useVideoChat hook — legacy) */}
