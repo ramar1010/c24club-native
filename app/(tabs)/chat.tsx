@@ -576,12 +576,18 @@ export default function ChatScreen() {
                   opacity: blurOpacity,
                   zIndex: 20,
                   elevation: 20,
-                  backgroundColor: 'rgba(0,0,0,0.1)' 
                 }
               ]}
               pointerEvents="none"
             >
-              <BlurView intensity={100} style={StyleSheet.absoluteFill} tint="dark" />
+              <BlurView 
+                intensity={100} 
+                style={StyleSheet.absoluteFill} 
+                tint="dark"
+                experimentalBlurMethod="dime"
+              />
+              {/* Fallback darkening to help the blur stand out */}
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.3)' }]} />
             </Animated.View>
           )}
         </View>
