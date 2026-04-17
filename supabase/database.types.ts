@@ -424,9 +424,12 @@ export type Database = {
       }
       user_bans: {
         Row: {
+          ban_source: string | null
           ban_type: string | null
+          banned_by: string | null
           created_at: string | null
           id: string
+          ip_address: string | null
           is_active: boolean | null
           reason: string | null
           unban_payment_session: string | null
@@ -435,9 +438,12 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          ban_source?: string | null
           ban_type?: string | null
+          banned_by?: string | null
           created_at?: string | null
           id?: string
+          ip_address?: string | null
           is_active?: boolean | null
           reason?: string | null
           unban_payment_session?: string | null
@@ -446,9 +452,12 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          ban_source?: string | null
           ban_type?: string | null
+          banned_by?: string | null
           created_at?: string | null
           id?: string
+          ip_address?: string | null
           is_active?: boolean | null
           reason?: string | null
           unban_payment_session?: string | null

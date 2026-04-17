@@ -226,10 +226,16 @@ export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
     const baseRate = reward.rarity === 'legendary' ? 2 : 5;
     const winChance = baseRate + currentCE;
     const isWinner = Math.random() * 100 < winChance;
-    
+
+    // Capture consolation item in a local variable BEFORE setting state
+    // so the animation callback closure always has the fresh value (not stale state)
+    const pickedConsolation = !isWinner && commonItems.length > 0
+      ? commonItems[Math.floor(Math.random() * commonItems.length)]
+      : null;
+
     setWon(isWinner);
-    if (!isWinner && commonItems.length > 0) {
-      setConsolationItem(commonItems[Math.floor(Math.random() * commonItems.length)]);
+    if (!isWinner && pickedConsolation) {
+      setConsolationItem(pickedConsolation);
     } else {
       setConsolationItem(null);
     }
@@ -264,7 +270,8 @@ export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
       setStep('result');
       setIsRedeeming(false);
 
-      const winItem = isWinner ? reward : (consolationItem || (commonItems.length > 0 ? commonItems[0] : null));
+      // Use local variables (not state) to avoid stale closure — critical for respin
+      const winItem = isWinner ? reward : (pickedConsolation || (commonItems.length > 0 ? commonItems[0] : null));
 
       if (winItem && user) {
         // Create redemption record
@@ -289,8 +296,6 @@ export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
         }
 
         // For physical rewards, show shipping form.
-        // For legendary rewards, onWin (above) handles triggering the Choice modal in the parent if it was a winner.
-        // If it's a consolation prize, we show shipping form if it's physical.
         if (winItem.type === 'physical') {
           if (winItem.rarity !== 'legendary') {
             setShowShippingForm(true);
