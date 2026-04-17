@@ -125,19 +125,27 @@ export function useConversations() {
               ? convo.participant_2
               : convo.participant_1;
 
-          const { data: lastMsgData } = await supabase
-            .from("dm_messages")
-            .select("content")
-            .eq("conversation_id", convo.id)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
+          const [{ data: lastMsgData }, { count: unreadCount }] = await Promise.all([
+            supabase
+              .from("dm_messages")
+              .select("content")
+              .eq("conversation_id", convo.id)
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle(),
+            supabase
+              .from("dm_messages")
+              .select("*", { count: "exact", head: true })
+              .eq("conversation_id", convo.id)
+              .neq("sender_id", memberId)
+              .is("read_at", null)
+          ]);
 
           return {
             ...convo,
             other_user: memberMap.get(otherId) || { id: otherId, name: "C24 Member", image_url: null },
             last_message: lastMsgData?.content ?? "New conversation",
-            unread_count: 0, // Simplified for now to focus on getting the list visible
+            unread_count: unreadCount ?? 0,
           };
         })
       );
@@ -155,6 +163,7 @@ export function useConversations() {
 export function useConversationMessages(conversationId: string | null) {
   const { profile } = useAuth();
   const memberId = profile?.id;
+  const queryClient = useQueryClient();
 
   return useQuery<DmMessage[]>({
     queryKey: ["dm_messages", conversationId],
@@ -182,6 +191,10 @@ export function useConversationMessages(conversationId: string | null) {
             .from("dm_messages")
             .update({ read_at: new Date().toISOString() })
             .in("id", unreadIds);
+            
+          // Invalidate unread counts so the tab badge and conversation list update
+          queryClient.invalidateQueries({ queryKey: ["unread_count", memberId] });
+          queryClient.invalidateQueries({ queryKey: ["conversations", memberId] });
         }
       }
 
