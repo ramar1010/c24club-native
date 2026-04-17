@@ -116,6 +116,8 @@ export default function ProfileScreen() {
   // ── Data state ──────────────────────────────────────────────────────────────
   const [redemptionCount, setRedemptionCount] = useState<number | null>(null);
   const [redemptions, setRedemptions] = useState<MemberRedemption[]>([]);
+  const [hasMoreRedemptions, setHasMoreRedemptions] = useState(true);
+  const [isLoadingMoreRedemptions, setIsLoadingMoreRedemptions] = useState(false);
   const [liveMinutes, setLiveMinutes] = useState<number | null>(null);
 
   const displayMinutes = liveMinutes ?? minutes?.minutes ?? 0;
@@ -153,10 +155,14 @@ export default function ProfileScreen() {
   // ── Gift History ────────────────────────────────────────────────────────────
   const [giftHistory, setGiftHistory] = useState<GiftTransaction[]>([]);
   const [isGiftHistoryLoading, setIsGiftHistoryLoading] = useState(false);
+  const [hasMoreGifts, setHasMoreGifts] = useState(true);
+  const [isLoadingMoreGifts, setIsLoadingMoreGifts] = useState(false);
 
   // ── Cashout History ─────────────────────────────────────────────────────────
   const [cashoutHistory, setCashoutHistory] = useState<CashoutRequest[]>([]);
   const [isCashoutHistoryLoading, setIsCashoutHistoryLoading] = useState(false);
+  const [hasMoreCashouts, setHasMoreCashouts] = useState(true);
+  const [isLoadingMoreCashouts, setIsLoadingMoreCashouts] = useState(false);
 
   // ── CE Info Modal ───────────────────────────────────────────────────────────
   const [showCEInfo, setShowCEInfo] = useState(false);
@@ -184,19 +190,35 @@ export default function ProfileScreen() {
     } catch (_err) {}
   };
 
-  const fetchRedemptions = useCallback(async () => {
+  const fetchRedemptions = useCallback(async (append = false) => {
     if (!profile?.id) return;
-    setIsRedemptionsLoading(true);
+    if (append) setIsLoadingMoreRedemptions(true);
+    else setIsRedemptionsLoading(true);
+
+    const offset = append ? redemptions.length : 0;
+    const limit = 5;
+
     const { data } = await supabase
       .from("member_redemptions")
       .select("*")
       .eq("user_id", profile.id)
       .order("created_at", { ascending: false })
-      .limit(10);
+      .range(offset, offset + limit - 1);
 
-    if (data) setRedemptions(data as MemberRedemption[]);
+    if (data) {
+      if (append) {
+        setRedemptions((prev) => [...prev, ...(data as MemberRedemption[])]);
+      } else {
+        setRedemptions(data as MemberRedemption[]);
+      }
+      setHasMoreRedemptions(data.length === limit);
+    } else {
+      setHasMoreRedemptions(false);
+    }
+
     setIsRedemptionsLoading(false);
-  }, [profile?.id]);
+    setIsLoadingMoreRedemptions(false);
+  }, [profile?.id, redemptions.length]);
 
   const fetchRedemptionCount = useCallback(async () => {
     if (!profile?.id) return;
@@ -208,15 +230,20 @@ export default function ProfileScreen() {
     setRedemptionCount(count ?? 0);
   }, [profile?.id]);
 
-  const fetchGiftHistory = useCallback(async () => {
+  const fetchGiftHistory = useCallback(async (append = false) => {
     if (!profile?.id) return;
-    setIsGiftHistoryLoading(true);
+    if (append) setIsLoadingMoreGifts(true);
+    else setIsGiftHistoryLoading(true);
+
+    const offset = append ? giftHistory.length : 0;
+    const limit = 5;
+
     const { data } = await supabase
       .from("gift_transactions")
       .select("*")
       .eq("recipient_id", profile.id)
       .order("created_at", { ascending: false })
-      .limit(10);
+      .range(offset, offset + limit - 1);
 
     if (data) {
       const enriched: GiftTransaction[] = await Promise.all(
@@ -230,20 +257,34 @@ export default function ProfileScreen() {
           return { ...gift, sender_name: sender?.name ?? null };
         })
       );
-      setGiftHistory(enriched);
+
+      if (append) {
+        setGiftHistory((prev) => [...prev, ...enriched]);
+      } else {
+        setGiftHistory(enriched);
+      }
+      setHasMoreGifts(data.length === limit);
+    } else {
+      setHasMoreGifts(false);
     }
     setIsGiftHistoryLoading(false);
-  }, [profile?.id]);
+    setIsLoadingMoreGifts(false);
+  }, [profile?.id, giftHistory.length]);
 
-  const fetchCashoutHistory = useCallback(async () => {
+  const fetchCashoutHistory = useCallback(async (append = false) => {
     if (!profile?.id) return;
-    setIsCashoutHistoryLoading(true);
+    if (append) setIsLoadingMoreCashouts(true);
+    else setIsCashoutHistoryLoading(true);
+
+    const offset = append ? cashoutHistory.length : 0;
+    const limit = 5;
+
     const { data } = await supabase
       .from("cashout_requests")
       .select("*")
       .eq("user_id", profile.id)
       .order("created_at", { ascending: false })
-      .limit(10);
+      .range(offset, offset + limit - 1);
 
     if (data) {
       const enriched: CashoutRequest[] = await Promise.all(
@@ -256,10 +297,19 @@ export default function ProfileScreen() {
           return { ...request, user_name: user?.name ?? null };
         })
       );
-      setCashoutHistory(enriched);
+
+      if (append) {
+        setCashoutHistory((prev) => [...prev, ...enriched]);
+      } else {
+        setCashoutHistory(enriched);
+      }
+      setHasMoreCashouts(data.length === limit);
+    } else {
+      setHasMoreCashouts(false);
     }
     setIsCashoutHistoryLoading(false);
-  }, [profile?.id]);
+    setIsLoadingMoreCashouts(false);
+  }, [profile?.id, cashoutHistory.length]);
 
   useFocusEffect(
     useCallback(() => {
@@ -644,6 +694,19 @@ export default function ProfileScreen() {
                 </View>
               ))
             )}
+            {hasMoreGifts && giftHistory.length > 0 && (
+              <TouchableOpacity
+                style={styles.loadMoreButton}
+                onPress={() => fetchGiftHistory(true)}
+                disabled={isLoadingMoreGifts}
+              >
+                {isLoadingMoreGifts ? (
+                  <ActivityIndicator size="small" color="#FACC15" />
+                ) : (
+                  <Text style={styles.loadMoreText}>Load More</Text>
+                )}
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* ── Cashout History ───────────────────────────────────────────── */}
@@ -703,6 +766,19 @@ export default function ProfileScreen() {
                   </View>
                 );
               })
+            )}
+            {hasMoreCashouts && cashoutHistory.length > 0 && (
+              <TouchableOpacity
+                style={styles.loadMoreButton}
+                onPress={() => fetchCashoutHistory(true)}
+                disabled={isLoadingMoreCashouts}
+              >
+                {isLoadingMoreCashouts ? (
+                  <ActivityIndicator size="small" color="#10B981" />
+                ) : (
+                  <Text style={styles.loadMoreText}>Load More</Text>
+                )}
+              </TouchableOpacity>
             )}
           </View>
 
@@ -959,6 +1035,19 @@ export default function ProfileScreen() {
                   </View>
                 );
               })
+            )}
+            {hasMoreRedemptions && redemptions.length > 0 && (
+              <TouchableOpacity
+                style={styles.loadMoreButton}
+                onPress={() => fetchRedemptions(true)}
+                disabled={isLoadingMoreRedemptions}
+              >
+                {isLoadingMoreRedemptions ? (
+                  <ActivityIndicator size="small" color="#EF4444" />
+                ) : (
+                  <Text style={styles.loadMoreText}>Load More</Text>
+                )}
+              </TouchableOpacity>
             )}
           </View>
 
@@ -1661,6 +1750,21 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: "#27272A",
     marginVertical: 2,
+  },
+  loadMoreButton: {
+    backgroundColor: "#16213E",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#27272A",
+    marginTop: 12,
+  },
+  loadMoreText: {
+    color: "#A1A1AA",
+    fontSize: 14,
+    fontWeight: "600",
   },
 
   // ── Cashout History ─────────────────────────────────────────────────────────

@@ -47,6 +47,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { createGiftCheckout, checkIsPremiumVip, purchaseUnfreeze } from '@/lib/gift-utils';
 import { GiftCelebration } from '@/components/GiftCelebration';
 import { usePreBlur } from '@/hooks/usePreBlur';
+import { BlurView } from 'expo-blur';
 
 const { width, height } = Dimensions.get('window');
 
@@ -548,13 +549,34 @@ export default function ChatScreen() {
           <VoiceModeAvatar size={120} />
         </View>
       ) : remoteStream ? (
-        <RTCView
-          streamURL={typeof remoteStream.toURL === 'function' ? remoteStream.toURL() : remoteStream}
-          style={styles.remoteVideo}
-          className={isBlurred ? "blur-2xl scale-110 transition-all duration-500" : "blur-0 scale-100 transition-all duration-500"}
-          objectFit="cover"
-          zOrder={0}
-        />
+        <View style={StyleSheet.absoluteFill}>
+          <Animated.View style={[
+            StyleSheet.absoluteFill,
+            {
+              transform: [{
+                scale: blurOpacity.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1, 1.1]
+                })
+              }]
+            }
+          ]}>
+            <RTCView
+              streamURL={typeof remoteStream.toURL === 'function' ? remoteStream.toURL() : remoteStream}
+              style={styles.remoteVideo}
+              objectFit="cover"
+              zOrder={0}
+            />
+          </Animated.View>
+          {isBlurred && (
+            <Animated.View 
+              style={[StyleSheet.absoluteFill, { opacity: blurOpacity }]}
+              pointerEvents="none"
+            >
+              <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="dark" />
+            </Animated.View>
+          )}
+        </View>
       ) : (
         <View style={styles.remoteVideoPlaceholder}>
           <ActivityIndicator size="large" color="#EF4444" />

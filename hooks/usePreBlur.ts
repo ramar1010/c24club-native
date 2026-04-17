@@ -47,16 +47,18 @@ export function usePreBlur(
 
     // After durationMs, fade out
     timerRef.current = setTimeout(() => {
-      // Set isBlurred to false so Tailwind/CSS transitions can start
-      setIsBlurred(false);
-      
-      // Also run Animated.timing for backward compatibility or other uses
+      // Run Animated.timing to fade out opacity
       fadeRef.current = Animated.timing(blurOpacity, {
         toValue: 0,
-        duration: 500,
+        duration: 800,
         useNativeDriver: true,
       });
-      fadeRef.current.start();
+      
+      fadeRef.current.start(({ finished }) => {
+        if (finished) {
+          setIsBlurred(false);
+        }
+      });
     }, durationMs);
 
     return () => {
