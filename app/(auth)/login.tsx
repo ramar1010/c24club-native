@@ -215,9 +215,9 @@ export default function LoginScreen() {
           </View>
 
           {/* OAuth Buttons */}
-          <View style={styles.oauthRow}>
+          <View style={[styles.oauthRow, Platform.OS !== "ios" ? { flexDirection: "column" } : null]}>
             <TouchableOpacity
-              style={[styles.oauthButton, Platform.OS !== "ios" ? { flex: 0, width: "100%" } : null]}
+              style={styles.oauthButton}
               onPress={() => handleOAuth("google")}
               activeOpacity={0.8}
             >
