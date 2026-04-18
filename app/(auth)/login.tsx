@@ -18,6 +18,9 @@ import FallingGifts from "@/components/FallingGifts";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { FooterLinks } from "@/components/FooterLinks";
+import { Image } from "react-native";
+
+const GOOGLE_ICON = require("@/assets/images/2a5758d6-4edb-4047-87bb-e6b94dbbbab0-cover.png");
 
 GoogleSignin.configure({
   webClientId: "212900711433-rild80si8g6sg8q5j7jl8goo6o9ecnqi.apps.googleusercontent.com",
@@ -221,7 +224,10 @@ export default function LoginScreen() {
               onPress={() => handleOAuth("google")}
               activeOpacity={0.8}
             >
-              <Text style={styles.oauthText}>🌐  Google</Text>
+              <View style={styles.oauthButtonContent}>
+                <Image source={GOOGLE_ICON} style={styles.googleIcon} resizeMode="contain" />
+                <Text style={styles.oauthText}>Google</Text>
+              </View>
             </TouchableOpacity>
             {Platform.OS === "ios" && (
               <TouchableOpacity
@@ -391,6 +397,17 @@ const styles = StyleSheet.create({
     borderRadius: 100,
     paddingVertical: 14,
     alignItems: "center",
+    justifyContent: "center",
+  },
+  oauthButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  googleIcon: {
+    width: 20,
+    height: 20,
+    marginRight: 10,
   },
   oauthText: {
     color: "#FFFFFF",
