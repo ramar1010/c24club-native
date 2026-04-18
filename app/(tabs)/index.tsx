@@ -420,6 +420,27 @@ export default function HomeScreen() {
           </View>
         )}
 
+        {/* CTA Button */}
+        <View style={styles.ctaContainer}>
+          <TouchableOpacity 
+            style={styles.ctaButton} 
+            activeOpacity={0.85}
+            onPress={handleCTA}
+          >
+            <Text style={styles.ctaText}>
+              {user ? "Start Chatting Now →" : "Get Started Now →"}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.rulesButton}
+            activeOpacity={0.7}
+            onPress={() => router.push("/rules")}
+          >
+            <Text style={styles.rulesText}>View Rules</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* How It Works */}
         <View style={styles.section}>
           <FemaleVipBanner />
@@ -501,27 +522,6 @@ export default function HomeScreen() {
               </View>
             ))}
           </View>
-        </View>
-
-        {/* CTA Button */}
-        <View style={styles.ctaContainer}>
-          <TouchableOpacity 
-            style={styles.ctaButton} 
-            activeOpacity={0.85}
-            onPress={handleCTA}
-          >
-            <Text style={styles.ctaText}>
-              {user ? "Start Chatting Now →" : "Get Started Now →"}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.rulesButton}
-            activeOpacity={0.7}
-            onPress={() => router.push("/rules")}
-          >
-            <Text style={styles.rulesText}>View Rules</Text>
-          </TouchableOpacity>
         </View>
 
         {/* VIP Spotlight Section */}
