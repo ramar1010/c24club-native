@@ -217,19 +217,21 @@ export default function LoginScreen() {
           {/* OAuth Buttons */}
           <View style={styles.oauthRow}>
             <TouchableOpacity
-              style={styles.oauthButton}
+              style={[styles.oauthButton, Platform.OS !== "ios" ? { flex: 0, width: "100%" } : null]}
               onPress={() => handleOAuth("google")}
               activeOpacity={0.8}
             >
               <Text style={styles.oauthText}>🌐  Google</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.oauthButton}
-              onPress={() => handleOAuth("apple")}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.oauthText}> Apple</Text>
-            </TouchableOpacity>
+            {Platform.OS === "ios" && (
+              <TouchableOpacity
+                style={styles.oauthButton}
+                onPress={() => handleOAuth("apple")}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.oauthText}> Apple</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Sign Up Link */}
