@@ -405,9 +405,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   googleIcon: {
-    width: 20,
-    height: 20,
-    marginRight: 10,
+    width: 24,
+    height: 24,
+    marginRight: 12,
   },
   oauthText: {
     color: "#FFFFFF",
