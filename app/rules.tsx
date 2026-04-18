@@ -134,6 +134,13 @@ export default function RulesScreen() {
           banned indefinitely.
         </Text>
 
+        <View style={styles.disclaimerBox}>
+          <Text style={styles.disclaimerText}>
+            Apple is not a sponsor of, nor is it involved in any way with, the
+            rewards or contests within this app.
+          </Text>
+        </View>
+
         <View style={styles.spacer} />
         <FooterLinks />
       </ScrollView>
@@ -187,6 +194,21 @@ const styles = StyleSheet.create({
     color: "#D1D1D6",
     lineHeight: 22,
     marginBottom: 12,
+  },
+  disclaimerBox: {
+    marginTop: 32,
+    padding: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  disclaimerText: {
+    fontSize: 13,
+    color: "#71717A",
+    textAlign: "center",
+    fontStyle: "italic",
+    lineHeight: 18,
   },
   spacer: {
     height: 40,

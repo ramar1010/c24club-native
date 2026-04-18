@@ -508,6 +508,9 @@ export default function ProductDetailScreen() {
             <Text style={styles.descriptionText}>
               {item.description || item.brief || 'No description available.'}
             </Text>
+            <Text style={styles.deliveryEstimateText}>
+              Estimated delivery: 10-20 business days.
+            </Text>
           </View>
 
           {/* Cost Section */}
@@ -1133,6 +1136,12 @@ const styles = StyleSheet.create({
     color: '#A1A1AA',
     fontSize: 15,
     lineHeight: 22,
+  },
+  deliveryEstimateText: {
+    color: '#71717A',
+    fontSize: 12,
+    marginTop: 8,
+    fontStyle: 'italic',
   },
   costSection: {
     marginTop: 8,

@@ -182,6 +182,12 @@ const GUIDE_SECTIONS = [
       { q: "How do I report someone?", a: "During any video chat, tap the flag/report button on screen. Fill in the reason and submit. Our team reviews all reports promptly." },
     ],
   },
+  {
+    title: "⚖️  Legal Disclaimer",
+    items: [
+      { q: "Is Apple involved with rewards?", a: "Apple is not a sponsor of, nor is it involved in any way with, the rewards or contests within this app." },
+    ],
+  },
 ];
 // ───────────────────────────────────────────────────────────────────────────────
 
@@ -638,6 +644,12 @@ export default function HomeScreen() {
           <BookOpen size={18} color="#EF4444" style={{ marginRight: 8 }} />
           <Text style={styles.guideButtonText}>How To Guide</Text>
         </TouchableOpacity>
+
+        <View style={styles.appleDisclaimer}>
+          <Text style={styles.appleDisclaimerText}>
+            Apple is not a sponsor of, nor is it involved in any way with, the rewards or contests within this app.
+          </Text>
+        </View>
 
         <FooterLinks />
 
@@ -1238,5 +1250,18 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#71717A",
     marginTop: 2,
+  },
+  appleDisclaimer: {
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 8,
+    alignItems: "center",
+  },
+  appleDisclaimerText: {
+    color: "#52525B",
+    fontSize: 11,
+    textAlign: "center",
+    fontStyle: "italic",
+    lineHeight: 16,
   },
 });

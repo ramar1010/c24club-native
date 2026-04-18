@@ -204,13 +204,13 @@ export default function ProfileScreen() {
     } catch (_err) {}
   };
 
-  const fetchRedemptions = useCallback(async (append = false) => {
+  const fetchRedemptions = useCallback(async (append = false, currentCount = 0) => {
     if (!profile?.id) return;
     if (append) setIsLoadingMoreRedemptions(true);
     else setIsRedemptionsLoading(true);
 
-    const offset = append ? redemptions.length : 0;
-    const limit = 5;
+    const offset = append ? currentCount : 0;
+    const limit = 10;
 
     const { data } = await supabase
       .from("member_redemptions")
@@ -232,7 +232,7 @@ export default function ProfileScreen() {
 
     setIsRedemptionsLoading(false);
     setIsLoadingMoreRedemptions(false);
-  }, [profile?.id, redemptions.length]);
+  }, [profile?.id]);
 
   const fetchRedemptionCount = useCallback(async () => {
     if (!profile?.id) return;
@@ -262,13 +262,13 @@ export default function ProfileScreen() {
     }
   }, [profile?.id]);
 
-  const fetchGiftHistory = useCallback(async (append = false) => {
+  const fetchGiftHistory = useCallback(async (append = false, currentCount = 0) => {
     if (!profile?.id) return;
     if (append) setIsLoadingMoreGifts(true);
     else setIsGiftHistoryLoading(true);
 
-    const offset = append ? giftHistory.length : 0;
-    const limit = 5;
+    const offset = append ? currentCount : 0;
+    const limit = 10;
 
     const { data } = await supabase
       .from("gift_transactions")
@@ -301,15 +301,15 @@ export default function ProfileScreen() {
     }
     setIsGiftHistoryLoading(false);
     setIsLoadingMoreGifts(false);
-  }, [profile?.id, giftHistory.length]);
+  }, [profile?.id]);
 
-  const fetchCashoutHistory = useCallback(async (append = false) => {
+  const fetchCashoutHistory = useCallback(async (append = false, currentCount = 0) => {
     if (!profile?.id) return;
     if (append) setIsLoadingMoreCashouts(true);
     else setIsCashoutHistoryLoading(true);
 
-    const offset = append ? cashoutHistory.length : 0;
-    const limit = 5;
+    const offset = append ? currentCount : 0;
+    const limit = 10;
 
     const { data } = await supabase
       .from("cashout_requests")
@@ -341,7 +341,7 @@ export default function ProfileScreen() {
     }
     setIsCashoutHistoryLoading(false);
     setIsLoadingMoreCashouts(false);
-  }, [profile?.id, cashoutHistory.length]);
+  }, [profile?.id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -742,7 +742,7 @@ export default function ProfileScreen() {
             {hasMoreGifts && giftHistory.length > 0 && (
               <TouchableOpacity
                 style={styles.loadMoreButton}
-                onPress={() => fetchGiftHistory(true)}
+                onPress={() => fetchGiftHistory(true, giftHistory.length)}
                 disabled={isLoadingMoreGifts}
               >
                 {isLoadingMoreGifts ? (
@@ -815,7 +815,7 @@ export default function ProfileScreen() {
             {hasMoreCashouts && cashoutHistory.length > 0 && (
               <TouchableOpacity
                 style={styles.loadMoreButton}
-                onPress={() => fetchCashoutHistory(true)}
+                onPress={() => fetchCashoutHistory(true, cashoutHistory.length)}
                 disabled={isLoadingMoreCashouts}
               >
                 {isLoadingMoreCashouts ? (
@@ -1084,7 +1084,7 @@ export default function ProfileScreen() {
             {hasMoreRedemptions && redemptions.length > 0 && (
               <TouchableOpacity
                 style={styles.loadMoreButton}
-                onPress={() => fetchRedemptions(true)}
+                onPress={() => fetchRedemptions(true, redemptions.length)}
                 disabled={isLoadingMoreRedemptions}
               >
                 {isLoadingMoreRedemptions ? (

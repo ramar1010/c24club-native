@@ -66,6 +66,7 @@ const TERMS_CONTENT = [
   { type: 'bullet', text: 'Minutes may be frozen if certain thresholds are met.' },
 
   { type: 'h2', text: '16. Reward Fulfillment' },
+  { type: 'bullet', text: 'C24 Club is responsible for the fulfillment of all rewards.' },
   { type: 'bullet', text: 'Rewards are sourced from third-party sellers. C24 Club does not control shipping times or item quality.' },
   { type: 'bullet', text: 'If an item is not delivered, C24 Club will provide 400+ extra minutes or allow users to rechoose their reward.' },
 
@@ -90,6 +91,8 @@ const TERMS_CONTENT = [
 
   { type: 'h2', text: 'Contact' },
   { type: 'p', text: 'For questions about these Terms, contact us at business@c24club.com.' },
+  { type: 'spacer', text: '' },
+  { type: 'p', text: 'Apple is not a sponsor of, nor is it involved in any way with, the rewards or contests within this app.' },
 ];
 
 const PRIVACY_CONTENT = [
@@ -199,6 +202,8 @@ const SAFETY_CONTENT = [
 
   { type: 'h3', text: 'If someone asks for personal info or money:' },
   { type: 'p', text: 'Never comply. This is likely a scam. Skip the call, report the user, and remember C24 Club staff will never ask for your password, payment info, or personal details.' },
+  { type: 'spacer', text: '' },
+  { type: 'p', text: 'Apple is not a sponsor of, nor is it involved in any way with, the rewards or contests within this app.' },
 ];
 
 const PAGE_CONTENT: Record<LegalPage, typeof TERMS_CONTENT> = {
@@ -231,6 +236,8 @@ function renderContent(items: typeof TERMS_CONTENT) {
             <Text style={styles.warningText}>{item.text}</Text>
           </View>
         );
+      case 'spacer':
+        return <View key={i} style={{ height: 20 }} />;
       default:
         return <Text key={i} style={styles.p}>{item.text}</Text>;
     }
