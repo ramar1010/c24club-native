@@ -11,6 +11,7 @@ import {
   TextInput,
   Share,
   Linking,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -37,6 +38,7 @@ import {
   Clock,
   Info,
   Bell,
+  Copy,
 } from "lucide-react-native";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCETracker } from "@/hooks/useCETracker";
@@ -59,6 +61,7 @@ import {
 import { VStack } from "@/components/ui/vstack";
 import { Heading } from "@/components/ui/heading";
 import { useToast, Toast, ToastTitle, ToastDescription } from "@/components/ui/toast";
+import * as Clipboard from 'expo-clipboard';
 
 // ─── Interfaces ────────────────────────────────────────────────────────────────
 
@@ -80,6 +83,14 @@ interface MemberRedemption {
   shipping_country: string | null;
   shipping_tracking_url: string | null;
   notes: string | null;
+}
+
+interface MyGiftCard {
+  id: string;
+  brand: string;
+  value_amount: number;
+  code: string;
+  claimed_at: string;
 }
 
 interface GiftTransaction {
@@ -119,6 +130,9 @@ export default function ProfileScreen() {
   const [hasMoreRedemptions, setHasMoreRedemptions] = useState(true);
   const [isLoadingMoreRedemptions, setIsLoadingMoreRedemptions] = useState(false);
   const [liveMinutes, setLiveMinutes] = useState<number | null>(null);
+  
+  const [myGiftCards, setMyGiftCards] = useState<MyGiftCard[]>([]);
+  const [isGiftCardsLoading, setIsGiftCardsLoading] = useState(false);
 
   const displayMinutes = liveMinutes ?? minutes?.minutes ?? 0;
 
@@ -230,6 +244,24 @@ export default function ProfileScreen() {
     setRedemptionCount(count ?? 0);
   }, [profile?.id]);
 
+  const fetchMyGiftCards = useCallback(async () => {
+    if (!profile?.id) return;
+    setIsGiftCardsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("redeem-giftcard", {
+        body: { action: "my-cards" },
+      });
+      if (error) throw error;
+      if (data?.cards) {
+        setMyGiftCards(data.cards);
+      }
+    } catch (err: any) {
+      console.error("[Profile] Error fetching my gift cards:", err.message);
+    } finally {
+      setIsGiftCardsLoading(false);
+    }
+  }, [profile?.id]);
+
   const fetchGiftHistory = useCallback(async (append = false) => {
     if (!profile?.id) return;
     if (append) setIsLoadingMoreGifts(true);
@@ -317,6 +349,7 @@ export default function ProfileScreen() {
       fetchRedemptionCount();
       fetchGiftHistory();
       fetchCashoutHistory();
+      fetchMyGiftCards();
       // Fetch live balance on focus
       if (profile?.id) {
         supabase.functions
@@ -328,7 +361,7 @@ export default function ProfileScreen() {
           })
           .catch(() => {});
       }
-    }, [fetchRedemptions, fetchRedemptionCount, fetchGiftHistory, fetchCashoutHistory, profile?.id])
+    }, [fetchRedemptions, fetchRedemptionCount, fetchGiftHistory, fetchCashoutHistory, fetchMyGiftCards, profile?.id])
   );
 
   useEffect(() => {
@@ -482,6 +515,7 @@ export default function ProfileScreen() {
         fetchRedemptionCount(),
         fetchGiftHistory(),
         fetchCashoutHistory(),
+        fetchMyGiftCards(),
       ]);
 
       toast.show({
@@ -500,6 +534,17 @@ export default function ProfileScreen() {
     }
   };
 
+  const copyToClipboard = async (text: string) => {
+    await Clipboard.setStringAsync(text);
+    toast.show({
+      placement: 'top',
+      render: ({ id }) => (
+        <Toast nativeID={'toast-' + id} action="success" variant="solid">
+          <ToastTitle>Copied to clipboard!</ToastTitle>
+        </Toast>
+      ),
+    });
+  };
 
   // ─── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
@@ -555,7 +600,7 @@ export default function ProfileScreen() {
   const giftedMinutes = minutes?.gifted_minutes ?? 0;
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.container}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -1051,6 +1096,50 @@ export default function ProfileScreen() {
             )}
           </View>
 
+          {/* ── My Gift Cards Section ───────────────────────────────────── */}
+          <View style={styles.card}>
+            <View style={styles.sectionTitleRow}>
+              <CreditCard size={16} color="#FACC15" />
+              <Text style={[styles.sectionHeader, { marginLeft: 8 }]}>My Gift Cards</Text>
+            </View>
+
+            {isGiftCardsLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator color="#FACC15" />
+              </View>
+            ) : myGiftCards.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyText}>No gift cards redeemed yet.</Text>
+              </View>
+            ) : (
+              myGiftCards.map((card) => (
+                <View key={card.id} style={styles.redemptionCard}>
+                  <View style={styles.redemptionDetails}>
+                    <Text style={styles.redemptionTitle}>
+                      {card.brand} ${card.value_amount}
+                    </Text>
+                    
+                    <View style={{ backgroundColor: '#000000', padding: 12, borderRadius: 8, marginVertical: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: '#27272A' }}>
+                      <Text style={{ color: '#FACC15', fontSize: 16, fontWeight: 'bold', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' }}>
+                        {card.code}
+                      </Text>
+                      <TouchableOpacity 
+                        onPress={() => copyToClipboard(card.code)}
+                        style={{ padding: 4 }}
+                      >
+                        <Copy size={16} color="#3B82F6" />
+                      </TouchableOpacity>
+                    </View>
+
+                    <Text style={styles.redemptionDate}>
+                      Claimed on: {new Date(card.claimed_at).toLocaleDateString()}
+                    </Text>
+                  </View>
+                </View>
+              ))
+            )}
+          </View>
+
           {/* ── Shipping Address Section ──────────────────────────────────── */}
           <View style={styles.card}>
             <View style={styles.sectionTitleRow}>
@@ -1496,7 +1585,7 @@ const styles = StyleSheet.create({
   },
   buttonsContainer: {
     width: "100%",
-    rowGap: 12, columnGap: 12,
+    gap: 12,
   },
   signInButton: {
     backgroundColor: "#EF4444",
@@ -1526,7 +1615,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginTop: 24,
-    rowGap: 8, columnGap: 8,
+    gap: 8,
   },
   linkText: {
     color: "#52525B",
@@ -1575,7 +1664,7 @@ const styles = StyleSheet.create({
   },
   badgesRow: {
     flexDirection: "row",
-    rowGap: 8, columnGap: 8,
+    gap: 8,
     alignItems: "center",
     flexWrap: "wrap",
     justifyContent: "center",
@@ -1603,7 +1692,7 @@ const styles = StyleSheet.create({
   balanceRow: {
     flexDirection: "row",
     paddingHorizontal: 16,
-    rowGap: 12, columnGap: 12,
+    gap: 12,
     marginBottom: 12,
   },
   balanceCard: {
@@ -1772,7 +1861,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     paddingVertical: 10,
-    rowGap: 12, columnGap: 12,
+    gap: 12,
   },
   cashoutHistoryLeft: {
     flex: 1,
@@ -1857,11 +1946,6 @@ const styles = StyleSheet.create({
     padding: 18,
     borderWidth: 2,
     borderColor: "#FACC15",
-    shadowColor: "#FACC15",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 8,
   },
   vipUpgradeHeader: {
     flexDirection: "row",
@@ -1969,7 +2053,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginTop: 8,
-    rowGap: 4, columnGap: 4,
+    gap: 4,
   },
   inlineEditBtnText: {
     color: "#71717A",
@@ -2105,7 +2189,7 @@ const styles = StyleSheet.create({
   statusBadgeRow: {
     flexDirection: "row",
     alignItems: "center",
-    rowGap: 6, columnGap: 6,
+    gap: 6,
   },
   statusText: {
     fontSize: 13,
@@ -2114,12 +2198,12 @@ const styles = StyleSheet.create({
   },
   cashoutInfoBlock: {
     marginTop: 8,
-    rowGap: 4, columnGap: 4,
+    gap: 4,
   },
   cashoutAmtBadge: {
     flexDirection: "row",
     alignItems: "center",
-    rowGap: 4, columnGap: 4,
+    gap: 4,
     backgroundColor: "#0A2318",
     borderRadius: 6,
     paddingHorizontal: 8,
@@ -2136,7 +2220,7 @@ const styles = StyleSheet.create({
   paypalRow: {
     flexDirection: "row",
     alignItems: "center",
-    rowGap: 4, columnGap: 4,
+    gap: 4,
   },
   paypalText: {
     color: "#A1A1AA",
@@ -2150,7 +2234,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginTop: 8,
-    rowGap: 4, columnGap: 4,
+    gap: 4,
   },
   changeAddressBtnText: {
     color: "#3B82F6",
@@ -2189,7 +2273,7 @@ const styles = StyleSheet.create({
 
   // ── Forms / Inputs ───────────────────────────────────────────────────────────
   formContainer: {
-    rowGap: 10, columnGap: 10,
+    gap: 10,
   },
   inputGroup: {
     marginBottom: 10,
@@ -2217,7 +2301,7 @@ const styles = StyleSheet.create({
   },
   formActions: {
     flexDirection: "row",
-    rowGap: 10, columnGap: 10,
+    gap: 10,
     marginTop: 14,
   },
   cancelButton: {
@@ -2255,7 +2339,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 14,
     paddingVertical: 14,
-    rowGap: 8, columnGap: 8,
+    gap: 8,
     borderWidth: 1,
     borderColor: "#3F1010",
   },
@@ -2280,7 +2364,7 @@ const styles = StyleSheet.create({
   },
   modalFooter: {
     flexDirection: "row",
-    rowGap: 10, columnGap: 10,
+    gap: 10,
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: "#27272A",
@@ -2315,7 +2399,7 @@ const styles = StyleSheet.create({
   ceInfoTitleRow: {
     flexDirection: "row",
     alignItems: "center",
-    rowGap: 8, columnGap: 8,
+    gap: 8,
   },
   ceInfoTitle: {
     color: "#F4F4F5",
@@ -2340,7 +2424,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#1C1500",
     borderRadius: 10,
     padding: 10,
-    rowGap: 8, columnGap: 8,
+    gap: 8,
     borderWidth: 1,
     borderColor: "#FACC15",
     marginTop: 8,

@@ -145,17 +145,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#EC4899',
     opacity: 0.18,
     // blur simulation via shadow
-    ...Platform.select({
-      ios: {
-        shadowColor: '#EC4899',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.9,
-        shadowRadius: 30,
       },
-      android: {},
-      default: {},
-    }),
-  },
   card: {
     backgroundColor: '#1A1A2E',
     borderRadius: 20,
@@ -164,24 +154,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 110,
     paddingVertical: 20,
     overflow: 'visible',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#EC4899',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.6,
-        shadowRadius: 20,
       },
-      android: {
-        elevation: 12,
-      },
-      default: {
-        shadowColor: '#EC4899',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.6,
-        shadowRadius: 20,
-      },
-    }),
-  },
   compactWrapper: {
     marginHorizontal: 16,
     marginTop: 12,
@@ -197,22 +170,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 16,
     overflow: 'visible',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#EC4899',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.5,
-        shadowRadius: 12,
       },
-      android: { elevation: 8 },
-      default: {
-        shadowColor: '#EC4899',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.5,
-        shadowRadius: 12,
-      },
-    }),
-  },
   compactStickerLeft: {
     width: 44,
     height: 60,
@@ -239,7 +197,7 @@ const styles = StyleSheet.create({
   compactRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    rowGap: 8, columnGap: 8,
+    gap: 8,
   },
   compactToggleLabel: {
     color: '#F9A8D4',
@@ -296,7 +254,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    rowGap: 12, columnGap: 12,
+    gap: 12,
     marginBottom: 10,
   },
   toggleLabel: {

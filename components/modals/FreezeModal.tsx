@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     width: "100%",
-    rowGap: 12, columnGap: 12,
+    gap: 12,
     marginBottom: 16,
   },
   vipButton: {

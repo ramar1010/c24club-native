@@ -575,7 +575,6 @@ export default function ChatScreen() {
                 { 
                   opacity: blurOpacity,
                   zIndex: 20,
-                  elevation: 20,
                 }
               ]}
               pointerEvents="none"
@@ -1135,7 +1134,7 @@ const styles = StyleSheet.create({
   timerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    rowGap: 5, columnGap: 5,
+    gap: 5,
   },
   greenDot: {
     width: 8,
@@ -1197,7 +1196,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    rowGap: 10, columnGap: 10,
+    gap: 10,
     backgroundColor: '#1E1E38',
     paddingHorizontal: 16,
     paddingVertical: 10,
@@ -1316,7 +1315,7 @@ const styles = StyleSheet.create({
   },
   topicsContent: {
     paddingHorizontal: 12,
-    rowGap: 6, columnGap: 6,
+    gap: 6,
   },
   topicChip: {
     backgroundColor: 'rgba(0,0,0,0.55)',
@@ -1373,7 +1372,7 @@ const styles = StyleSheet.create({
     right: 12,
     flexDirection: 'column',
     alignItems: 'flex-end',
-    rowGap: 6, columnGap: 6,
+    gap: 6,
     maxWidth: 160,
   },
   partnerChip: {
@@ -1395,7 +1394,7 @@ const styles = StyleSheet.create({
     left: 12,
     flexDirection: 'column',
     alignItems: 'flex-start',
-    rowGap: 6, columnGap: 6,
+    gap: 6,
     maxWidth: 160,
   },
   myChip: {
@@ -1467,7 +1466,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-    rowGap: 3, columnGap: 3,
+    gap: 3,
   },
   genderPillActive: {
     backgroundColor: '#EF4444',
@@ -1497,16 +1496,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    ...Platform.select({
-      native: {
-        shadowColor: '#EC4899',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.4,
-        shadowRadius: 10,
-        elevation: 8,
       },
-    }),
-  },
   selfieBtnText: {
     color: '#FFFFFF',
     fontSize: 18,
@@ -1519,16 +1509,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    ...Platform.select({
-      native: {
-        shadowColor: '#EF4444',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.4,
-        shadowRadius: 10,
-        elevation: 8,
       },
-    }),
-  },
   startBtnText: {
     color: '#FFFFFF',
     fontSize: 20,
@@ -1555,7 +1536,7 @@ const styles = StyleSheet.create({
   },
   ctrlBtn: {
     alignItems: 'center',
-    rowGap: 4, columnGap: 4,
+    gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 6,
   },
@@ -1568,20 +1549,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#EF4444',
     flexDirection: 'row',
     alignItems: 'center',
-    rowGap: 6, columnGap: 6,
+    gap: 6,
     paddingVertical: 14,
     paddingHorizontal: 28,
     borderRadius: 50,
-    ...Platform.select({
-      native: {
-        shadowColor: '#EF4444',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.4,
-        shadowRadius: 8,
-        elevation: 6,
       },
-    }),
-  },
   nextBtnText: {
     color: '#FFFFFF',
     fontSize: 17,
@@ -1594,16 +1566,7 @@ const styles = StyleSheet.create({
     height: 56,
     alignItems: 'center',
     justifyContent: 'center',
-    ...Platform.select({
-      native: {
-        shadowColor: '#EF4444',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.4,
-        shadowRadius: 8,
-        elevation: 6,
       },
-    }),
-  },
 
   // ─── Toast ────────────────────────────────────────────────────────────────
   minuteLossToast: {
@@ -1642,7 +1605,7 @@ const styles = StyleSheet.create({
     maxWidth: 360,
     borderWidth: 1,
     borderColor: '#2A2A4A',
-    rowGap: 12, columnGap: 12,
+    gap: 12,
   },
   modalTitle: {
     color: '#FFFFFF',
@@ -1716,7 +1679,7 @@ const styles = StyleSheet.create({
   reportGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    rowGap: 8, columnGap: 8,
+    gap: 8,
     marginBottom: 14,
   },
   reportReasonBtn: {
@@ -1772,7 +1735,7 @@ const styles = StyleSheet.create({
   bannedContent: {
     alignItems: 'center',
     paddingHorizontal: 40,
-    rowGap: 12, columnGap: 12,
+    gap: 12,
   },
   bannedIcon: {
     fontSize: 64,

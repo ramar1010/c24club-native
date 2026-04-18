@@ -399,14 +399,14 @@ export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
                 <TouchableOpacity 
                   style={[
                     styles.addressOption,
-                    isUsingSavedAddress ? styles.addressOptionSelected : null
+                    isUsingSavedAddress ? styles.addressOptionSelected : undefined
                   ]}
                   onPress={() => setIsUsingSavedAddress(true)}
                   activeOpacity={0.7}
                 >
                   <View style={styles.addressOptionHeader}>
                     <MapPin size={16} color={isUsingSavedAddress ? "#FACC15" : "#71717A"} />
-                    <Text style={[styles.addressOptionTitle,isUsingSavedAddress ? styles.addressOptionTitleSelected : null]}>
+                    <Text style={[styles.addressOptionTitle,isUsingSavedAddress ? styles.addressOptionTitleSelected : undefined]}>
                       Use Saved Address
                     </Text>
                   </View>
@@ -421,14 +421,14 @@ export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
               <TouchableOpacity 
                 style={[
                   styles.addressOption,
-                  !isUsingSavedAddress ? styles.addressOptionSelected : null
+                  !isUsingSavedAddress ? styles.addressOptionSelected : undefined
                 ]}
                 onPress={() => setIsUsingSavedAddress(false)}
                 activeOpacity={0.7}
               >
                 <View style={styles.addressOptionHeader}>
                   <Edit2 size={16} color={!isUsingSavedAddress ? "#FACC15" : "#71717A"} />
-                  <Text style={[styles.addressOptionTitle,!isUsingSavedAddress ? styles.addressOptionTitleSelected : null]}>
+                  <Text style={[styles.addressOptionTitle,!isUsingSavedAddress ? styles.addressOptionTitleSelected : undefined]}>
                     Use New Address
                   </Text>
                 </View>
@@ -807,11 +807,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#EF4444',
     zIndex: 10,
     transform: [{ translateX: -2 }],
-    shadowColor: '#EF4444',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 10,
-    elevation: 10,
   },
   reelWrapper: {
     height: 140,
@@ -916,11 +911,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#EF4444',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
   },
   spinButtonText: {
     color: '#FFFFFF',
@@ -1058,7 +1048,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#27272A',
-    rowGap: 16, columnGap: 16,
+    gap: 16,
     marginVertical: 12,
   },
   previewImage: {
@@ -1084,7 +1074,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#27272A',
-    rowGap: 16, columnGap: 16,
+    gap: 16,
   },
   choiceContent: {
     flex: 1,
@@ -1147,7 +1137,7 @@ const styles = StyleSheet.create({
     borderColor: '#27272A',
     borderRadius: 16,
     padding: 16,
-    rowGap: 8, columnGap: 8,
+    gap: 8,
   },
   addressOptionSelected: {
     borderColor: '#FACC15',
@@ -1156,7 +1146,7 @@ const styles = StyleSheet.create({
   addressOptionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    rowGap: 8, columnGap: 8,
+    gap: 8,
   },
   addressOptionTitle: {
     color: '#A1A1AA',

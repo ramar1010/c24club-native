@@ -1164,7 +1164,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 32,
-    rowGap: 16, columnGap: 16,
+    gap: 16,
   },
   emptyTitle: {
     fontSize: 22,
@@ -1203,7 +1203,7 @@ const styles = StyleSheet.create({
   headerTopRow: {
     flexDirection: "row",
     alignItems: "center",
-    rowGap: 8, columnGap: 8,
+    gap: 8,
   },
   backButton: {
     padding: 4,
@@ -1224,7 +1224,7 @@ const styles = StyleSheet.create({
   headerButtons: {
     flexDirection: "row",
     alignItems: "center",
-    rowGap: 8, columnGap: 8,
+    gap: 8,
   },
   giftedButton: {
     flexDirection: "row",
@@ -1233,7 +1233,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 100,
-    rowGap: 4, columnGap: 4,
+    gap: 4,
     position: "relative",
   },
   giftedButtonText: {
@@ -1263,7 +1263,7 @@ const styles = StyleSheet.create({
   dmsButton: {
     flexDirection: "row",
     alignItems: "center",
-    rowGap: 4, columnGap: 4,
+    gap: 4,
     backgroundColor: "rgba(59,130,246,0.2)",
     borderWidth: 1,
     borderColor: "rgba(59,130,246,0.3)",
@@ -1279,7 +1279,7 @@ const styles = StyleSheet.create({
   removeButton: {
     flexDirection: "row",
     alignItems: "center",
-    rowGap: 4, columnGap: 4,
+    gap: 4,
     backgroundColor: "rgba(239,68,68,0.2)",
     borderWidth: 1,
     borderColor: "rgba(239,68,68,0.3)",
@@ -1318,7 +1318,7 @@ const styles = StyleSheet.create({
   selfieRow: {
     flexDirection: "row",
     alignItems: "center",
-    rowGap: 12, columnGap: 12,
+    gap: 12,
   },
   selfieImage: {
     width: 64,
@@ -1335,7 +1335,7 @@ const styles = StyleSheet.create({
   },
   selfieInfo: {
     flex: 1,
-    rowGap: 6, columnGap: 6,
+    gap: 6,
   },
   selfieName: {
     fontSize: 14,
@@ -1345,7 +1345,7 @@ const styles = StyleSheet.create({
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
-    rowGap: 4, columnGap: 4,
+    gap: 4,
     alignSelf: "flex-start",
     backgroundColor: "rgba(255,255,255,0.08)",
     borderRadius: 100,
@@ -1359,7 +1359,7 @@ const styles = StyleSheet.create({
   retakeButton: {
     flexDirection: "row",
     alignItems: "center",
-    rowGap: 5, columnGap: 5,
+    gap: 5,
     borderWidth: 1,
     borderColor: "#EC4899",
     borderRadius: 8,
@@ -1385,7 +1385,7 @@ const styles = StyleSheet.create({
   accordionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    rowGap: 8, columnGap: 8,
+    gap: 8,
     paddingHorizontal: 14,
     paddingVertical: 13,
   },
@@ -1415,7 +1415,7 @@ const styles = StyleSheet.create({
   accordionBody: {
     paddingHorizontal: 14,
     paddingBottom: 14,
-    rowGap: 10, columnGap: 10,
+    gap: 10,
   },
   bioInput: {
     backgroundColor: "#111111",
@@ -1453,7 +1453,7 @@ const styles = StyleSheet.create({
   socialEditRow: {
     flexDirection: "row",
     alignItems: "center",
-    rowGap: 12, columnGap: 12,
+    gap: 12,
     marginBottom: 10,
     padding: 12,
     borderRadius: 12,
@@ -1480,12 +1480,12 @@ const styles = StyleSheet.create({
   },
   interestedScrollContent: {
     paddingHorizontal: 14,
-    rowGap: 10, columnGap: 10,
+    gap: 10,
   },
   interestedCard: {
     width: 60,
     alignItems: "center",
-    rowGap: 4, columnGap: 4,
+    gap: 4,
   },
   interestedAvatar: {
     width: 60,
@@ -1501,7 +1501,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    rowGap: 4, columnGap: 4,
+    gap: 4,
     backgroundColor: 'rgba(0,0,0,0.3)',
     borderRadius: 12,
   },
@@ -1548,7 +1548,7 @@ const styles = StyleSheet.create({
   },
   filterScrollContent: {
     paddingHorizontal: 16,
-    rowGap: 8, columnGap: 8,
+    gap: 8,
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 4,
@@ -1579,7 +1579,7 @@ const styles = StyleSheet.create({
   },
   columnWrapper: {
     paddingHorizontal: 16,
-    rowGap: 12, columnGap: 12,
+    gap: 12,
     marginBottom: 12,
   },
   emptyGrid: {
@@ -1627,7 +1627,7 @@ const styles = StyleSheet.create({
   socialRow: {
     flexDirection: "row",
     alignItems: "center",
-    rowGap: 12, columnGap: 12,
+    gap: 12,
     marginBottom: 10,
     padding: 12,
     borderRadius: 12,
@@ -1661,11 +1661,6 @@ const styles = StyleSheet.create({
     left: "50%",
     transform: [{ translateX: -60 }],
     borderRadius: 100,
-    shadowColor: "#8B5CF6",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    elevation: 8,
   },
   shuffleBtnGradient: {
     flexDirection: "row",

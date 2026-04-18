@@ -366,7 +366,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    rowGap: 12, columnGap: 12,
+    gap: 12,
     paddingHorizontal: 32,
   },
   emptyContent: {
@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    rowGap: 8, columnGap: 8,
+    gap: 8,
   },
   backBtn: {
     padding: 4,
@@ -393,7 +393,7 @@ const styles = StyleSheet.create({
   cashOutBtn: {
     flexDirection: "row",
     alignItems: "center",
-    rowGap: 4, columnGap: 4,
+    gap: 4,
     backgroundColor: "rgba(34,197,94,0.1)",
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -437,7 +437,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.1)",
     borderRadius: 12,
     paddingHorizontal: 12,
-    rowGap: 8, columnGap: 8,
+    gap: 8,
   },
   searchIcon: {},
   searchInput: {
@@ -455,7 +455,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.05)",
-    rowGap: 16, columnGap: 16,
+    gap: 16,
   },
   avatarTouchable: {
     position: "relative",

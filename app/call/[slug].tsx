@@ -298,11 +298,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 48,
     alignItems: "center",
     marginBottom: 32,
-    shadowColor: "#22C55E",
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
   },
   videoChatButtonText: {
     color: "#FFFFFF",

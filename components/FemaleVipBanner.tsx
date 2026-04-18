@@ -195,11 +195,6 @@ const banner = StyleSheet.create({
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#EC4899',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 12,
-    elevation: 10,
   },
   textWrap: {
     flex: 1,

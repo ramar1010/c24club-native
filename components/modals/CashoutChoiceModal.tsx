@@ -272,7 +272,7 @@ export const CashoutChoiceModal: React.FC<CashoutChoiceModalProps> = ({
             </View>
 
             <TouchableOpacity
-              style={[styles.primaryBtnView, loading ? styles.primaryBtnDisabled : null]}
+              style={[styles.primaryBtnView, loading ? styles.primaryBtnDisabled : undefined]}
               onPress={finalizeKeepItem}
               disabled={loading}
               activeOpacity={0.8}
@@ -296,7 +296,7 @@ export const CashoutChoiceModal: React.FC<CashoutChoiceModalProps> = ({
 
             <View style={styles.fullWidth}>
               <Text style={styles.inputLabel}>PayPal Email Address</Text>
-              <View style={[styles.inputRow, emailError ? styles.inputRowError : null]}>
+              <View style={[styles.inputRow, emailError ? styles.inputRowError : undefined]}>
                 <Mail size={18} color="#71717A" />
                 <TextInput
                   placeholder="your-email@example.com"
@@ -320,7 +320,7 @@ export const CashoutChoiceModal: React.FC<CashoutChoiceModalProps> = ({
             </View>
 
             <TouchableOpacity
-              style={[styles.goldBtnView, loading ? styles.primaryBtnDisabled : null]}
+              style={[styles.goldBtnView, loading ? styles.primaryBtnDisabled : undefined]}
               onPress={finalizeCashout}
               disabled={loading}
               activeOpacity={0.8}
@@ -458,7 +458,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#2A2A4A',
-    rowGap: 12, columnGap: 12,
+    gap: 12,
     marginVertical: 4,
   },
   previewImage: {
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#2A2A4A',
-    rowGap: 16, columnGap: 16,
+    gap: 16,
   },
   cashoutBtnHighlight: {
     borderColor: '#FACC15',
@@ -592,7 +592,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E1E38',
     padding: 12,
     borderRadius: 12,
-    rowGap: 8, columnGap: 8,
+    gap: 8,
     width: '100%',
   },
   infoText: {

@@ -415,7 +415,7 @@ export default function ProductDetailScreen() {
               <TouchableOpacity 
                 key={idx} 
                 onPress={() => setActiveImageIndex(idx)}
-                style={[styles.thumbnailWrapper,activeImageIndex === idx ? styles.thumbnailActive : null]}
+                style={[styles.thumbnailWrapper,activeImageIndex === idx ? styles.thumbnailActive : undefined]}
               >
                 <Image source={{ uri: img }} style={styles.thumbnailImage} />
               </TouchableOpacity>
@@ -466,8 +466,8 @@ export default function ProductDetailScreen() {
                       onPress={() => handleColorSelect(index)}
                       style={[
                         styles.colorButton,
-                        isSelected ? styles.colorButtonActive : null,
-                        isSelected ? styles.colorButtonTextActiveBg : null
+                        isSelected ? styles.colorButtonActive : undefined,
+                        isSelected ? styles.colorButtonTextActiveBg : undefined
                       ]}
                     >
                       <View style={[styles.colorSwatch, { backgroundColor: colorHex }]}>
@@ -657,14 +657,14 @@ export default function ProductDetailScreen() {
                 <TouchableOpacity 
                   style={[
                     styles.addressOption,
-isUsingSavedAddress ? styles.addressOptionSelected : null
+isUsingSavedAddress ? styles.addressOptionSelected : undefined
                   ]}
                   onPress={() => setIsUsingSavedAddress(true)}
                   activeOpacity={0.7}
                 >
                   <HStack space="sm" style={{ alignItems: 'center', marginBottom: 4 }}>
                     <MapPin size={16} color={isUsingSavedAddress ? "#22C55E" : "#71717A"} />
-                    <Text style={[styles.addressOptionTitle,isUsingSavedAddress ? styles.addressOptionTitleSelected : null]}>
+                    <Text style={[styles.addressOptionTitle,isUsingSavedAddress ? styles.addressOptionTitleSelected : undefined]}>
                       Use Saved Address
                     </Text>
                   </HStack>
@@ -679,14 +679,14 @@ isUsingSavedAddress ? styles.addressOptionSelected : null
               <TouchableOpacity 
                 style={[
                   styles.addressOption,
-!isUsingSavedAddress ? styles.addressOptionSelected : null
+!isUsingSavedAddress ? styles.addressOptionSelected : undefined
                 ]}
                 onPress={() => setIsUsingSavedAddress(false)}
                 activeOpacity={0.7}
               >
                 <HStack space="sm" style={{ alignItems: 'center' }}>
                   <Edit2 size={16} color={!isUsingSavedAddress ? "#22C55E" : "#71717A"} />
-                  <Text style={[styles.addressOptionTitle,!isUsingSavedAddress ? styles.addressOptionTitleSelected : null]}>
+                  <Text style={[styles.addressOptionTitle,!isUsingSavedAddress ? styles.addressOptionTitleSelected : undefined]}>
                     Use New Address
                   </Text>
                 </HStack>
@@ -899,7 +899,7 @@ const styles = StyleSheet.create({
   thumbnailRow: {
     paddingHorizontal: 20,
     paddingVertical: 16,
-    rowGap: 12, columnGap: 12,
+    gap: 12,
   },
   thumbnailWrapper: {
     width: 60,
@@ -948,7 +948,7 @@ const styles = StyleSheet.create({
   modalFooter: {
     padding: 24,
     borderTopWidth: 0,
-    rowGap: 12, columnGap: 12,
+    gap: 12,
   },
   formContainer: {
     width: '100%',
@@ -1030,7 +1030,7 @@ const styles = StyleSheet.create({
   sizeRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    rowGap: 12, columnGap: 12,
+    gap: 12,
   },
   sizeButton: {
     width: 44,
@@ -1061,7 +1061,7 @@ const styles = StyleSheet.create({
   colorRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    rowGap: 12, columnGap: 12,
+    gap: 12,
   },
   colorButton: {
     minWidth: 80,
@@ -1072,7 +1072,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#2A2A4A',
     paddingHorizontal: 12,
-    rowGap: 8, columnGap: 8,
+    gap: 8,
   },
   colorButtonActive: {
     borderColor: '#22C55E',
@@ -1107,7 +1107,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
-    rowGap: 8, columnGap: 8,
+    gap: 8,
   },
   shippingLabel: {
     color: '#A1A1AA',
@@ -1116,7 +1116,7 @@ const styles = StyleSheet.create({
   countryRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    rowGap: 8, columnGap: 8,
+    gap: 8,
   },
   countryBadge: {
     backgroundColor: '#2A2A4A',
@@ -1184,7 +1184,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    rowGap: 16, columnGap: 16,
+    gap: 16,
   },
   balanceCard: {
     flex: 1,

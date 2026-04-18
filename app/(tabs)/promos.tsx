@@ -280,12 +280,12 @@ const styles = StyleSheet.create({
   },
   statsGroup: {
     flexDirection: "row",
-    rowGap: 16, columnGap: 16,
+    gap: 16,
   },
   stat: {
     flexDirection: "row",
     alignItems: "center",
-    rowGap: 4, columnGap: 4,
+    gap: 4,
   },
   statValue: {
     color: "#A1A1AA",
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
     borderRadius: 100,
     flexDirection: "row",
     alignItems: "center",
-    rowGap: 6, columnGap: 6,
+    gap: 6,
   },
   visitText: {
     color: "#FFFFFF",
@@ -326,10 +326,5 @@ const styles = StyleSheet.create({
     backgroundColor: "#EF4444",
     justifyContent: "center",
     alignItems: "center",
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
   },
 });

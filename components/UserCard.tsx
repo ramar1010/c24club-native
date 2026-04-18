@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 8,
     left: 8,
-    rowGap: 4,
+    gap: 4,
   },
   badgeText: {
     color: "#FFFFFF",

@@ -118,7 +118,7 @@ export const GiftModal = ({
           {GIFT_TIERS.map((tier) => (
             <TouchableOpacity
               key={tier.id}
-              style={[styles.tierCard, !recipientIsVip && styles.tierCardLocked]}
+              style={[styles.tierCard, !recipientIsVip ? styles.tierCardLocked : undefined]}
               onPress={() =>
                 recipientIsVip ? handleSendGift(tier.id) : handleLockedTierPress()
               }
@@ -126,7 +126,7 @@ export const GiftModal = ({
               activeOpacity={0.75}
             >
               <View style={styles.tierInfo}>
-                <Text style={[styles.tierMinutes, !recipientIsVip && styles.tierMinutesLocked]}>
+                <Text style={[styles.tierMinutes, !recipientIsVip ? styles.tierMinutesLocked : undefined]}>
                   {tier.minutes} min
                 </Text>
                 {tier.senderBonus > 0 && (
@@ -137,7 +137,7 @@ export const GiftModal = ({
                 )}
               </View>
 
-              <View style={[styles.priceContainer, !recipientIsVip && styles.priceContainerLocked]}>
+              <View style={[styles.priceContainer, !recipientIsVip ? styles.priceContainerLocked : undefined]}>
                 {loading === tier.id ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : !recipientIsVip ? (

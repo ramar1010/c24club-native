@@ -471,7 +471,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     width: "100%",
     justifyContent: "center",
-    rowGap: 16, columnGap: 16,
+    gap: 16,
     paddingHorizontal: 24,
   },
   title: {
@@ -606,11 +606,6 @@ const styles = StyleSheet.create({
     borderRadius: 100,
     alignItems: "center",
     marginTop: 12,
-    shadowColor: "#EF4444",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
   },
   submitButtonText: {
     color: "#FFFFFF",

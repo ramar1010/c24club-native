@@ -175,7 +175,7 @@ export const VipSettingsOverlay: React.FC<VipSettingsOverlayProps> = ({
                 <View style={styles.inputLabelContainer}>
                   <Text style={styles.inputLabel}>{platform.label}</Text>
                   <TouchableOpacity
-                    style={[styles.pinButton,isPinned ? styles.pinButtonActive : null]}
+                    style={[styles.pinButton,isPinned ? styles.pinButtonActive : undefined]}
                     onPress={() => setPinnedPlatform(isPinned ? null : platform.key)}
                   >
                     <Pin size={16} color={isPinned ? '#FFFFFF' : '#71717A'} fill={isPinned ? '#FFFFFF' : 'transparent'} />
@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    rowGap: 10, columnGap: 10,
+    gap: 10,
   },
   saveButtonText: {
     color: '#FFFFFF',

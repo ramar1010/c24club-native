@@ -141,7 +141,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const saved = await storage.getItem(`shipping_address_${profileData.id}`);
       if (saved) {
         const addr = JSON.parse(saved);
-        setProfile(prev => prev ? { ...prev, ...addr } : null);
+        if (addr && typeof addr === 'object') {
+          setProfile(prev => prev ? { ...prev, ...addr } : null);
+        }
       }
     } catch (e) {
       console.error("[AuthProvider] Error loading local address:", e);
@@ -235,8 +237,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addLog = useCallback((msg: string) => {
-    console.log("[AuthDebug]", msg);
-    setDebugLogs(prev => [msg.slice(0, 100), ...prev].slice(0, 20));
+    const safeMsg = String(msg || "");
+    console.log("[AuthDebug]", safeMsg);
+    setDebugLogs(prev => [safeMsg.slice(0, 100), ...prev].slice(0, 20));
   }, []);
 
   const fetchUserData = useCallback(async (userId: string, authUser?: User | null) => {
@@ -432,7 +435,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (Object.keys(localUpdates).length > 0) {
         const existingLocal = await storage.getItem(`shipping_address_${profile.id}`);
-        const newLocal = { ...(existingLocal ? JSON.parse(existingLocal) : {}), ...localUpdates };
+        const parsedLocal = existingLocal ? JSON.parse(existingLocal) : {};
+        const newLocal = { ...(parsedLocal && typeof parsedLocal === 'object' ? parsedLocal : {}), ...localUpdates };
         await storage.setItem(`shipping_address_${profile.id}`, JSON.stringify(newLocal));
         console.log("[AuthContext] Saved shipping address to local storage");
       }

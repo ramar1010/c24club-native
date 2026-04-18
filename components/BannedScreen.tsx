@@ -264,7 +264,7 @@ export default function BannedScreen({ ban, onUnbanned }: BannedScreenProps) {
                 </View>
               ) : (
                 <TouchableOpacity
-                  style={[styles.payButton, paymentLoading ? styles.buttonDisabled : null]}
+                  style={[styles.payButton, paymentLoading ? styles.buttonDisabled : undefined]}
                   onPress={handlePayToAppeal}
                   disabled={paymentLoading}
                   activeOpacity={0.8}
@@ -319,7 +319,7 @@ export default function BannedScreen({ ban, onUnbanned }: BannedScreenProps) {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.submitBtn, (!supportMessage.trim() || submittingSupport) ? styles.buttonDisabled : null]}
+                  style={[styles.submitBtn, (!supportMessage.trim() || submittingSupport) ? styles.buttonDisabled : undefined]}
                   onPress={handleSubmitSupport}
                   disabled={!supportMessage.trim() || submittingSupport}
                 >
@@ -534,8 +534,7 @@ const styles = StyleSheet.create({
   },
   supportActions: {
     flexDirection: "row",
-    rowGap: 10,
-    columnGap: 10,
+    gap: 10,
   },
   cancelBtn: {
     flex: 1,

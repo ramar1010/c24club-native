@@ -632,7 +632,7 @@ export default function ChatThreadScreen() {
               <Flag size={18} color="#EF4444" />
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.headerBtnGray, isBlocked && styles.headerBtnGrayActive]}
+              style={[styles.headerBtnGray, isBlocked ? styles.headerBtnGrayActive : undefined]}
               activeOpacity={0.8}
               onPress={() => setShowBlockModal(true)}
             >
@@ -691,11 +691,11 @@ export default function ChatThreadScreen() {
                     ].map((reason) => (
                       <TouchableOpacity
                         key={reason}
-                        style={[styles.reportReasonBtn, reportReason === reason && styles.reportReasonBtnActive]}
+                        style={[styles.reportReasonBtn, reportReason === reason ? styles.reportReasonBtnActive : undefined]}
                         onPress={() => setReportReason(reason)}
                         activeOpacity={0.8}
                       >
-                        <Text style={[styles.reportReasonText, reportReason === reason && styles.reportReasonTextActive]}>
+                        <Text style={[styles.reportReasonText, reportReason === reason ? styles.reportReasonTextActive : undefined]}>
                           {reason}
                         </Text>
                       </TouchableOpacity>
@@ -711,7 +711,7 @@ export default function ChatThreadScreen() {
                     onChangeText={setReportDetails}
                   />
                   <TouchableOpacity
-                    style={[styles.reportSubmitBtn, !reportReason && styles.reportSubmitBtnDisabled]}
+                    style={[styles.reportSubmitBtn, !reportReason ? styles.reportSubmitBtnDisabled : undefined]}
                     onPress={submitReport}
                     activeOpacity={0.85}
                     disabled={!reportReason || reportSubmitting}
@@ -768,7 +768,7 @@ export default function ChatThreadScreen() {
 
         {/* Info Banners */}
         {!isVip && isMale && isPartnerFemale && (
-          <View style={[styles.bannerLimit, { backgroundColor: "#1E1E38", borderColor: "#EF4444", borderWidth: 1, padding: 12, borderRadius: 12, marginBottom: 12, flexDirection: 'row', alignItems: 'center', rowGap: 10, columnGap: 10 }]}>
+          <View style={[styles.bannerLimit, { backgroundColor: "#1E1E38", borderColor: "#EF4444", borderWidth: 1, padding: 12, borderRadius: 12, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 10, gap: 10 }]}>
             <MessageSquare size={20} color="#EF4444" />
             <View style={{ flex: 1 }}>
               <Text style={{ color: "#FFFFFF", fontWeight: "800", fontSize: 14 }}>
@@ -1086,7 +1086,7 @@ const styles = StyleSheet.create({
   bannerGift: {
     flexDirection: "row",
     alignItems: "flex-start",
-    rowGap: 8, columnGap: 8,
+    gap: 8,
     margin: 12,
     marginBottom: 6,
     backgroundColor: "rgba(234,179,8,0.1)",
@@ -1220,7 +1220,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#1A1A1A",
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.1)",
-    rowGap: 10, columnGap: 10,
+    gap: 10,
   },
   input: {
     flex: 1,

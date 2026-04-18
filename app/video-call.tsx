@@ -574,7 +574,7 @@ export default function VideoCallScreen() {
       <SafeAreaView style={styles.header}>
         <View style={styles.topBar}>
           <View style={styles.statusBadge}>
-            <View style={flattenStyle([styles.pulseDot,callStatus === 'Connected' ? styles.onlinePulse : null])} />
+            <View style={flattenStyle([styles.pulseDot,callStatus === 'Connected' ? styles.onlinePulse : undefined])} />
             <Text style={styles.statusText}>
               {callStatus === 'Connected' ? `Connected with ${partner?.name}` : 
                matchStatus === 'searching' ? 'Searching...' : callStatus}
@@ -594,7 +594,7 @@ export default function VideoCallScreen() {
       <View style={styles.controlsContainer}>
         <HStack space="xl" style={styles.controlsRow}>
           <TouchableOpacity 
-            style={flattenStyle([styles.controlButton,isMuted ? styles.activeControl : null])} 
+            style={flattenStyle([styles.controlButton,isMuted ? styles.activeControl : undefined])} 
             onPress={toggleMute}
           >
             {isMuted ? <MicOff size={24} color="#FFFFFF" /> : <Mic size={24} color="#FFFFFF" />}
@@ -615,7 +615,7 @@ export default function VideoCallScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={flattenStyle([styles.controlButton,isCameraOff ? styles.activeControl : null])} 
+            style={flattenStyle([styles.controlButton,isCameraOff ? styles.activeControl : undefined])} 
             onPress={toggleCamera}
           >
              {isCameraOff ? <VideoOff size={24} color="#FFFFFF" /> : <Video size={24} color="#FFFFFF" />}
@@ -717,10 +717,10 @@ export default function VideoCallScreen() {
                   {['Underage User','Inappropriate Behavior','Nudity / Sexual Content','Harassment / Bullying','Hate Speech / Discrimination','Spam / Scam','Violence / Threats','Other'].map((reason) => (
                     <TouchableOpacity
                       key={reason}
-                      style={[styles.reportReasonBtn,reportReason === reason ? styles.reportReasonBtnActive : null]}
+                      style={[styles.reportReasonBtn,reportReason === reason ? styles.reportReasonBtnActive : undefined]}
                       onPress={() => setReportReason(reason)}
                     >
-                      <Text style={[styles.reportReasonText,reportReason === reason ? styles.reportReasonTextActive : null]}>
+                      <Text style={[styles.reportReasonText,reportReason === reason ? styles.reportReasonTextActive : undefined]}>
                         {reason}
                       </Text>
                     </TouchableOpacity>
@@ -736,7 +736,7 @@ export default function VideoCallScreen() {
                   onChangeText={setReportDetails}
                 />
                 <TouchableOpacity
-                  style={[styles.reportSubmitBtn,!reportReason ? styles.disabledBtn : null]}
+                  style={[styles.reportSubmitBtn,!reportReason ? styles.disabledBtn : undefined]}
                   onPress={submitReport}
                   disabled={!reportReason || reportSubmitting}
                 >
@@ -777,7 +777,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)',
     borderRadius: 32,
     padding: 16,
-    rowGap: 8, columnGap: 8,
+    gap: 8,
     alignSelf: 'flex-start',
   },
   voiceModeLabel: {
@@ -787,7 +787,7 @@ const styles = StyleSheet.create({
   },
   placeholderContainer: {
     alignItems: 'center',
-    rowGap: 16, columnGap: 16,
+    gap: 16,
   },
   placeholderText: {
     color: '#FFFFFF',
@@ -837,7 +837,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 100,
-    rowGap: 8, columnGap: 8,
+    gap: 8,
     alignSelf: 'flex-start',
   },
   pulseDot: {
@@ -860,7 +860,7 @@ const styles = StyleSheet.create({
   statRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    rowGap: 8, columnGap: 8,
+    gap: 8,
   },
   statText: {
     color: '#FFFFFF',
@@ -972,7 +972,7 @@ const styles = StyleSheet.create({
   giftGrid: {
      flexDirection: 'row',
      flexWrap: 'wrap',
-     rowGap: 12, columnGap: 12,
+     gap: 12,
      justifyContent: 'center',
   },
   giftCard: {
@@ -1048,7 +1048,7 @@ const styles = StyleSheet.create({
   reportGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    rowGap: 8, columnGap: 8,
+    gap: 8,
     marginBottom: 12,
   },
   reportReasonBtn: {

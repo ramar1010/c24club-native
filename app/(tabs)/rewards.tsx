@@ -44,6 +44,7 @@ import { CheckIcon } from "@/components/ui/icon";
 import { RewardSpinModal } from "@/components/modals/RewardSpinModal";
 import { CashoutChoiceModal } from "@/components/modals/CashoutChoiceModal";
 import { FooterLinks } from "@/components/FooterLinks";
+import * as Clipboard from 'expo-clipboard';
 
 const CATEGORY_COLORS: Record<string, string> = {
   Fashion: "#EC4899",
@@ -71,6 +72,15 @@ interface RewardItem {
   reward_categories: { name: string } | null;
 }
 
+interface GiftCard {
+  brand: string;
+  value_amount: number;
+  minutes_cost: number;
+  image_url: string;
+  count: number;
+  sample_id: string;
+}
+
 export default function RewardsScreen() {
   const { user, profile, minutes, refreshProfile, updateProfile } = useAuth();
   const toast = useToast();
@@ -79,8 +89,16 @@ export default function RewardsScreen() {
   const [rewards, setRewards] = useState<RewardItem[]>([]);
   const [activeCategory, setActiveCategory] = useState("All");
   const [loading, setLoading] = useState(true);
+  const [giftCards, setGiftCards] = useState<GiftCard[]>([]);
+  const [loadingGiftCards, setLoadingGiftCards] = useState(false);
   const [redeeming, setRedeeming] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Gift Card Modal State
+  const [selectedGiftCard, setSelectedGiftCard] = useState<GiftCard | null>(null);
+  const [showGiftCardConfirm, setShowGiftCardConfirm] = useState(false);
+  const [showGiftCardSuccess, setShowGiftCardSuccess] = useState(false);
+  const [redeemedCode, setRedeemedCode] = useState<string | null>(null);
 
   // Spin Modal State
   const [selectedReward, setSelectedReward] = useState<RewardItem | null>(null);
@@ -121,6 +139,7 @@ export default function RewardsScreen() {
 
   useEffect(() => {
     fetchData();
+    fetchGiftCards();
   }, []);
 
   useEffect(() => {
@@ -138,6 +157,33 @@ export default function RewardsScreen() {
       });
     }
   }, [showShippingModal, profile]);
+
+  const fetchGiftCards = async () => {
+    setLoadingGiftCards(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("redeem-giftcard", {
+        body: { action: "list" },
+      });
+      if (error) {
+        console.error("[Rewards] Error fetching gift cards from function:", error);
+        setGiftCards([]);
+        return;
+      }
+      // Always fall back to [] — never pass undefined/null to state
+      const cards = Array.isArray(data?.cards) ? data.cards : [];
+      const sortedCards = [...cards].sort((a: GiftCard, b: GiftCard) => {
+        const costA = a?.minutes_cost ?? 0;
+        const costB = b?.minutes_cost ?? 0;
+        return costA - costB;
+      });
+      setGiftCards(sortedCards);
+    } catch (err: any) {
+      console.error("[Rewards] Error fetching gift cards:", err?.message ?? err);
+      setGiftCards([]);
+    } finally {
+      setLoadingGiftCards(false);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -218,6 +264,124 @@ export default function RewardsScreen() {
     }
   };
 
+  const handleGiftCardClick = (card: GiftCard) => {
+    if (!user) {
+      Alert.alert("Sign In Required", "Please sign in to redeem rewards.");
+      return;
+    }
+
+    if (userMinutes < card.minutes_cost) {
+      Alert.alert(
+        "Not Enough Minutes",
+        `You need ${card.minutes_cost} minutes but only have ${userMinutes}.`,
+      );
+      return;
+    }
+
+    setSelectedGiftCard(card);
+    setShowGiftCardConfirm(true);
+  };
+
+  const handleRedeemGiftCard = async () => {
+    if (!selectedGiftCard || !user) {
+      console.warn("[Rewards] Missing selectedGiftCard or user");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("redeem-giftcard", {
+        body: { 
+          action: "redeem", 
+          giftCardId: selectedGiftCard.sample_id 
+        },
+      });
+
+      console.log("[giftcard redeem] response:", JSON.stringify(data));
+
+      if (error) {
+        console.error("[Rewards] Gift card redemption function error:", error);
+        Alert.alert("Redemption Failed", error?.message ?? "Redemption failed. Please try again.");
+        return;
+      }
+
+      if (!data || !data.success) {
+        const errorMsg = data?.error ?? data?.message ?? "Failed to redeem gift card. Please check your balance and try again.";
+        Alert.alert("Redemption Failed", errorMsg);
+        return;
+      }
+
+      // Safe access — all fields optional with fallbacks
+      const code = data.code ?? "";
+      const brand = data.brand ?? selectedGiftCard.brand ?? "Gift Card";
+      const valueAmount = data.value_amount ?? selectedGiftCard.value_amount ?? 0;
+
+      setRedeemedCode(code);
+      setShowGiftCardConfirm(false);
+      setShowGiftCardSuccess(true);
+        
+      // Refresh balance using member_minutes directly (safe, no throw on missing row)
+      try {
+        const { data: mm } = await supabase
+          .from("member_minutes")
+          .select("minutes")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (mm != null && typeof mm.minutes === 'number') {
+          setLiveMinutes(mm.minutes);
+        }
+      } catch (balanceErr) {
+        console.error("[Rewards] Post-redemption balance refresh error:", balanceErr);
+      }
+
+      // Refresh gift card list
+      try {
+        await fetchGiftCards();
+      } catch (refreshErr) {
+        console.error("[Rewards] Post-redemption list refresh error:", refreshErr);
+      }
+
+      toast.show({
+        placement: 'top',
+        render: ({ id }) => (
+          <Toast nativeID={'toast-' + id} action="success" variant="solid">
+            <VStack space="xs">
+              <ToastTitle>Redemption Successful</ToastTitle>
+              <ToastDescription>Your gift card code is ready!</ToastDescription>
+            </VStack>
+          </Toast>
+        ),
+      });
+    } catch (err: any) {
+      console.error("[Rewards] Gift card redemption error:", err);
+      const message = err?.message || (typeof err === 'string' ? err : "Something went wrong. Please try again.");
+      Alert.alert("Redemption Failed", message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const copyToClipboard = async (text: string) => {
+    if (!text) return;
+    try {
+      if (Clipboard && typeof Clipboard.setStringAsync === 'function') {
+        await Clipboard.setStringAsync(String(text));
+        toast.show({
+          placement: 'top',
+          render: ({ id }) => (
+            <Toast nativeID={'toast-' + id} action="success" variant="solid">
+              <ToastTitle>Copied to clipboard!</ToastTitle>
+            </Toast>
+          ),
+        });
+      } else {
+        console.warn("[Rewards] Clipboard.setStringAsync is not available");
+      }
+    } catch (err) {
+      console.error("[Rewards] Error copying to clipboard:", err);
+    }
+  };
+
   const finalizeRedeem = async () => {
     if (!selectedReward || !user || !profile) return;
     
@@ -288,7 +452,7 @@ export default function RewardsScreen() {
           <Toast nativeID={'toast-' + id} action="success" variant="solid">
             <VStack space="xs">
               <ToastTitle>Redemption Successful</ToastTitle>
-              <ToastDescription>"${selectedReward.title}" has been added to your rewards.</ToastDescription>
+              <ToastDescription>&quot;{selectedReward.title}&quot; has been added to your rewards.</ToastDescription>
             </VStack>
           </Toast>
         ),
@@ -309,6 +473,58 @@ export default function RewardsScreen() {
       ? rewards
       : rewards.filter((r) => r.reward_categories?.name === activeCategory);
 
+  const renderGiftCard = ({ item }: { item: GiftCard }) => {
+    const canRedeem = !!user && userMinutes >= item.minutes_cost;
+    
+    return (
+      <TouchableOpacity 
+        style={styles.card}
+        onPress={() => handleGiftCardClick(item)}
+        activeOpacity={0.9}
+      >
+        <View style={styles.imageContainer}>
+          <Image
+            source={{ uri: item.image_url || 'https://via.placeholder.com/400' }}
+            style={styles.cardImage}
+            resizeMode="contain"
+          />
+          <View style={[styles.rarityBadgeContainer, { backgroundColor: '#F59E0B' }]}>
+            <Text style={styles.rarityBadgeText}>GIFT CARD</Text>
+          </View>
+        </View>
+
+        <View style={styles.cardBody}>
+          <Text style={styles.cardName} numberOfLines={2}>
+            {item.brand} ${item.value_amount}
+          </Text>
+
+          <View style={styles.metaRow}>
+            <Text style={styles.cardMins}>{item.minutes_cost} mins</Text>
+            <Text style={styles.stockText}>{item.count} available</Text>
+          </View>
+
+          <TouchableOpacity
+            style={[
+              styles.redeemButton,
+              !canRedeem ? styles.redeemButtonDisabled : undefined,
+            ]}
+            onPress={() => handleGiftCardClick(item)}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                styles.redeemText,
+                !canRedeem ? styles.redeemTextDisabled : undefined,
+              ]}
+            >
+              {!user ? "Sign In" : canRedeem ? "Redeem" : "Not enough mins"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
   const renderItem = ({ item }: { item: RewardItem }) => {
     const isVip = minutes?.vip_tier === "premium";
     const isLegendary = item.rarity === "legendary";
@@ -323,7 +539,7 @@ export default function RewardsScreen() {
 
     return (
       <TouchableOpacity 
-        style={[styles.card,isLocked ? styles.cardLocked : null]}
+        style={[styles.card,isLocked ? styles.cardLocked : undefined]}
         onPress={() => router.push(`/store/${item.id}`)}
         activeOpacity={0.9}
       >
@@ -331,7 +547,7 @@ export default function RewardsScreen() {
           {item.image_url ? (
             <Image
               source={{ uri: item.image_url }}
-              style={[styles.cardImage,isLocked ? styles.imageBlurred : null]}
+              style={[styles.cardImage,isLocked ? styles.imageBlurred : undefined]}
               resizeMode="cover"
             />
           ) : (
@@ -344,7 +560,7 @@ export default function RewardsScreen() {
                   justifyContent: "flex-end",
                   paddingBottom: 8,
                 },
-isLocked ? styles.imageBlurred : null,
+isLocked ? styles.imageBlurred : undefined,
               ]}
             >
               <Text style={styles.categoryLabel}>{catName}</Text>
@@ -374,7 +590,7 @@ isLocked ? styles.imageBlurred : null,
             <Text
               style={[
                 styles.rarityBadgeText,
-item.rarity === "legendary" ? styles.rarityTextLegendary : null,
+item.rarity === "legendary" ? styles.rarityTextLegendary : undefined,
               ]}
             >
               {(item.rarity ?? "common").toUpperCase()}
@@ -399,10 +615,10 @@ item.rarity === "legendary" ? styles.rarityTextLegendary : null,
           <TouchableOpacity
             style={[
               styles.redeemButton,
-isRare ? styles.spinButtonRare : null,
-isLegendary ? styles.spinButtonLegendary : null,
-              (!canRedeem || isRedeeming) ? styles.redeemButtonDisabled : null,
-isLocked ? styles.lockedButton : null,
+isRare ? styles.spinButtonRare : undefined,
+isLegendary ? styles.spinButtonLegendary : undefined,
+              (!canRedeem || isRedeeming) ? styles.redeemButtonDisabled : undefined,
+isLocked ? styles.lockedButton : undefined,
             ]}
             disabled={isRedeeming}
             onPress={() => handleRedeemClick(item)}
@@ -417,8 +633,8 @@ isLocked ? styles.lockedButton : null,
               <Text
                 style={[
                   styles.redeemText,
-                  (!canRedeem && !isLocked) ? styles.redeemTextDisabled : null,
-                  isLegendary &&!isLocked ? styles.redeemTextLegendary : null,
+                  (!canRedeem && !isLocked) ? styles.redeemTextDisabled : undefined,
+                  isLegendary &&!isLocked ? styles.redeemTextLegendary : undefined,
                 ]}
               >
                 {!user
@@ -518,23 +734,162 @@ isLocked ? styles.lockedButton : null,
           <ActivityIndicator size="large" color="#EF4444" />
           <Text style={styles.loadingText}>Loading rewards...</Text>
         </View>
-      ) : filtered.length === 0 ? (
-        <View style={styles.centered}>
-          <Text style={styles.emptyText}>No rewards in this category</Text>
-        </View>
       ) : (
         <FlatList
-          data={filtered}
-          renderItem={renderItem}
+          data={activeCategory === "Gift Cards" ? [] : filtered}
           keyExtractor={(item) => item.id}
+          renderItem={renderItem}
           numColumns={2}
-          contentContainerStyle={styles.grid}
-          showsVerticalScrollIndicator={false}
           columnWrapperStyle={styles.columnWrapper}
-          style={styles.flatList}
-          ListFooterComponent={<FooterLinks />}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          ListHeaderComponent={
+            <>
+              {/* Gift Cards Section */}
+              {(activeCategory === "All" || activeCategory === "Gift Cards") && giftCards.length > 0 && (
+                <View style={styles.sectionContainer}>
+                  <Heading size="md" style={styles.sectionTitle}>Digital Gift Cards</Heading>
+                  <View style={styles.giftCardGrid}>
+                    {giftCards.map((item, index) => (
+                      <View key={`${item.brand}-${item.value_amount}-${index}`} style={styles.giftCardWrapper}>
+                        {renderGiftCard({ item })}
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+              
+              {activeCategory !== "Gift Cards" && (
+                <Heading size="md" style={styles.sectionTitle}>
+                  {activeCategory === "All" ? "Physical Rewards" : activeCategory}
+                </Heading>
+              )}
+            </>
+          }
+          ListFooterComponent={
+            <>
+              <FooterLinks />
+              <View style={{ height: 100 }} />
+            </>
+          }
+          ListEmptyComponent={
+            !loading && activeCategory !== "Gift Cards" && filtered.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No rewards found in this category.</Text>
+              </View>
+            ) : null
+          }
         />
       )}
+
+      {/* Gift Card Confirmation Modal */}
+      <Modal
+        isOpen={showGiftCardConfirm}
+        onClose={() => setShowGiftCardConfirm(false)}
+      >
+        <ModalBackdrop />
+        <ModalContent style={{ backgroundColor: '#1A1A2E' }}>
+          <ModalHeader borderBottomWidth={0}>
+            <Heading size="lg" color="#FFFFFF">Redeem Gift Card</Heading>
+            <ModalCloseButton>
+              <X size={24} color="#FFFFFF" />
+            </ModalCloseButton>
+          </ModalHeader>
+          <ModalBody>
+            <VStack space="md">
+              <Text style={{ color: '#A1A1AA', fontSize: 16 }}>
+                Redeem <Text style={{ color: '#FFFFFF', fontWeight: 'bold' }}>{selectedGiftCard?.brand} ${selectedGiftCard?.value_amount}</Text> for <Text style={{ color: '#EF4444', fontWeight: 'bold' }}>{selectedGiftCard?.minutes_cost} minutes</Text>?
+              </Text>
+              
+              <View style={{ backgroundColor: '#161626', padding: 12, borderRadius: 8 }}>
+                <Text style={{ color: '#A1A1AA', fontSize: 14 }}>Your current balance:</Text>
+                <Text style={{ color: '#FACC15', fontSize: 20, fontWeight: 'bold' }}>{userMinutes} minutes</Text>
+              </View>
+
+              <View style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: 12, borderRadius: 8, borderLeftWidth: 4, borderLeftColor: '#EF4444' }}>
+                <Text style={{ color: '#EF4444', fontSize: 12, fontWeight: 'bold' }}>NO REFUNDS</Text>
+                <Text style={{ color: '#A1A1AA', fontSize: 12 }}>Codes are final once redeemed. Please ensure you want this reward before confirming.</Text>
+              </View>
+            </VStack>
+          </ModalBody>
+          <ModalFooter borderTopWidth={0}>
+            <Button
+              variant="outline"
+              action="secondary"
+              onPress={() => setShowGiftCardConfirm(false)}
+              style={{ borderColor: '#3F3F46', marginRight: 12 }}
+            >
+              <ButtonText color="#A1A1AA">Cancel</ButtonText>
+            </Button>
+            <Button
+              action="primary"
+              onPress={handleRedeemGiftCard}
+              disabled={isSubmitting}
+              style={{ backgroundColor: '#EF4444', flex: 1 }}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <ButtonText color="#FFFFFF">Confirm Redemption</ButtonText>
+              )}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Gift Card Success Modal */}
+      <Modal
+        isOpen={showGiftCardSuccess}
+        onClose={() => setShowGiftCardSuccess(false)}
+      >
+        <ModalBackdrop />
+        <ModalContent style={{ backgroundColor: '#1A1A2E' }}>
+          <ModalHeader borderBottomWidth={0}>
+            <Heading size="lg" color="#FFFFFF">Success!</Heading>
+            <ModalCloseButton>
+              <X size={24} color="#FFFFFF" />
+            </ModalCloseButton>
+          </ModalHeader>
+          <ModalBody>
+            <VStack space="lg" alignItems="center">
+              <View style={{ backgroundColor: '#22C55E', width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+                <CheckIcon color="#FFFFFF" size="xl" />
+              </View>
+              
+              <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: 'bold', textAlign: 'center' }}>
+                Your {selectedGiftCard?.brand} Gift Card is ready!
+              </Text>
+              
+              <View style={{ backgroundColor: '#000000', padding: 20, borderRadius: 12, width: '100%', alignItems: 'center', borderWidth: 1, borderColor: '#3F3F46' }}>
+                <Text style={{ color: '#A1A1AA', fontSize: 12, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>Your Code:</Text>
+                <Text style={{ color: '#FACC15', fontSize: 24, fontWeight: 'bold', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', textAlign: 'center' }}>
+                  {redeemedCode}
+                </Text>
+              </View>
+
+              <TouchableOpacity 
+                style={{ backgroundColor: '#3B82F6', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8, flexDirection: 'row', alignItems: 'center' }}
+                onPress={() => redeemedCode && copyToClipboard(redeemedCode)}
+              >
+                <Text style={{ color: '#FFFFFF', fontWeight: 'bold', marginRight: 8 }}>Copy Code</Text>
+              </TouchableOpacity>
+
+              <Text style={{ color: '#A1A1AA', fontSize: 12, textAlign: 'center' }}>
+                You can always find your code in your Profile under &quot;My Gift Cards&quot;.
+              </Text>
+            </VStack>
+          </ModalBody>
+          <ModalFooter borderTopWidth={0}>
+            <Button
+              action="primary"
+              onPress={() => setShowGiftCardSuccess(false)}
+              style={{ backgroundColor: '#3F3F46', width: '100%' }}
+            >
+              <ButtonText color="#FFFFFF">Done</ButtonText>
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
       {/* Reward Spin Modal */}
       {selectedReward && (
@@ -591,7 +946,7 @@ isLocked ? styles.lockedButton : null,
         />
       )}
 
-      {/* Shipping Modal (for Common rewards) */}
+      {/* Shipping Address Modal */}
       <Modal isOpen={showShippingModal} onClose={() => setShowShippingModal(false)} size="md">
         <ModalBackdrop />
         <ModalContent style={styles.modalContent}>
@@ -610,14 +965,14 @@ isLocked ? styles.lockedButton : null,
                 <TouchableOpacity 
                   style={[
                     styles.addressOption,
-isUsingSavedAddress ? styles.addressOptionSelected : null
+isUsingSavedAddress ? styles.addressOptionSelected : undefined
                   ]}
                   onPress={() => setIsUsingSavedAddress(true)}
                   activeOpacity={0.7}
                 >
                   <View style={styles.addressOptionHeader}>
                     <MapPin size={16} color={isUsingSavedAddress ? "#FACC15" : "#71717A"} />
-                    <Text style={[styles.addressOptionTitle,isUsingSavedAddress ? styles.addressOptionTitleSelected : null]}>
+                    <Text style={[styles.addressOptionTitle,isUsingSavedAddress ? styles.addressOptionTitleSelected : undefined]}>
                       Use Saved Address
                     </Text>
                   </View>
@@ -632,14 +987,14 @@ isUsingSavedAddress ? styles.addressOptionSelected : null
               <TouchableOpacity 
                 style={[
                   styles.addressOption,
-!isUsingSavedAddress ? styles.addressOptionSelected : null
+!isUsingSavedAddress ? styles.addressOptionSelected : undefined
                 ]}
                 onPress={() => setIsUsingSavedAddress(false)}
                 activeOpacity={0.7}
               >
                 <View style={styles.addressOptionHeader}>
                   <Edit2 size={16} color={!isUsingSavedAddress ? "#FACC15" : "#71717A"} />
-                  <Text style={[styles.addressOptionTitle,!isUsingSavedAddress ? styles.addressOptionTitleSelected : null]}>
+                  <Text style={[styles.addressOptionTitle,!isUsingSavedAddress ? styles.addressOptionTitleSelected : undefined]}>
                     Use New Address
                   </Text>
                 </View>
@@ -742,9 +1097,25 @@ const styles = StyleSheet.create({
   },
   headerSubtitle: { fontSize: 15, color: "#A1A1AA", fontWeight: "500" },
   minutesHighlight: { color: "#FACC15", fontWeight: "700" },
-  pillsScroll: { flexGrow: 0, paddingBottom: 12, backgroundColor: "#1A1A2E", borderBottomWidth: 1, borderBottomColor: "#1E1E38" },
-  pillsContainer: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 2, gap: 8 },
-  pill: { paddingHorizontal: 18, paddingVertical: 8, borderRadius: 100 },
+  pillsScroll: { 
+    flexGrow: 0, 
+    backgroundColor: "#1A1A2E", 
+    borderBottomWidth: 1, 
+    borderBottomColor: "#1E1E38",
+    minHeight: 68,
+  },
+  pillsContainer: { 
+    paddingHorizontal: 20, 
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  pill: { 
+    paddingHorizontal: 18, 
+    paddingVertical: 10, 
+    borderRadius: 100,
+    marginRight: 8,
+  },
   pillActive: { backgroundColor: "#EF4444" },
   pillInactive: { backgroundColor: "#2A2A4A", borderWidth: 1, borderColor: "rgba(255,255,255,0.15)" },
   pillText: { fontSize: 14, fontWeight: "700" },
@@ -754,19 +1125,19 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    rowGap: 12, columnGap: 12,
   },
   loadingText: { color: "#A1A1AA", fontSize: 14 },
   emptyText: { color: "#71717A", fontSize: 15 },
   grid: { paddingHorizontal: 12, paddingTop: 12, paddingBottom: 24 },
-  columnWrapper: { justifyContent: "space-between" },
+  columnWrapper: { },
   flatList: { flex: 1 },
+  listContent: { paddingHorizontal: 6, paddingTop: 12, paddingBottom: 24 },
   card: {
     backgroundColor: "#1E1E38",
     borderRadius: 24,
-    marginBottom: 12,
     overflow: "hidden",
-    width: "48.5%",
+    flex: 1,
+    margin: 6,
     borderWidth: 1,
     borderColor: "#2A2A4A",
   },
@@ -930,7 +1301,6 @@ const styles = StyleSheet.create({
     borderColor: "#2A2A4A",
     borderRadius: 16,
     padding: 16,
-    rowGap: 8, columnGap: 8,
   },
   addressOptionSelected: {
     borderColor: "#FACC15",
@@ -939,7 +1309,6 @@ const styles = StyleSheet.create({
   addressOptionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    rowGap: 8, columnGap: 8,
   },
   addressOptionTitle: {
     color: "#A1A1AA",
@@ -960,5 +1329,33 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#2A2A4A",
     paddingTop: 16,
+  },
+  sectionContainer: {
+    paddingHorizontal: 6,
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    color: '#FFFFFF',
+    marginBottom: 16,
+    paddingHorizontal: 6,
+  },
+  giftCardGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 0,
+  },
+  giftCardWrapper: {
+    width: '50%',
+    padding: 0,
+  },
+  stockText: {
+    fontSize: 12,
+    color: "#22C55E",
+    fontWeight: "600",
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

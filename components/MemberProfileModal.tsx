@@ -230,7 +230,7 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
           <View style={styles.actionsBar}>
             {/* Interest */}
             <TouchableOpacity
-              style={[styles.actionChip, isInterested && styles.actionChipActive]}
+              style={[styles.actionChip, isInterested ? styles.actionChipActive : undefined]}
               activeOpacity={0.8}
               onPress={onInterest}
               disabled={isInterested}

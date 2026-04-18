@@ -94,14 +94,14 @@ export function PinTopicsOverlay({
                 return (
                   <TouchableOpacity
                     key={topic.id}
-                    style={[styles.row, isPinned ? styles.rowPinned : null]}
+                    style={[styles.row, isPinned ? styles.rowPinned : undefined]}
                     onPress={() => onTogglePin(topic.id)}
                     activeOpacity={0.75}
                   >
-                    <Text style={[styles.rowText, isPinned ? styles.rowTextPinned : null]}>
+                    <Text style={[styles.rowText, isPinned ? styles.rowTextPinned : undefined]}>
                       {isPinned ? '📌 ' : ''}{topic.name}
                     </Text>
-                    <View style={[styles.pin, isPinned ? styles.pinActive : null]}>
+                    <View style={[styles.pin, isPinned ? styles.pinActive : undefined]}>
                       <Text style={styles.pinText}>{isPinned ? 'Unpin' : 'Pin'}</Text>
                     </View>
                   </TouchableOpacity>

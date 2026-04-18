@@ -218,7 +218,7 @@ export default function LoginScreen() {
           </View>
 
           {/* OAuth Buttons */}
-          <View style={[styles.oauthRow, Platform.OS !== "ios" ? { flexDirection: "column" } : null]}>
+          <View style={[styles.oauthRow, Platform.OS !== "ios" ? { flexDirection: "column" } : undefined]}>
             <TouchableOpacity
               style={styles.oauthButton}
               onPress={() => handleOAuth("google")}
@@ -387,7 +387,7 @@ const styles = StyleSheet.create({
   },
   oauthRow: {
     flexDirection: "row",
-    rowGap: 12, columnGap: 12,
+    gap: 12,
     marginBottom: 32,
   },
   oauthButton: {

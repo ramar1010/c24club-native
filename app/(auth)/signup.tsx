@@ -222,7 +222,7 @@ export default function SignUpScreen() {
                   key={option}
                   style={[
                     styles.genderButton,
-gender === option ? styles.genderButtonActive : null,
+gender === option ? styles.genderButtonActive : undefined,
                   ]}
                   onPress={() => setGender(option)}
                   activeOpacity={0.7}
@@ -231,7 +231,7 @@ gender === option ? styles.genderButtonActive : null,
                   <Text
                     style={[
                       styles.genderButtonText,
-gender === option ? styles.genderButtonTextActive : null,
+gender === option ? styles.genderButtonTextActive : undefined,
                     ]}
                   >
                     {option}
@@ -317,7 +317,7 @@ gender === option ? styles.genderButtonTextActive : null,
           </View>
 
           {/* OAuth Buttons */}
-          <View style={[styles.oauthRow, Platform.OS !== "ios" ? { flexDirection: "column" } : null]}>
+          <View style={[styles.oauthRow, Platform.OS !== "ios" ? { flexDirection: "column" } : undefined]}>
             <TouchableOpacity
               style={styles.oauthButton}
               onPress={() => handleOAuth("google")}
@@ -428,7 +428,7 @@ const styles = StyleSheet.create({
   },
   genderRow: {
     flexDirection: "row",
-    rowGap: 8, columnGap: 8,
+    gap: 8,
   },
   genderButton: {
     flex: 1,

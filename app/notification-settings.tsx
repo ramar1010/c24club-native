@@ -233,18 +233,18 @@ export default function NotificationSettingsScreen() {
               <TouchableOpacity
                 style={[
                   styles.modeOption,
-                  notifyMode === 'every' ? styles.modeOptionSelected : null,
+                  notifyMode === 'every' ? styles.modeOptionSelected : undefined,
                 ]}
                 activeOpacity={0.8}
                 onPress={() => handleNotifyModeChange('every')}
                 disabled={!masterNotifyEnabled}
               >
                 <View style={styles.modeOptionInner}>
-                  <View style={[styles.modeRadio, notifyMode === 'every' ? styles.modeRadioSelected : null]}>
+                  <View style={[styles.modeRadio, notifyMode === 'every' ? styles.modeRadioSelected : undefined]}>
                     {notifyMode === 'every' && <View style={styles.modeRadioDot} />}
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.modeOptionTitle, notifyMode === 'every' ? styles.modeOptionTitleSelected : null]}>
+                    <Text style={[styles.modeOptionTitle, notifyMode === 'every' ? styles.modeOptionTitleSelected : undefined]}>
                       Every time
                     </Text>
                     <Text style={styles.modeOptionDesc}>
@@ -259,18 +259,18 @@ export default function NotificationSettingsScreen() {
                 style={[
                   styles.modeOption,
                   styles.modeOptionBorder,
-                  notifyMode === 'batched' ? styles.modeOptionSelected : null,
+                  notifyMode === 'batched' ? styles.modeOptionSelected : undefined,
                 ]}
                 activeOpacity={0.8}
                 onPress={() => handleNotifyModeChange('batched')}
                 disabled={!masterNotifyEnabled}
               >
                 <View style={styles.modeOptionInner}>
-                  <View style={[styles.modeRadio, notifyMode === 'batched' ? styles.modeRadioSelected : null]}>
+                  <View style={[styles.modeRadio, notifyMode === 'batched' ? styles.modeRadioSelected : undefined]}>
                     {notifyMode === 'batched' && <View style={styles.modeRadioDot} />}
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.modeOptionTitle, notifyMode === 'batched' ? styles.modeOptionTitleSelected : null]}>
+                    <Text style={[styles.modeOptionTitle, notifyMode === 'batched' ? styles.modeOptionTitleSelected : undefined]}>
                       Batched
                     </Text>
                     <Text style={styles.modeOptionDesc}>
@@ -285,18 +285,18 @@ export default function NotificationSettingsScreen() {
                 style={[
                   styles.modeOption,
                   styles.modeOptionBorder,
-                  notifyMode === 'off' ? styles.modeOptionSelected : null,
+                  notifyMode === 'off' ? styles.modeOptionSelected : undefined,
                 ]}
                 activeOpacity={0.8}
                 onPress={() => handleNotifyModeChange('off')}
                 disabled={!masterNotifyEnabled}
               >
                 <View style={styles.modeOptionInner}>
-                  <View style={[styles.modeRadio, notifyMode === 'off' ? styles.modeRadioSelected : null]}>
+                  <View style={[styles.modeRadio, notifyMode === 'off' ? styles.modeRadioSelected : undefined]}>
                     {notifyMode === 'off' && <View style={styles.modeRadioDot} />}
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.modeOptionTitle, notifyMode === 'off' ? styles.modeOptionTitleSelected : null]}>
+                    <Text style={[styles.modeOptionTitle, notifyMode === 'off' ? styles.modeOptionTitleSelected : undefined]}>
                       Off
                     </Text>
                     <Text style={styles.modeOptionDesc}>
@@ -334,7 +334,7 @@ export default function NotificationSettingsScreen() {
               key={toggle.id}
               style={[
                 styles.settingRow,
-                i > 0 ? styles.settingRowBorder : null,
+                i > 0 ? styles.settingRowBorder : undefined,
               ]}
             >
               <View style={styles.settingInfo}>
@@ -406,7 +406,7 @@ const styles = StyleSheet.create({
   sectionLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    rowGap: 6, columnGap: 6,
+    gap: 6,
     paddingHorizontal: 16,
     paddingTop: 14,
     paddingBottom: 8,
@@ -423,7 +423,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 14,
-    rowGap: 12, columnGap: 12,
+    gap: 12,
   },
   settingRowBorder: {
     borderTopWidth: 1,
@@ -435,7 +435,7 @@ const styles = StyleSheet.create({
   labelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    rowGap: 8, columnGap: 8,
+    gap: 8,
     flexWrap: 'wrap',
   },
   settingTitle: {
@@ -475,7 +475,7 @@ const styles = StyleSheet.create({
   modeOptionInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    rowGap: 12, columnGap: 12,
+    gap: 12,
   },
   modeRadio: {
     width: 20,

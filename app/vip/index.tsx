@@ -225,7 +225,7 @@ export default function VipUpsellScreen() {
         </View>
 
         {/* Premium Card */}
-        <View style={[styles.card, styles.premiumCard, isGiftingHighlight && styles.premiumCardHighlighted]}>
+        <View style={[styles.card, styles.premiumCard, isGiftingHighlight ? styles.premiumCardHighlighted : undefined]}>
           <View style={styles.badgeContainer}>
             <View style={styles.bestValueBadge}>
               <Text style={styles.bestValueText}>BEST VALUE</Text>
@@ -489,7 +489,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#FFFFFF',
-    rowGap: 8, columnGap: 8,
+    gap: 8,
   },
   manageButtonText: {
     color: '#FFFFFF',
@@ -510,8 +510,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     marginBottom: 8,
-    columnGap: 10,
-    rowGap: 10,
+    gap: 10,
   },
   giftingBannerText: {
     flex: 1,

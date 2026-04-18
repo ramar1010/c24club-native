@@ -40,16 +40,7 @@ const toastConfig: ToastConfig = {
         paddingVertical: 14,
         flexDirection: 'row',
         alignItems: 'flex-start',
-        ...Platform.select({
-          native: {
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.3,
-            shadowRadius: 8,
-            elevation: 8,
-          },
-        }),
-      }}
+              }}
     >
       <View style={{ flex: 1 }}>
         <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14, marginBottom: 4 }}>
@@ -74,16 +65,7 @@ const toastConfig: ToastConfig = {
         paddingVertical: 14,
         flexDirection: 'row',
         alignItems: 'center',
-        ...Platform.select({
-          native: {
-            shadowColor: '#FACC15',
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.3,
-            shadowRadius: 8,
-            elevation: 8,
-          },
-        }),
-      }}
+              }}
     >
       <Text style={{ fontSize: 28, marginRight: 12 }}>🎁</Text>
       <View style={{ flex: 1 }}>

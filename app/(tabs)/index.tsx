@@ -817,7 +817,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    rowGap: 8, columnGap: 8,
+    gap: 8,
   },
   welcomeText: {
     fontSize: 18,
@@ -855,7 +855,7 @@ const styles = StyleSheet.create({
   stepsScroll: {
     paddingLeft: 20,
     paddingRight: 8,
-    rowGap: 12, columnGap: 12,
+    gap: 12,
   },
   stepCard: {
     backgroundColor: "#1E1E38",
