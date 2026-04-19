@@ -312,6 +312,34 @@ export default function NotificationSettingsScreen() {
           </View>
         )}
 
+        {/* ── INTERESTS ────────────────────────────────────────────────────── */}
+        <View style={[styles.section, !masterNotifyEnabled && { opacity: 0.5 }]}>
+          <View style={styles.sectionLabelRow}>
+            <Heart size={13} color="#6B7280" />
+            <Text style={styles.sectionLabel}>INTERESTS</Text>
+          </View>
+          <View style={styles.settingRow}>
+            <View style={styles.settingInfo}>
+              <Text style={styles.settingTitle}>Someone liked your profile</Text>
+              <Text style={styles.settingDesc}>
+                Be alerted when a user shows interest
+              </Text>
+            </View>
+            {profileLoading ? (
+              <ActivityIndicator size="small" color="#EF4444" />
+            ) : (
+              <Switch
+                value={profile?.notify_likes !== false && masterNotifyEnabled}
+                onValueChange={(val) => updateProfile({ notify_likes: val })}
+                disabled={!masterNotifyEnabled}
+                trackColor={{ false: '#3F3F5A', true: '#EF4444' }}
+                thumbColor={profile?.notify_likes !== false && masterNotifyEnabled ? '#FFFFFF' : '#A1A1AA'}
+                ios_backgroundColor="#3F3F5A"
+              />
+            )}
+          </View>
+        </View>
+
         {/* ── COMING SOON ───────────────────────────────────────────────────── */}
         <View style={styles.section}>
           <View style={styles.sectionLabelRow}>
@@ -319,11 +347,6 @@ export default function NotificationSettingsScreen() {
             <Text style={styles.sectionLabel}>COMING SOON</Text>
           </View>
           {[
-            {
-              id: 'liked_profile',
-              label: 'Someone liked your profile',
-              desc: 'Be alerted when a user shows interest',
-            },
             {
               id: 'gift_received',
               label: 'Gift received',

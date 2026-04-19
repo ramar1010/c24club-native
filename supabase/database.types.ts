@@ -234,6 +234,48 @@ export type Database = {
           },
         ]
       }
+      member_interests: {
+        Row: {
+          created_at: string | null
+          icebreaker_message: string | null
+          id: string
+          interested_in_user_id: string
+          notified: boolean | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          icebreaker_message?: string | null
+          id?: string
+          interested_in_user_id: string
+          notified?: boolean | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          icebreaker_message?: string | null
+          id?: string
+          interested_in_user_id?: string
+          notified?: boolean | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_interests_interested_in_user_id_fkey"
+            columns: ["interested_in_user_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_interests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       member_minutes: {
         Row: {
           ad_points: number | null
@@ -328,6 +370,7 @@ export type Database = {
           name: string | null
           notify_enabled: boolean | null
           notify_female_searching: boolean | null
+          notify_likes: boolean | null
           phone_number: string | null
           profession: string | null
           push_token: string | null
@@ -359,6 +402,7 @@ export type Database = {
           name?: string | null
           notify_enabled?: boolean | null
           notify_female_searching?: boolean | null
+          notify_likes?: boolean | null
           phone_number?: string | null
           profession?: string | null
           push_token?: string | null
@@ -390,6 +434,7 @@ export type Database = {
           name?: string | null
           notify_enabled?: boolean | null
           notify_female_searching?: boolean | null
+          notify_likes?: boolean | null
           phone_number?: string | null
           profession?: string | null
           push_token?: string | null

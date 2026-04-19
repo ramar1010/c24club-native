@@ -17,7 +17,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
@@ -51,6 +51,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useCall } from "@/contexts/CallContext";
 import { supabase } from "@/lib/supabase";
+import { storage } from "@/lib/storage";
 import { flattenStyle } from "@/utils/flatten-style";
 import { useFreeMsgLimit, FREE_MSG_LIMIT } from "@/hooks/useFreeMsgLimit";
 import SelfieCaptureModal from "@/components/SelfieCaptureModal";
@@ -115,6 +116,7 @@ export default function DiscoverScreen() {
   const { user, profile, minutes, loading: authLoading, refreshProfile } = useAuth();
   const { startCall, activeInvite } = useCall();
   const router = useRouter();
+  const params = useLocalSearchParams();
   const queryClient = useQueryClient();
   const { isVip, isLoading: limitLoading } = useFreeMsgLimit();
 
@@ -138,6 +140,7 @@ export default function DiscoverScreen() {
   const [selectedRecipient, setSelectedRecipient] = useState<{id: string, name: string} | null>(null);
   const [showGiftCelebration, setShowGiftCelebration] = useState(false);
   const [socialsSheet, setSocialsSheet] = useState<{ name: string; socials: string[] } | null>(null);
+  const [lastViewedInterests, setLastViewedInterests] = useState<number>(0);
   const [selectedMember, setSelectedMember] = useState<{
     member: DiscoverMember;
     isAdmin: boolean;
@@ -358,7 +361,7 @@ export default function DiscoverScreen() {
     }
   }, [profile]);
 
-  // Combined data from React Query
+  // combined data
   const members = data?.members ?? [];
   const adminIds = data?.adminIds ?? new Set();
   const vipIds = data?.vipIds ?? new Set();
@@ -367,6 +370,41 @@ export default function DiscoverScreen() {
   const myInterests = data?.myInterests ?? new Set();
   const interestedInMe = data?.interestedInMe ?? [];
   const vipSettings = data?.vipSettings ?? new Map();
+
+  // Load last viewed interests timestamp
+  useEffect(() => {
+    storage.getItem("last_viewed_interests").then((val) => {
+      if (val) setLastViewedInterests(parseInt(val, 10));
+    });
+  }, []);
+
+  const unreadInterestsCount = interestedInMe.filter(
+    (i) => new Date(i.created_at).getTime() > lastViewedInterests
+  ).length;
+
+  const toggleInterests = useCallback(() => {
+    const nextValue = !interestsExpanded;
+    setInterestsExpanded(nextValue);
+    if (nextValue) {
+      const now = Date.now();
+      setLastViewedInterests(now);
+      storage.setItem("last_viewed_interests", now.toString());
+    }
+  }, [interestsExpanded]);
+
+  // Handle deep link for interests tab
+  useEffect(() => {
+    if (params.tab === "interests") {
+      setInterestsExpanded(true);
+      const now = Date.now();
+      setLastViewedInterests(now);
+      storage.setItem("last_viewed_interests", now.toString());
+      // Small delay to ensure the list is rendered if it was collapsed
+      setTimeout(() => {
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      }, 500);
+    }
+  }, [params.tab]);
 
   // ─── Filter logic ────────────────────────────────────────────────────────
 
@@ -431,17 +469,33 @@ export default function DiscoverScreen() {
       if (!user) return;
       if (myInterests.has(memberId)) return;
       try {
-        await supabase.from("member_interests").insert({
+        // Step 1: Insert interest row
+        const { error: insertError } = await supabase.from("member_interests").insert({
           user_id: user.id,
           interested_in_user_id: memberId,
+          notified: false,
         });
+
+        if (insertError) throw insertError;
+
+        // Step 2: Invoke notify-interest edge function
+        // We don't await this to keep the UI snappy (fire and forget)
+        supabase.functions.invoke("notify-interest", {
+          body: {
+            recipient_id: memberId,
+            sender_id: user.id,
+            sender_name: profile?.name || "Someone",
+          },
+        }).catch(err => console.warn('[Discover] notify-interest error:', err));
+
         queryClient.invalidateQueries({ queryKey: ["discover_members", user.id] });
         Alert.alert("Interest sent! 💚");
       } catch (err) {
         console.error("Error sending interest:", err);
+        Alert.alert("Couldn't send interest, try again.");
       }
     },
-    [user, myInterests, queryClient]
+    [user, profile?.name, myInterests, queryClient]
   );
 
   const handleDirectCall = useCallback(
@@ -789,13 +843,15 @@ export default function DiscoverScreen() {
         <TouchableOpacity
           style={styles.accordionHeader}
           activeOpacity={0.8}
-          onPress={() => setInterestsExpanded((v) => !v)}
+          onPress={toggleInterests}
         >
           <Heart size={16} color="#EC4899" fill="#EC4899" />
           <Text style={styles.accordionTitle}>Interested in You</Text>
-          <View style={styles.countBadge}>
-            <Text style={styles.countBadgeText}>{interestedInMe.length}</Text>
-          </View>
+          {unreadInterestsCount > 0 && (
+            <View style={styles.countBadge}>
+              <Text style={styles.countBadgeText}>{unreadInterestsCount}</Text>
+            </View>
+          )}
           <Text style={styles.accordionSub}>{interestedInMe.length} total</Text>
           <View style={{ flex: 1 }} />
           {interestsExpanded ? (
@@ -832,23 +888,40 @@ export default function DiscoverScreen() {
                   
                   {/* Action buttons overlay for interested people */}
                   <View style={styles.interestedActions}>
-                    <TouchableOpacity 
-                      style={styles.interestedActionBtn}
-                      onPress={() => handleDirectCall(item.member as any)}
-                    >
-                      <Video size={12} color="#FFFFFF" />
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                      style={[styles.interestedActionBtn, { backgroundColor: '#3B82F6' }]}
-                      onPress={() => handleMessage(item.member as any)}
-                    >
-                      <MessageCircle size={12} color="#FFFFFF" />
-                    </TouchableOpacity>
+                    {myInterests.has(item.user_id) ? (
+                      <>
+                        <TouchableOpacity 
+                          style={styles.interestedActionBtn}
+                          onPress={() => handleDirectCall(item.member as any)}
+                        >
+                          <Video size={12} color="#FFFFFF" />
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                          style={[styles.interestedActionBtn, { backgroundColor: '#3B82F6' }]}
+                          onPress={() => handleMessage(item.member as any)}
+                        >
+                          <MessageCircle size={12} color="#FFFFFF" />
+                        </TouchableOpacity>
+                      </>
+                    ) : (
+                      <TouchableOpacity 
+                        style={[styles.interestedActionBtn, { backgroundColor: '#EC4899', width: '80%', height: 24, borderRadius: 12 }]}
+                        onPress={() => handleInterest(item.user_id)}
+                      >
+                        <Heart size={12} color="#FFFFFF" fill="#FFFFFF" />
+                        <Text style={{ color: '#FFF', fontSize: 10, fontWeight: '700', marginLeft: 4 }}>Like Back</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
 
-                  <Text style={styles.interestedName} numberOfLines={1}>
-                    {item.member?.name ?? "Member"}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                    <Text style={styles.interestedName} numberOfLines={1}>
+                      {item.member?.name ?? "Member"}
+                    </Text>
+                    {myInterests.has(item.user_id) && (
+                      <Heart size={10} color="#EC4899" fill="#EC4899" />
+                    )}
+                  </View>
                   {item.icebreaker_message ? (
                     <Text style={styles.interestedMsg} numberOfLines={1}>
                       {item.icebreaker_message}
