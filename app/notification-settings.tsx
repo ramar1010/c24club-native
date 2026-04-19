@@ -18,7 +18,7 @@ import { registerForPushNotifications } from '@/lib/notifications';
 
 export default function NotificationSettingsScreen() {
   const router = useRouter();
-  const { profile, user, updateProfile } = useAuth();
+  const { profile, user, updateProfile, loading: profileLoading } = useAuth();
   const { enabled: femaleOnlineEnabled, setEnabled: setFemaleOnlineEnabled } = useNotifyFemaleOnline();
 
   const isMale = profile?.gender?.toLowerCase() === 'male';
