@@ -103,8 +103,10 @@ export default function VideoCallScreen() {
   const [partner, setPartner] = useState<{ name: string; image_url: string; id: string; vip_tier?: string } | null>(null);
   
   const pc = useRef<RTCPeerConnection | null>(null);
+  const isInitiatorRef = useRef(false);
   const processedSignalIds = useRef<Set<string>>(new Set());
   const signalingInterval = useRef<NodeJS.Timeout | null>(null);
+  const peerReadyInterval = useRef<NodeJS.Timeout | null>(null);
   const inviteStatusInterval = useRef<NodeJS.Timeout | null>(null);
   const senderChannelRef = useRef<string>(user?.id || 'anonymous');
   const pendingRemoteCandidates = useRef<any[]>([]);
@@ -177,6 +179,7 @@ export default function VideoCallScreen() {
 
   const cleanup = async () => {
     if (signalingInterval.current) clearInterval(signalingInterval.current);
+    if (peerReadyInterval.current) clearInterval(peerReadyInterval.current);
     if (inviteStatusInterval.current) clearInterval(inviteStatusInterval.current);
     if (disconnectTimerRef.current) { clearTimeout(disconnectTimerRef.current); disconnectTimerRef.current = null; }
     
@@ -197,8 +200,9 @@ export default function VideoCallScreen() {
        if (inviteId && isHangingUpRef.current) {
          await supabase.from('direct_call_invites').update({ status: 'hangup' }).eq('id', inviteId);
        }
-       // Only delete signals on intentional hangup too
-       if (isHangingUpRef.current) {
+       // Only initiator should clear signals for direct calls to avoid wiping offer
+       const shouldClear = isHangingUpRef.current && (!inviteId || isInitiatorRef.current);
+       if (shouldClear) {
          await supabase.from('room_signals').delete().eq('room_id', activeId);
        }
     }
@@ -208,10 +212,11 @@ export default function VideoCallScreen() {
   const setupCall = async () => {
     try {
       const activeId = inviteId ? `direct-${inviteId}` : roomId;
-      if (!activeId) return;
+      if (!activeId || !user) return;
 
       setCallStatus('Connecting...');
 
+      let isInitiator = false;
       if (inviteId) {
         // 1. Fetch invite details — no joins (FK/PostgREST join issues on this table)
         const { data: invite, error: inviteError } = await supabase
@@ -225,8 +230,9 @@ export default function VideoCallScreen() {
           throw new Error('Invite not found');
         }
 
-        const isInviter = invite.inviter_id === user?.id;
-        const partnerMemberId = isInviter ? invite.invitee_id : invite.inviter_id;
+        isInitiator = invite.inviter_id === user.id;
+        isInitiatorRef.current = isInitiator;
+        const partnerMemberId = isInitiator ? invite.invitee_id : invite.inviter_id;
 
         // Fetch partner profile separately
         const { data: partnerData } = await supabase
@@ -241,7 +247,13 @@ export default function VideoCallScreen() {
            image_url: partnerData?.image_url || '',
            vip_tier: partnerData?.vip_tier,
         });
-        setCallStatus(isInviter ? 'Calling...' : 'Connecting...');
+        setCallStatus(isInitiator ? 'Calling...' : 'Connecting...');
+
+        // ── 1.1 Initiator Cleanup ──
+        if (isInitiator) {
+           console.log('[VideoCall] Initiator cleaning stale signals...');
+           await supabase.from('room_signals').delete().eq('room_id', activeId);
+        }
       } else if (type === 'random' && partnerId) {
         // Fetch partner profile for random match
         const { data: partnerData } = await supabase
@@ -259,15 +271,19 @@ export default function VideoCallScreen() {
           });
         }
         setCallStatus('Connecting...');
+        isInitiator = user.id < partnerId;
+        isInitiatorRef.current = isInitiator;
       }
 
       // 2. Get local stream — acquire once, reuse for PeerConnection
+      console.log('[VideoCall] Acquiring media stream...');
       let currentStream = localStream;
       if (!currentStream) {
         currentStream = await mediaDevices.getUserMedia({
           audio: true,
           video: { facingMode: 'user' },
         });
+        console.log('[VideoCall] Media stream acquired successfully');
         setLocalStream(currentStream);
       }
       // Keep ref in sync for cleanup stale-closure safety
@@ -331,24 +347,29 @@ export default function VideoCallScreen() {
       // 4. Start Signaling Polling
       signalingInterval.current = setInterval(pollSignals, 700);
 
-      // 5. Create offer (In random chat, both can try or one is designated. 
-      // For simplicity, let's say the one with higher ID starts or just both try)
-      // Actually, in videocall-match, we can designate who is the offerer. 
-      // But for now, let's just make both send an offer if they don't see one.
-      // Better: In videocall-match, we should return who is the initiator.
-      // For now, let's just use a simple rule: smaller ID is the inviter.
-      const isInviter = inviteId ? (inviteId && (await supabase.from('direct_call_invites').select('inviter_id').eq('id', inviteId).single()).data?.inviter_id === user?.id) : (user?.id && partnerId && user.id < partnerId);
+      // 5. Handshake: Send peer-ready
+      // Callee sends once. Initiator resends every 1.5s until offer is sent.
+      const sendPeerReady = () => {
+        console.log('[VideoCall] Sending peer-ready');
+        sendSignal('peer-ready', { from: user.id });
+      };
 
-      if (isInviter && pc.current) {
-        const offer = await pc.current.createOffer({});
-        await pc.current.setLocalDescription(offer);
-        sendSignal('offer', offer);
+      sendPeerReady();
+
+      if (isInitiator) {
+        let attempts = 0;
+        peerReadyInterval.current = setInterval(() => {
+          attempts++;
+          if (attempts >= 20 || pc.current?.localDescription) {
+            if (peerReadyInterval.current) clearInterval(peerReadyInterval.current);
+            return;
+          }
+          sendPeerReady();
+        }, 1500);
       }
 
-      // 6. Broadcast our voice mode status (native app is usually video but can be voice)
-      // For now, VideoCallScreen doesn't have a voice mode toggle, but it should respect partner's
-      // We send false by default for native app video calls
-      sendSignal('voice-mode', { enabled: false });
+      // 6. Broadcast our voice mode status
+      sendSignal('voice-mode', { enabled: false, from: user.id });
 
       // 7. Monitor call status (hangup/declined) - Only for direct calls
       if (inviteId) {
@@ -370,15 +391,28 @@ export default function VideoCallScreen() {
 
   const sendSignal = async (type: string, payload: any) => {
     const activeId = inviteId ? `direct-${inviteId}` : roomId;
-    // Ensure we always use the real user ID, never 'anonymous'
     const channel = user?.id || senderChannelRef.current;
     if (!activeId || !channel || channel === 'anonymous') return;
+
+    // ── Contract Wrapper ──
+    // Web app expects { sdp: ..., from: ... } or { candidate: ..., from: ... }
+    const wrappedPayload: any = { from: channel };
+    if (type === 'offer' || type === 'answer') {
+      wrappedPayload.sdp = payload;
+    } else if (type === 'ice-candidate') {
+      wrappedPayload.candidate = payload;
+    } else {
+      // For peer-ready, voice-mode, call-ended, etc. just merge
+      Object.assign(wrappedPayload, payload);
+    }
+
     try {
+      console.log(`[VideoCall] Sending signal: ${type}`);
       await supabase.from('room_signals').insert({
         room_id: activeId,
         sender_channel: channel,
         signal_type: type,
-        payload,
+        payload: wrappedPayload,
       } as any);
     } catch (err) {
       console.error('Signal error:', err);
@@ -403,14 +437,31 @@ export default function VideoCallScreen() {
           processedSignalIds.current.add(signal.id);
 
           const payload = signal.payload;
+          console.log(`[VideoCall] Received signal: ${signal.signal_type} from ${signal.sender_channel}`);
           
           if (signal.signal_type === 'voice-mode') {
             setPartnerIsVoiceMode(payload?.enabled ?? false);
             continue;
           }
 
+          if (signal.signal_type === 'peer-ready') {
+            // Initiator creates offer once peer-ready received
+            if (isInitiatorRef.current && !pc.current.localDescription) {
+              console.log('[VideoCall] Partner ready, creating offer...');
+              if (peerReadyInterval.current) {
+                clearInterval(peerReadyInterval.current);
+                peerReadyInterval.current = null;
+              }
+              const offer = await pc.current.createOffer({});
+              await pc.current.setLocalDescription(offer);
+              sendSignal('offer', offer);
+            }
+            continue;
+          }
+
           if (signal.signal_type === 'offer') {
-            await pc.current.setRemoteDescription(new RTCSessionDescription(payload));
+            const sdp = payload.sdp || payload; // handle both wrapped and unwrapped for safety
+            await pc.current.setRemoteDescription(new RTCSessionDescription(sdp));
             // Flush pending ICE candidates
             for (const candidate of pendingRemoteCandidates.current) {
               await pc.current.addIceCandidate(new RTCIceCandidate(candidate));
@@ -420,17 +471,19 @@ export default function VideoCallScreen() {
             await pc.current.setLocalDescription(answer);
             sendSignal('answer', answer);
           } else if (signal.signal_type === 'answer') {
-            await pc.current.setRemoteDescription(new RTCSessionDescription(payload));
+            const sdp = payload.sdp || payload;
+            await pc.current.setRemoteDescription(new RTCSessionDescription(sdp));
             // Flush pending ICE candidates
             for (const candidate of pendingRemoteCandidates.current) {
               await pc.current.addIceCandidate(new RTCIceCandidate(candidate));
             }
             pendingRemoteCandidates.current = [];
           } else if (signal.signal_type === 'ice-candidate') {
+            const candidate = payload.candidate || payload;
             if (pc.current.remoteDescription) {
-              await pc.current.addIceCandidate(new RTCIceCandidate(payload));
+              await pc.current.addIceCandidate(new RTCIceCandidate(candidate));
             } else {
-              pendingRemoteCandidates.current.push(payload);
+              pendingRemoteCandidates.current.push(candidate);
             }
           } else if (signal.signal_type === 'call-ended') {
             setCallStatus('Ended');
