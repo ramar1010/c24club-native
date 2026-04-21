@@ -54,7 +54,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     package: "com.c24club.app",
     googleServicesFile: "./google-services.json",
-    versionCode: 56,
+    versionCode: 57,
     permissions: [
       "android.permission.CAMERA",
       "android.permission.RECORD_AUDIO",
