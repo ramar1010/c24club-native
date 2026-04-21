@@ -67,7 +67,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
     adaptiveIcon: {
       foregroundImage: "./assets/images/adaptive-icon.png",
-      backgroundColor: "#ffffff",
+      backgroundColor: "#FACC15",
     },
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
