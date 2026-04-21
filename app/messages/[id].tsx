@@ -341,11 +341,13 @@ export default function ChatThreadScreen() {
   const genderStr = partnerProfile?.gender || params.partnerGender || "";
   const isPartnerFemale = genderStr.toLowerCase() === "female";
 
-  const { data: messages, isLoading } = useConversationMessages(
+  const { data: messages, isLoading, limit, setLimit } = useConversationMessages(
     activeConversationId
   );
   const sendMessage = useSendMessage();
   const { lastError: sendError } = sendMessage;
+
+  const lastMessageIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (sendError) {
@@ -418,11 +420,20 @@ export default function ChatThreadScreen() {
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     if (displayMessages && displayMessages.length > 0) {
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
+      const lastMsg = displayMessages[displayMessages.length - 1];
+      const lastId = lastMsg.id;
+
+      // Only scroll to bottom if the last message is new (not just loading older ones)
+      if (lastId !== lastMessageIdRef.current) {
+        lastMessageIdRef.current = lastId;
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      }
     }
   }, [displayMessages]);
+
+  const hasMore = (messages?.length ?? 0) >= limit;
 
   // Determine if partner is online (we don't have their profile here, just use name for now)
   const partnerOnline = false; // We'd need to fetch partner's last_active_at separately
@@ -805,37 +816,47 @@ export default function ChatThreadScreen() {
         </View>
 
         {/* Messages */}
-        {isLoading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color="#EF4444" />
+        {isLoading && !messages ? (
+          <View style={styles.centered}>
+            <ActivityIndicator size="large" color="#EF4444" />
           </View>
         ) : (
           <FlatList
             ref={flatListRef}
             data={displayMessages}
             keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContent}
+            ListHeaderComponent={
+              <>
+                {hasMore && (
+                  <TouchableOpacity
+                    style={styles.loadMoreBtn}
+                    onPress={() => setLimit((prev) => prev + 10)}
+                  >
+                    <Text style={styles.loadMoreText}>Load older messages</Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            }
             renderItem={({ item }) => {
               if ("type" in item && item.type === "gift") {
                 return <GiftBubble message={item as LocalGiftMessage} />;
               }
               const msg = item as DmMessage;
-              return (
-                <MessageBubble
-                  message={msg}
-                  isMine={msg.sender_id === user?.id}
-                />
-              );
+              return <MessageBubble message={msg} isMine={msg.sender_id === user?.id} />;
             }}
-            contentContainerStyle={styles.messagesList}
-            onContentSizeChange={() => {
-              flatListRef.current?.scrollToEnd({ animated: false });
-            }}
-            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <MessageSquare size={48} color="rgba(255,255,255,0.1)" />
+                <Text style={styles.emptyText}>No messages yet.</Text>
+                <Text style={styles.emptySubtext}>Say hi to {partnerName}!</Text>
+              </View>
+            }
           />
         )}
 
         {/* Input */}
-        <View style={styles.inputBar}>
+        <View style={styles.inputArea}>
           <TextInput
             style={[styles.input, (isBlocked || isBlockedByPartner) && { opacity: 0.5 }]}
             value={inputText}
@@ -1126,10 +1147,43 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  messagesList: {
+  listContent: {
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
+  emptyContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyText: {
+    color: "rgba(255,255,255,0.3)",
+    fontSize: 14,
+    marginTop: 4,
+  },
+  emptySubtext: {
+    color: "rgba(255,255,255,0.3)",
+    fontSize: 14,
+    marginTop: 4,
+  },
+
+  // Load more
+  loadMoreBtn: {
+    margin: 16,
+    padding: 12,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 8,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  loadMoreText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+
+  // ── Messages ───────────────────────────────────────────────────────────────
   bubbleWrapper: {
     marginVertical: 3,
   },
@@ -1211,7 +1265,7 @@ const styles = StyleSheet.create({
   },
 
   // ── Input Bar ─────────────────────────────────────────────────────────────
-  inputBar: {
+  inputArea: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 12,

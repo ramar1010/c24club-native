@@ -39,24 +39,26 @@ export interface DmMessage {
 export function useConversations() {
   const { profile } = useAuth();
   const [errorText, setErrorText] = useState<string | null>(null);
+  const [limit, setLimit] = useState(10);
   
   // Important: Conversations link to the member profile id, not the auth user id
   const memberId = profile?.id;
 
   const query = useQuery<Conversation[]>({
-    queryKey: ["conversations", memberId],
+    queryKey: ["conversations", memberId, limit],
     enabled: !!memberId,
     refetchInterval: 10000, // Reduced frequency
     queryFn: async () => {
       if (!memberId) return [];
 
-      console.log("[useConversations] FETCH START for memberId:", memberId);
+      console.log("[useConversations] FETCH START for memberId:", memberId, "limit:", limit);
       
       const { data: convos, error } = await supabase
         .from("conversations")
         .select("*")
         .or(`participant_1.eq.${memberId},participant_2.eq.${memberId}`)
-        .order("last_message_at", { ascending: false });
+        .order("last_message_at", { ascending: false })
+        .limit(limit);
 
       if (error) {
         console.error("[useConversations] Supabase query error:", error.message);
@@ -155,7 +157,7 @@ export function useConversations() {
     },
   });
 
-  return { ...query, errorText };
+  return { ...query, errorText, limit, setLimit };
 }
 
 // ─── useConversationMessages ──────────────────────────────────────────────────
@@ -164,25 +166,31 @@ export function useConversationMessages(conversationId: string | null) {
   const { profile } = useAuth();
   const memberId = profile?.id;
   const queryClient = useQueryClient();
+  const [limit, setLimit] = useState(10);
 
-  return useQuery<DmMessage[]>({
-    queryKey: ["dm_messages", conversationId],
+  const query = useQuery<DmMessage[]>({
+    queryKey: ["dm_messages", conversationId, limit],
     enabled: !!conversationId && conversationId !== "new" && !!memberId,
     refetchInterval: Platform.OS === "web" ? false : 8000,
     queryFn: async () => {
       if (!conversationId || conversationId === "new") return [];
 
+      // Fetch the LATEST messages first (DESC) but limit to our current count
       const { data, error } = await supabase
         .from("dm_messages")
         .select("*")
         .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: false })
+        .limit(limit);
 
       if (error) throw error;
 
+      // Reverse so they are in chronological order for display
+      const chronological = (data ?? []).reverse() as DmMessage[];
+
       // Mark unread messages from other user as read
-      if (memberId && data && data.length > 0) {
-        const unreadIds = data
+      if (memberId && chronological && chronological.length > 0) {
+        const unreadIds = chronological
           .filter((m) => m.sender_id !== memberId && !m.read_at)
           .map((m) => m.id);
 
@@ -198,9 +206,11 @@ export function useConversationMessages(conversationId: string | null) {
         }
       }
 
-      return (data ?? []) as DmMessage[];
+      return chronological;
     },
   });
+
+  return { ...query, limit, setLimit };
 }
 
 // ─── useSendMessage ───────────────────────────────────────────────────────────

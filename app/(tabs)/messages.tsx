@@ -132,7 +132,7 @@ const ConversationRow = React.memo(function ConversationRow({
 export default function MessagesScreen() {
   const router = useRouter();
   const { user, profile, session, minutes, debugLogs } = useAuth();
-  const { data: conversations, isLoading, refetch, errorText } = useConversations();
+  const { data: conversations, isLoading, refetch, errorText, limit, setLimit } = useConversations();
   const [search, setSearch] = useState("");
   const queryClient = useQueryClient();
   const [isRefetching, setIsRefetching] = useState(false);
@@ -230,6 +230,8 @@ export default function MessagesScreen() {
       c.other_user?.name?.toLowerCase().includes(q)
     );
   }, [conversations, search]);
+
+  const hasMore = (conversations?.length ?? 0) >= limit;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
@@ -344,7 +346,19 @@ export default function MessagesScreen() {
                 </Text>
               </View>
             }
-            ListFooterComponent={filtered.length > 0 ? <FooterLinks /> : null}
+            ListFooterComponent={
+              <View style={{ paddingBottom: 40 }}>
+                {hasMore && (
+                  <TouchableOpacity
+                    style={styles.loadMoreBtn}
+                    onPress={() => setLimit((prev) => prev + 10)}
+                  >
+                    <Text style={styles.loadMoreText}>Load more</Text>
+                  </TouchableOpacity>
+                )}
+                {filtered.length > 0 && <FooterLinks />}
+              </View>
+            }
             contentContainerStyle={
               filtered.length === 0 ? styles.emptyContent : undefined
             }
@@ -498,6 +512,20 @@ const styles = StyleSheet.create({
   },
   rowInfo: {
     flex: 1,
+  },
+  loadMoreBtn: {
+    margin: 16,
+    padding: 12,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 8,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  loadMoreText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
   },
   rowTopRow: {
     flexDirection: "row",
