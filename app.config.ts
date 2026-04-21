@@ -34,7 +34,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   // Must match the existing EAS project slug for extra.eas.projectId
   slug: "template",
   name: "C24 Club",
-  version: "1.6.0",
+  version: "1.7.0",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: "c24club",
@@ -54,7 +54,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     package: "com.c24club.app",
     googleServicesFile: "./google-services.json",
-    versionCode: 54,
+    versionCode: 55,
     permissions: [
       "android.permission.CAMERA",
       "android.permission.RECORD_AUDIO",
