@@ -105,6 +105,13 @@ export default function ChatScreen() {
     restartPreview,
   } = useVideoChat();
 
+  // ─── Pre-blur on new partner ───────────────────────────────────────────────
+  const { isBlurred, blurOpacity } = usePreBlur(
+    callState === 'connected',
+    partnerId,
+    4000,
+  );
+
   // ─── Partner pinned socials (VIP only, fresh fetch on every match) ─────────
   const { socials: partnerSocials } = usePinnedSocials(
     partnerId,
@@ -465,13 +472,6 @@ export default function ChatScreen() {
     }
   }, [partnerId]);
 
-  // ─── Pre-blur on new partner ───────────────────────────────────────────────
-  const { isBlurred, blurOpacity } = usePreBlur(
-    callState === 'connected',
-    partnerId,
-    4000,
-  );
-
   // ─── Render helpers ────────────────────────────────────────────────────────
   const renderTopBar = () => (
     <View style={styles.topBar}>
@@ -583,7 +583,6 @@ export default function ChatScreen() {
                 intensity={100} 
                 style={StyleSheet.absoluteFill} 
                 tint="dark"
-                experimentalBlurMethod="dime"
               />
               {/* Fallback darkening to help the blur stand out */}
               <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.3)' }]} />

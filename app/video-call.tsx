@@ -11,6 +11,7 @@ import {
   Image,
   Alert,
   Platform,
+  Animated,
 } from 'react-native';
 import {
   Mic,
@@ -27,6 +28,7 @@ import {
   ChevronRight,
 } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { BlurView } from 'expo-blur';
 
 // ─── Native WebRTC Imports (Guarded) ──────────────────────────────────────────
 import {
@@ -47,6 +49,7 @@ import { useToast, Toast, ToastTitle, ToastDescription } from '@/components/ui/t
 import { flattenStyle } from '@/utils/flatten-style';
 import { createGiftCheckout, checkIsPremiumVip, GIFT_TIERS } from '@/lib/gift-utils';
 import { GiftCelebration } from '@/components/GiftCelebration';
+import { usePreBlur } from '@/hooks/usePreBlur';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -102,6 +105,13 @@ export default function VideoCallScreen() {
   
   const [partner, setPartner] = useState<{ name: string; image_url: string; id: string; vip_tier?: string } | null>(null);
   
+  // ─── Pre-blur on connection ──────────────────────────────────────────────
+  const { isBlurred, blurOpacity, resetBlur } = usePreBlur(
+    callStatus === 'Connected',
+    partner?.id,
+    4000,
+  );
+
   const pc = useRef<RTCPeerConnection | null>(null);
   const isInitiatorRef = useRef(false);
   const processedSignalIds = useRef<Set<string>>(new Set());
@@ -310,6 +320,8 @@ export default function VideoCallScreen() {
             }
             setRemoteStream(stream);
             setCallStatus('Connected');
+            // Trigger blur reset when connected to ensure it runs
+            resetBlur();
           }
         };
 
@@ -582,32 +594,66 @@ export default function VideoCallScreen() {
     }
   }, [reportReason, reportDetails, profile?.id, partnerId]);
 
-  return (
-    <View style={styles.container}>
-      {/* Remote Video (Background) */}
-      <View style={styles.remoteVideoContainer}>
-        {partnerIsVoiceMode ? (
-          <View style={styles.remoteVideoPlaceholder}>
-            <View style={styles.voiceAvatarContainer}>
-               <Mic size={64} color="#FFFFFF" />
-               <Text style={styles.voiceModeLabel}>Voice Mode</Text>
-            </View>
-          </View>
-        ) : remoteStream ? (
-          <RTCView
-            streamURL={typeof remoteStream.toURL === 'function' ? remoteStream.toURL() : remoteStream}
-            style={styles.remoteVideo}
-            objectFit="cover"
+  const renderVideoArea = () => (
+    <View style={styles.videoArea}>
+      {/* Remote video */}
+      {partnerIsVoiceMode ? (
+        <View style={styles.remoteVideoPlaceholder}>
+          <Image
+            source={partner?.image_url ? { uri: partner.image_url } : require('@/assets/images/icon.png')}
+            style={styles.voiceModeAvatar}
           />
-        ) : (
-          <View style={styles.remoteVideoPlaceholder}>
-            <ActivityIndicator size="large" color="#EF4444" />
-            <Text style={{ color: '#9CA3AF', marginTop: 12 }}>{callStatus}</Text>
-          </View>
-        )}
-      </View>
+          <Text style={styles.voiceModeLabel}>Voice Mode</Text>
+        </View>
+      ) : remoteStream ? (
+        <View style={StyleSheet.absoluteFill}>
+          <Animated.View style={[
+            StyleSheet.absoluteFill,
+            {
+              transform: [{
+                scale: blurOpacity.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1, 1.15]
+                })
+              }]
+            }
+          ]}>
+            <RTCView
+              streamURL={typeof remoteStream.toURL === 'function' ? remoteStream.toURL() : remoteStream}
+              style={styles.remoteVideo}
+              objectFit="cover"
+              zOrder={0}
+            />
+          </Animated.View>
+          {isBlurred && (
+            <Animated.View 
+              style={[
+                StyleSheet.absoluteFill, 
+                { 
+                  opacity: blurOpacity,
+                  zIndex: 20,
+                }
+              ]}
+              pointerEvents="none"
+            >
+              <BlurView 
+                intensity={100} 
+                style={StyleSheet.absoluteFill} 
+                tint="dark"
+              />
+              {/* Fallback darkening */}
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.3)' }]} />
+            </Animated.View>
+          )}
+        </View>
+      ) : (
+        <View style={styles.remoteVideoPlaceholder}>
+          <ActivityIndicator size="large" color="#EF4444" />
+          <Text style={{ color: '#A1A1AA', marginTop: 12 }}>{callStatus}</Text>
+        </View>
+      )}
 
-      {/* Local Video (PiP) */}
+      {/* Local PiP */}
       <View style={styles.localVideoContainer}>
         {localStream && !isCameraOff ? (
           <RTCView
@@ -805,12 +851,22 @@ export default function VideoCallScreen() {
       </RNModal>
     </View>
   );
+
+  return (
+    <View style={styles.container}>
+      {renderVideoArea()}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000000',
+  },
+  videoArea: {
+    flex: 1,
+    position: 'relative',
   },
   remoteVideoContainer: {
     flex: 1,
@@ -826,12 +882,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  voiceAvatarContainer: {
-    backgroundColor: 'rgba(0,0,0,0.6)',
+  voiceModeAvatar: {
+    width: 64,
+    height: 64,
     borderRadius: 32,
-    padding: 16,
-    gap: 8,
-    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    marginBottom: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   voiceModeLabel: {
     color: '#FFFFFF',
