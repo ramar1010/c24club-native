@@ -21,6 +21,7 @@ import { usePushNotifications } from "@/lib/usePushNotifications";
 import { useDmToast } from "@/hooks/useDmToast";
 import { useGiftToast } from "@/hooks/useGiftToast";
 import { useBanCheck } from "@/hooks/useBanCheck";
+import { useIAPListener } from "@/hooks/useIAPListener";
 import BannedScreen from "@/components/BannedScreen";
 import BatteryOptimizationPrompt from "@/components/BatteryOptimizationPrompt";
 import { useRedemptionNotifications } from "@/hooks/useRedemptionNotifications";
@@ -136,6 +137,9 @@ function RootLayoutInner({ colorScheme, loaded }: { colorScheme: any; loaded: bo
 
   // Ban check — always fresh, never cached
   const { isBanned, banData, banLoading, recheckBan, clearBan } = useBanCheck();
+
+  // Global IAP listener — catches unfinished transactions on every app open
+  useIAPListener();
 
   // Register push notifications once auth is loaded and a session exists
   usePushNotifications();

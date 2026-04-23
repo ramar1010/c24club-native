@@ -68,6 +68,7 @@ export default function VipUpsellScreen() {
   const { highlight } = useLocalSearchParams<{ highlight?: string }>();
   const { minutes, syncVipStatus, refreshProfile } = useAuth();
   const [loadingPrice, setLoadingPrice] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState(false);
   const offerTokensRef = useRef<Record<string, string>>({});
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -83,12 +84,10 @@ export default function VipUpsellScreen() {
     ).start();
   }, [isGiftingHighlight]);
 
-  // IAP setup
+  // IAP setup — only initialises connection + fetches offer tokens.
+  // Purchase verification is handled by the global useIAPListener in _layout.tsx.
   useEffect(() => {
     if (Platform.OS === 'web') return;
-
-    let purchaseUpdateSub: any;
-    let purchaseErrorSub: any;
 
     const setup = async () => {
       try {
@@ -104,38 +103,6 @@ export default function VipUpsellScreen() {
             }
           });
         }
-
-        purchaseUpdateSub = purchaseUpdatedListener(async (purchase) => {
-          const { productId, transactionReceipt, purchaseToken } = purchase as any;
-          if (!transactionReceipt && !purchaseToken) return;
-
-          try {
-            const token = Platform.OS === 'android' ? purchaseToken : transactionReceipt;
-            const { data, error } = await supabase.functions.invoke('iap-purchases', {
-              body: { action: 'verify-subscription', sku: productId, purchaseToken: token, platform: Platform.OS },
-            });
-            if (error) throw error;
-            if (data?.success) {
-              await finishTransaction({ purchase, isConsumable: false });
-              await refreshProfile();
-              Alert.alert('🎉 Welcome to VIP!', 'Your subscription is now active.');
-              router.back();
-            } else {
-              throw new Error(data?.error || 'Verification failed');
-            }
-          } catch (err: any) {
-            Alert.alert('Purchase Error', err.message || 'Could not verify purchase.');
-          } finally {
-            setLoadingPrice(null);
-          }
-        });
-
-        purchaseErrorSub = purchaseErrorListener((error: any) => {
-          if (error?.code !== 'E_USER_CANCELLED') {
-            Alert.alert('Purchase Failed', error?.message || 'Something went wrong.');
-          }
-          setLoadingPrice(null);
-        });
       } catch (err) {
         console.warn('IAP init error:', err);
       }
@@ -144,8 +111,6 @@ export default function VipUpsellScreen() {
     setup();
 
     return () => {
-      purchaseUpdateSub?.remove();
-      purchaseErrorSub?.remove();
       endConnection();
     };
   }, []);
@@ -194,6 +159,45 @@ export default function VipUpsellScreen() {
         Alert.alert('Error', err?.message || 'Could not initiate purchase.');
       }
       setLoadingPrice(null);
+    }
+  };
+
+  const handleRestore = async () => {
+    if (Platform.OS === 'web') {
+      Alert.alert('Mobile Only', 'Subscriptions are only available on the mobile app.');
+      return;
+    }
+    setRestoring(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('iap-purchases', {
+        body: {
+          action: 'restore-subscription',
+          platform: Platform.OS,
+        },
+      });
+
+      // Even if the edge function doesn't have a restore action yet,
+      // we can do a direct re-check of the member_minutes table.
+      // The global IAP listener will have already re-verified any pending
+      // transactions — so just refresh the profile here.
+      await refreshProfile();
+
+      // Check if VIP is now active
+      const { data: freshMinutes } = await supabase
+        .from('member_minutes')
+        .select('is_vip, vip_tier')
+        .eq('user_id', (await supabase.auth.getUser()).data.user?.id ?? '')
+        .maybeSingle();
+
+      if (freshMinutes?.is_vip) {
+        Alert.alert('✅ VIP Restored', `Your ${freshMinutes.vip_tier === 'premium' ? 'Premium' : 'Basic'} VIP subscription has been restored.`);
+      } else {
+        Alert.alert('No Active Subscription', 'No active VIP subscription was found for your account. If you believe this is an error, please contact support.');
+      }
+    } catch (err: any) {
+      Alert.alert('Restore Failed', err?.message || 'Could not restore purchases. Please try again.');
+    } finally {
+      setRestoring(false);
     }
   };
 
@@ -334,6 +338,20 @@ export default function VipUpsellScreen() {
             ? 'Subscriptions are available on the mobile app.'
             : 'Subscription auto-renews. Cancel anytime in your device settings.'}
         </Text>
+
+        {Platform.OS !== 'web' && (
+          <TouchableOpacity
+            style={styles.restoreButton}
+            onPress={handleRestore}
+            disabled={restoring}
+          >
+            {restoring ? (
+              <ActivityIndicator color="#A1A1AA" size="small" />
+            ) : (
+              <Text style={styles.restoreButtonText}>Restore Purchases</Text>
+            )}
+          </TouchableOpacity>
+        )}
 
         <FooterLinks />
       </ScrollView>
@@ -501,6 +519,16 @@ const styles = StyleSheet.create({
     color: '#71717A',
     textAlign: 'center',
     marginTop: 8,
+  },
+  restoreButton: {
+    alignItems: 'center',
+    paddingVertical: 14,
+    marginTop: 4,
+  },
+  restoreButtonText: {
+    fontSize: 13,
+    color: '#A1A1AA',
+    textDecorationLine: 'underline',
   },
   giftingBanner: {
     flexDirection: 'row',
