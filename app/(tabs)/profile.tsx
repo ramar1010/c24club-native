@@ -216,6 +216,7 @@ export default function ProfileScreen() {
       .from("member_redemptions")
       .select("*")
       .eq("user_id", profile.id)
+      .neq("status", "forfeited")
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -239,7 +240,8 @@ export default function ProfileScreen() {
     const { count } = await supabase
       .from("member_redemptions")
       .select("id", { count: "exact", head: true })
-      .eq("user_id", profile.id);
+      .eq("user_id", profile.id)
+      .neq("status", "forfeited");
 
     setRedemptionCount(count ?? 0);
   }, [profile?.id]);

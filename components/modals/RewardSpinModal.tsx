@@ -104,6 +104,7 @@ export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [hasUsedSecondChance, setHasUsedSecondChance] = useState(false);
   const [showShippingForm, setShowShippingForm] = useState(false);
+  const [showForfeitConfirm, setShowForfeitConfirm] = useState(false);
   const [isUsingSavedAddress, setIsUsingSavedAddress] = useState(true);
   const [currentRedemptionId, setCurrentRedemptionId] = useState<string | null>(null);
   const [saveAsDefault, setSaveAsDefault] = useState(false);
@@ -118,16 +119,20 @@ export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
   const [liveMinutes, setLiveMinutes] = useState<number | null>(null);
 
   const spinAnim = useRef(new Animated.Value(0)).current;
+  // Refs to track spin outcome — used by reelItems to avoid stale-closure issues
+  const wonRef = useRef(false);
+  const consolationRef = useRef<RewardItem | null>(null);
+
   const reelItems = useMemo(() => {
     if (commonItems.length === 0) return [];
     
     const items: (RewardItem | null)[] = [];
     for (let i = 0; i < TOTAL_SLOTS; i++) {
       if (i === WINNER_INDEX) {
-        if (won) {
+        if (wonRef.current) {
           items.push(reward);
-        } else if (consolationItem) {
-          items.push(consolationItem);
+        } else if (consolationRef.current) {
+          items.push(consolationRef.current);
         } else {
           items.push(commonItems[Math.floor(Math.random() * commonItems.length)]);
         }
@@ -196,8 +201,11 @@ export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
     setIsRedeeming(false);
     setHasUsedSecondChance(false);
     setShowShippingForm(false);
+    setShowForfeitConfirm(false);
     setSaveAsDefault(false);
     spinAnim.setValue(0);
+    wonRef.current = false;
+    consolationRef.current = null;
   };
 
   const handleSpin = async (isSecondChance = false) => {
@@ -232,6 +240,10 @@ export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
     const pickedConsolation = !isWinner && commonItems.length > 0
       ? commonItems[Math.floor(Math.random() * commonItems.length)]
       : null;
+
+    // Update refs BEFORE state so reelItems useMemo sees the correct values immediately
+    wonRef.current = isWinner;
+    consolationRef.current = isWinner ? null : pickedConsolation;
 
     setWon(isWinner);
     if (!isWinner && pickedConsolation) {
@@ -307,15 +319,35 @@ export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
   };
 
   const handleSecondChance = () => {
-    if (won) return; // Safety check
+    if (won) return;
     setHasUsedSecondChance(true);
     setWon(false);
     setStep('idle');
     spinAnim.setValue(0);
-    // Use a small delay to ensure animation reset is visible and state is cleared
     setTimeout(() => {
       handleSpin(true);
     }, 100);
+  };
+
+  const confirmForfeit = async () => {
+    if (currentRedemptionId) {
+      try {
+        const { error } = await supabase
+          .from('member_redemptions')
+          .update({ status: 'forfeited' })
+          .eq('id', currentRedemptionId);
+        if (error) {
+          console.error('[RewardSpinModal] Forfeit update failed:', error.message);
+        } else {
+          console.log('[RewardSpinModal] Redemption marked as forfeited:', currentRedemptionId);
+        }
+      } catch (e) {
+        console.error('[RewardSpinModal] Error forfeiting redemption:', e);
+      }
+    } else {
+      console.warn('[RewardSpinModal] confirmForfeit called but currentRedemptionId is null');
+    }
+    onClose();
   };
 
   const handleShippingSubmit = async () => {
@@ -624,18 +656,33 @@ export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
 
             {step === 'result' && (
               <VStack space="lg">
-                {won ? (
+                {showForfeitConfirm ? (
+                  <VStack style={styles.resultContainer} space="md">
+                    <Text style={styles.forfeitTitle}>⚠️ Are you sure?</Text>
+                    <Text style={styles.forfeitWarning}>
+                      Your minutes will NOT be refunded if you forfeit this item.
+                    </Text>
+                    <Button style={styles.forfeitConfirmButton} onPress={confirmForfeit}>
+                      <ButtonText style={styles.forfeitConfirmText}>Yes, Forfeit Item</ButtonText>
+                    </Button>
+                    <TouchableOpacity
+                      style={styles.rejectButton}
+                      onPress={() => setShowForfeitConfirm(false)}
+                    >
+                      <Text style={styles.keepItemText}>← Keep My Item</Text>
+                    </TouchableOpacity>
+                  </VStack>
+                ) : won ? (
                   <VStack style={styles.resultContainer} space="sm">
                     <View style={styles.winIconWrapper}>
                       <Trophy size={48} color="#22C55E" />
                     </View>
                     <Heading style={styles.whiteTextXl}>CONGRATULATIONS!</Heading>
                     <Text style={styles.mutedTextCenter}>You won the {reward.name}!</Text>
-                    <Button 
+                    <Button
                       style={styles.continueButton}
                       onPress={() => {
                         if (reward.rarity === 'legendary') {
-                          // Parent handles legendary win via onWin which unmounts this
                           onClose();
                         } else if (reward.type === 'physical') {
                           setShowShippingForm(true);
@@ -646,6 +693,15 @@ export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
                     >
                       <ButtonText style={styles.continueButtonText}>CONTINUE</ButtonText>
                     </Button>
+                    <Text style={styles.navHintText}>
+                      🎁 View your reward: <Text style={styles.navHintHighlight}>Profile {'>'} My Rewards</Text>
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.rejectButton}
+                      onPress={() => setShowForfeitConfirm(true)}
+                    >
+                      <Text style={styles.rejectButtonText}>No, I don't want this item</Text>
+                    </TouchableOpacity>
                   </VStack>
                 ) : (
                   <VStack style={styles.resultContainer} space="sm">
@@ -661,7 +717,6 @@ export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
                         {consolationItem?.name || 'Common Item'}
                       </Text>
                     </VStack>
-                    
                     {canHaveSecondChance ? (
                       <VStack style={styles.perkCard} space="md">
                         <HStack space="sm" style={styles.centerItems}>
@@ -671,10 +726,7 @@ export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
                         <Text style={styles.perkDescription}>
                           As a Premium member, you get <Text style={styles.perkHighlight}>1 FREE RE-SPIN</Text> on Legendary items!
                         </Text>
-                        <Button 
-                          style={styles.perkButton}
-                          onPress={handleSecondChance}
-                        >
+                        <Button style={styles.perkButton} onPress={handleSecondChance}>
                           <ButtonText style={styles.perkButtonText}>USE FREE RE-SPIN</ButtonText>
                         </Button>
                         <TouchableOpacity onPress={onClose} style={{ alignSelf: 'center', marginTop: 8 }}>
@@ -682,18 +734,29 @@ export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
                         </TouchableOpacity>
                       </VStack>
                     ) : (
-                      <Button 
-                        style={styles.continueButton}
-                        onPress={() => {
-                          if (consolationItem?.type === 'physical') {
-                            setShowShippingForm(true);
-                          } else {
-                            onClose();
-                          }
-                        }}
-                      >
-                        <ButtonText style={styles.continueButtonText}>CONTINUE</ButtonText>
-                      </Button>
+                      <>
+                        <Button
+                          style={styles.continueButton}
+                          onPress={() => {
+                            if (consolationItem?.type === 'physical') {
+                              setShowShippingForm(true);
+                            } else {
+                              onClose();
+                            }
+                          }}
+                        >
+                          <ButtonText style={styles.continueButtonText}>CONTINUE</ButtonText>
+                        </Button>
+                        <Text style={styles.navHintText}>
+                          🎁 View your reward: <Text style={styles.navHintHighlight}>Profile {'>'} My Rewards</Text>
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.rejectButton}
+                          onPress={() => setShowForfeitConfirm(true)}
+                        >
+                          <Text style={styles.rejectButtonText}>No, I don't want this item</Text>
+                        </TouchableOpacity>
+                      </>
                     )}
                   </VStack>
                 )}
@@ -1172,5 +1235,55 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  navHintText: {
+    color: '#71717A',
+    textAlign: 'center',
+    fontSize: 12,
+    marginTop: 16,
+  },
+  navHintHighlight: {
+    color: '#FACC15',
+    fontWeight: '700',
+  },
+  rejectButton: {
+    marginTop: 16,
+  },
+  rejectButtonText: {
+    color: '#EF444480',
+    fontWeight: '500',
+    fontSize: 13,
+    textAlign: 'center',
+    textDecorationLine: 'underline',
+  },
+  forfeitTitle: {
+    color: '#EF4444',
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  forfeitWarning: {
+    color: '#EF444480',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  forfeitConfirmButton: {
+    backgroundColor: '#EF4444',
+    height: 48,
+    borderRadius: 12,
+    marginTop: 16,
+  },
+  forfeitConfirmText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  keepItemText: {
+    color: '#71717A',
+    fontWeight: '500',
+    fontSize: 13,
+    textAlign: 'center',
+    textDecorationLine: 'underline',
   },
 });

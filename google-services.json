@@ -14,6 +14,22 @@
       },
       "oauth_client": [
         {
+          "client_id": "212900711433-gv05e41dghsenan1tc34htsjrp6bos3o.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.c24club.app",
+            "certificate_hash": "8613b97393be2176cb2e05b32a61e646a3b37197"
+          }
+        },
+        {
+          "client_id": "212900711433-dvgehjcs0qvcbmumd19ai6d2c2e6dolg.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.c24club.app",
+            "certificate_hash": "2d5c108877626d4a154640457260bbd71ba2410c"
+          }
+        },
+        {
           "client_id": "212900711433-rild80si8g6sg8q5j7jl8goo6o9ecnqi.apps.googleusercontent.com",
           "client_type": 3
         }
