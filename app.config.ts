@@ -84,7 +84,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-web-browser',
     'expo-apple-authentication',
     './plugins/withAndroidAdiRegistration.js',
-    './plugins/withTikTokSDK.js',
+    ['./plugins/withTikTokSDK.js', { appId: '7632014615634804757' }],
     [
       'expo-notifications',
       {
