@@ -36,11 +36,32 @@ export function usePushNotifications() {
   const responseListener = useRef<Notifications.EventSubscription | null>(null);
   const coldLaunchHandled = useRef(false);
 
+  // ── Helper: log when a user taps a push notification ──────────────────────
+  const logPushOpen = async (notificationType?: string) => {
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData?.user?.id;
+      if (!userId) return;
+      await supabase.functions.invoke('log-push-open', {
+        body: {
+          user_id: userId,
+          notification_type: notificationType ?? null,
+          platform: Platform.OS,
+        },
+      });
+    } catch (err) {
+      console.warn('[usePushNotifications] Failed to log push open:', err);
+    }
+  };
+
   // ── Helper: handle a notification response (tap) ───────────────────────────
   const handleNotificationResponse = async (response: Notifications.NotificationResponse) => {
     const data = response.notification.request.content.data as Record<string, any>;
     const type = data?.type as string | undefined;
     console.log('[usePushNotifications] Notification tapped, type:', type, 'data:', JSON.stringify(data));
+
+    // Log the push open for analytics / maintenance tracking
+    logPushOpen(type);
 
     // ── Incoming direct call tap ───────────────────────────────────────────
     if (type === 'incoming_direct_call') {
