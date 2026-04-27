@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Image,
   ScrollView,
@@ -10,106 +10,106 @@ import {
   Dimensions,
   ActivityIndicator,
   Modal,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Check, X, User as UserIcon, Sparkles, Video, MessageCircle, Gift, Link2, ExternalLink, Star, BookOpen, ChevronDown, ChevronUp } from "lucide-react-native";
-import { flattenStyle } from "@/utils/flatten-style";
-import { useAuth } from "@/contexts/AuthContext";
-import { useRouter } from "expo-router";
-import { FemaleVipBanner } from "@/components/FemaleVipBanner";
-import { FemaleNotifyCard } from "@/components/FemaleNotifyCard";
-import { supabase } from "@/lib/supabase";
-import { DiscoverMember } from "@/types/members";
-import { UserCard } from "@/components/UserCard";
-import { GiftModal } from "@/components/modals/GiftModal";
-import { useCall } from "@/contexts/CallContext";
-import { Instagram, Music, DollarSign } from "lucide-react-native";
-import { Alert, Linking } from "react-native";
-import { notifyGiftAttempt } from "@/lib/gift-utils";
-import { GiftCelebration } from "@/components/GiftCelebration";
-import { FooterLinks } from "@/components/FooterLinks";
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Check, X, User as UserIcon, Sparkles, Video, MessageCircle, Gift, Link2, ExternalLink, Star, BookOpen, ChevronDown, ChevronUp } from 'lucide-react-native';
+import { flattenStyle } from '@/utils/flatten-style';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'expo-router';
+import { FemaleVipBanner } from '@/components/FemaleVipBanner';
+import { FemaleNotifyCard } from '@/components/FemaleNotifyCard';
+import { supabase } from '@/lib/supabase';
+import { DiscoverMember } from '@/types/members';
+import { UserCard } from '@/components/UserCard';
+import { GiftModal } from '@/components/modals/GiftModal';
+import { useCall } from '@/contexts/CallContext';
+import { Instagram, Music, DollarSign } from 'lucide-react-native';
+import { Alert, Linking } from 'react-native';
+import { notifyGiftAttempt } from '@/lib/gift-utils';
+import { GiftCelebration } from '@/components/GiftCelebration';
+import { FooterLinks } from '@/components/FooterLinks';
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 // Use same card size as discover
 const CARD_WIDTH = (SCREEN_WIDTH - 16 * 2 - 12) / 2.2; // Slightly smaller for horizontal scroll feel
 const CARD_HEIGHT = CARD_WIDTH * (4 / 3);
 
-const GIFT_IMG = require("@/assets/images/image 1347.png");
-const BAGS_IMG = require("@/assets/images/adsdad.png");
-const CHAT_IMG = require("@/assets/images/Group 140111195.png");
-const EARN_IMG = require("@/assets/images/Icon.png");
+const GIFT_IMG = require('@/assets/images/image 1347.png');
+const BAGS_IMG = require('@/assets/images/adsdad.png');
+const CHAT_IMG = require('@/assets/images/Group 140111195.png');
+const EARN_IMG = require('@/assets/images/Icon.png');
 
 const STEPS = [
   {
     image: CHAT_IMG,
-    title: "Chat",
-    desc: "Video chat 1-on-1 with strangers. Earn minutes per chat!",
+    title: 'Chat',
+    desc: 'Video chat 1-on-1 with strangers. Earn minutes per chat!',
   },
   {
-    emoji: "⏩",
-    title: "Quick Skips",
-    desc: "Don't like the vibe? Skip instantly and find someone new, but skip too fast and you'll lose minutes!",
+    emoji: '⏩',
+    title: 'Quick Skips',
+    desc: 'Don&apos;t like the vibe? Skip instantly and find someone new, but skip too fast and you&apos;ll lose minutes!',
   },
   {
     image: EARN_IMG,
-    title: "Earn",
-    desc: "Every minute chatting earns you reward minutes to spend in the store.",
+    title: 'Earn',
+    desc: 'Every minute chatting earns you reward minutes to spend in the store.',
   },
   {
     image: BAGS_IMG,
-    title: "Free shop",
-    desc: "Redeem your minutes for real prizes: clothes, gift cards, cash & more!",
+    title: 'Free shop',
+    desc: 'Redeem your minutes for real prizes: clothes, gift cards, cash & more!',
   },
   {
     image: GIFT_IMG,
-    title: "Gift",
-    desc: "Other users can gift you reward minutes — the more you chat, the more you attract gifts!",
+    title: 'Gift',
+    desc: 'Other users can gift you reward minutes — the more you chat, the more you attract gifts!',
   },
 ];
 
 const COMPARISON = [
-  { feature: "Earn 100+ rewards", c24: true, others: false },
-  { feature: "Gifted by strangers", c24: true, others: false },
-  { feature: "Safe & moderated", c24: true, others: false },
-  { feature: "1-on-1 video", c24: true, others: true },
-  { feature: "Free to use", c24: true, others: true },
+  { feature: 'Earn 100+ rewards', c24: true, others: false },
+  { feature: 'Gifted by strangers', c24: true, others: false },
+  { feature: 'Safe & moderated', c24: true, others: false },
+  { feature: '1-on-1 video', c24: true, others: true },
+  { feature: 'Free to use', c24: true, others: true },
 ];
 
 const SOCIAL_CONFIG: Record<string, { icon: any; color: string; label: string; url?: (handle: string) => string }> = {
   instagram: {
     icon: Instagram,
-    color: "#E1306C",
-    label: "Instagram",
-    url: (h) => `https://instagram.com/${h.replace(/^@/, "")}`,
+    color: '#E1306C',
+    label: 'Instagram',
+    url: (h) => `https://instagram.com/${h.replace(/^@/, '')}`,
   },
   tiktok: {
     icon: Music,
-    color: "#000000",
-    label: "TikTok",
-    url: (h) => `https://tiktok.com/@${h.replace(/^@/, "")}`,
+    color: '#000000',
+    label: 'TikTok',
+    url: (h) => `https://tiktok.com/@${h.replace(/^@/, '')}`,
   },
   snapchat: {
     icon: Sparkles,
-    color: "#FFFC00",
-    label: "Snapchat",
+    color: '#FFFC00',
+    label: 'Snapchat',
     // Snapchat doesn't have a reliable web URL for users always
   },
   cashapp: {
     icon: DollarSign,
-    color: "#00D632",
-    label: "CashApp",
-    url: (h) => `https://cash.app/$${h.replace(/^\$/, "")}`,
+    color: '#00D632',
+    label: 'CashApp',
+    url: (h) => `https://cash.app/$${h.replace(/^\\$/, '')}`,
   },
   venmo: {
     icon: DollarSign,
-    color: "#3D95CE",
-    label: "Venmo",
-    url: (h) => `https://venmo.com/${h.replace(/^@/, "")}`,
+    color: '#3D95CE',
+    label: 'Venmo',
+    url: (h) => `https://venmo.com/${h.replace(/^@/, '')}`,
   },
   paypal: {
     icon: Link2,
-    color: "#003087",
-    label: "PayPal",
+    color: '#003087',
+    label: 'PayPal',
     url: (h) => `https://paypal.me/${h}`,
   },
 };
@@ -117,75 +117,75 @@ const SOCIAL_CONFIG: Record<string, { icon: any; color: string; label: string; u
 // ─── Guide data ────────────────────────────────────────────────────────────────
 const GUIDE_SECTIONS = [
   {
-    title: "🎥  Video Chatting & Collecting Minutes",
+    title: '🎥  Video Chatting & Collecting Minutes',
     items: [
-      { q: "How do I collect minutes?", a: 'Tap the Chat tab and press "Start Chatting". You earn minutes for every video chat you complete. The longer you stay in a chat, the more you earn. Minutes are credited automatically during video sessions.' },
-      { q: "What are minutes used for?", a: "Minutes are your in-app currency. Use them to redeem items from the Reward Store, spin for rare or legendary prizes, or gift them to other members." },
-      { q: "What happens if I skip too fast?", a: "Skipping a chat too quickly (under a few seconds) will deduct minutes as a penalty. Stay in chats a bit longer to keep earning!" },
-      { q: "Is there a collection cap?", a: "Yes. To keep things fair and reward participation, there are session limits: \n\n• Video Mode: 10 mins per session (Free users) / 30 mins per session (VIP members).\n• Voice Mode: 5 mins per session (Female users).\n• Frozen Minutes: 2 mins per session.\n\nOnce you hit a limit, earning pauses for that match. Start a new match to continue earning!" },
+      { q: 'How do I collect minutes?', a: 'Tap the Chat tab and press &quot;Start Chatting&quot;. You earn minutes for every video chat you complete. The longer you stay in a chat, the more you earn. Minutes are credited automatically during video sessions.' },
+      { q: 'What are minutes used for?', a: 'Minutes are your in-app currency. Use them to redeem items from the Reward Store, spin for rare or legendary prizes, or gift them to other members.' },
+      { q: 'What happens if I skip too fast?', a: 'Skipping a chat too quickly (under a few seconds) will deduct minutes as a penalty. Stay in chats a bit longer to keep earning!' },
+      { q: 'Is there a collection cap?', a: 'Yes. To keep things fair and reward participation, there are session limits: \n\n• Video Mode: 10 mins per session (Free users) / 30 mins per session (VIP members).\n• Voice Mode: 5 mins per session (Female users).\n• Frozen Minutes: 2 mins per session.\n\nOnce you hit a limit, earning pauses for that match. Start a new match to continue earning!' },
     ],
   },
   {
-    title: "🎁  Reward Store & Redeeming",
+    title: '🎁  Reward Store & Redeeming',
     items: [
-      { q: "How do I redeem rewards?", a: 'Go to the Rewards tab. Browse available items and tap "Redeem" on any item you can afford. For physical items, you\'ll be asked to enter a shipping address.' },
-      { q: "What types of rewards are available?", a: "Rewards include physical fashion items (clothing, accessories, bags), cash and digital items. Browse by category using the filter tabs at the top of the Rewards screen." },
-      { q: "What are reward rarities?", a: "Items come in three rarities — Common, Rare, and Legendary. Common items can be redeemed directly. Rare and Legendary items require a Spin to Win." },
-      { q: "How does shipping work?", a: "After winning or redeeming a physical item, you'll fill in your shipping details. You can save a default address in your profile for faster checkout next time." },
+      { q: 'How do I redeem rewards?', a: 'Go to the Rewards tab. Browse available items and tap &quot;Redeem&quot; on any item you can afford. For physical items, you&apos;ll be asked to enter a shipping address.' },
+      { q: 'What types of rewards are available?', a: 'Rewards include physical fashion items (clothing, accessories, bags), cash and digital items. Browse by category using the filter tabs at the top of the Rewards screen.' },
+      { q: 'What are reward rarities?', a: 'Items come in three rarities — Common, Rare, and Legendary. Common items can be redeemed directly. Rare and Legendary items require a Spin to Win.' },
+      { q: 'How does shipping work?', a: 'After winning or redeeming a physical item, you&apos;ll fill in your shipping details. You can save a default address in your profile for faster checkout next time.' },
     ],
   },
   {
-    title: "🎰  Spin to Win",
+    title: '🎰  Spin to Win',
     items: [
-      { q: "Are there different types of Spin to Win?", a: "Yes — Rare spins cost fewer minutes and chance of winning is based off your Chance Enhancer %. Legendary spins cost more and chance of winning is also based off your Chance Enhancer % — these items are higher in value." },
-      { q: "What is the Chance Enhancer?", a: "The Chance Enhancer (CE) increases your win percentage on every spin. It builds up automatically as you chat. You can see your current CE % on the spin modal or in your profile page." },
+      { q: 'Are there different types of Spin to Win?', a: 'Yes — Rare spins cost fewer minutes and chance of winning is based off your Chance Enhancer %. Legendary spins cost more and chance of winning is also based off your Chance Enhancer % — these items are higher in value.' },
+      { q: 'What is the Chance Enhancer?', a: 'The Chance Enhancer (CE) increases your win percentage on every spin. It builds up automatically as you chat. You can see your current CE % on the spin modal or in your profile page.' },
     ],
   },
   {
-    title: "⭐  VIP Membership",
+    title: '⭐  VIP Membership',
     items: [
-      { q: "What are the VIP tiers?", a: "There are two VIP tiers — Basic VIP and Premium VIP. Both give access to gender filters, higher minute caps, and exclusive features. Premium VIP also includes a free re-spin on Legendary items & much more!" },
-      { q: "What are gender filters?", a: "VIP members can filter who they match with in random video chats — choose Male, Female, or Both. Free users are matched randomly." },
-      { q: "What is Minute Unfreezing?", a: "If your minute collection is frozen due to skipping too fast, VIP members can unfreeze their balance instantly instead of having a slow earn rate." },
+      { q: 'What are the VIP tiers?', a: 'There are two VIP tiers — Basic VIP and Premium VIP. Both give access to gender filters, higher minute caps, and exclusive features. Premium VIP also includes a free re-spin on Legendary items & much more!' },
+      { q: 'What are gender filters?', a: 'VIP members can filter who they match with in random video chats — choose Male, Female, or Both. Free users are matched randomly.' },
+      { q: 'What is Minute Unfreezing?', a: 'If your minute collection is frozen due to skipping too fast, VIP members can unfreeze their balance instantly instead of having a slow earn rate.' },
     ],
   },
   {
-    title: "📢  Ad Points & Promos",
+    title: '📢  Ad Points & Promos',
     items: [
-      { q: "Ad Points & Promos", a: "Coming soon! Stay tuned for updates on Ad Points and Promos." },
+      { q: 'Ad Points & Promos', a: 'Coming soon! Stay tuned for updates on Ad Points and Promos.' },
     ],
   },
   {
-    title: "🎯  Weekly Challenges",
+    title: '🎯  Weekly Challenges',
     items: [
-      { q: "Weekly Challenges", a: "Coming soon! Weekly Challenges are on their way." },
+      { q: 'Weekly Challenges', a: 'Coming soon! Weekly Challenges are on their way.' },
     ],
   },
   {
-    title: "💝  Gifting Minutes",
+    title: '💝  Gifting Minutes',
     items: [
-      { q: "How do I gift minutes?", a: "On the Home or Discover tab, tap a member's profile card and select the gift icon. Choose how many minutes to send. The recipient gets notified instantly. You can also gift in DMs, messages & Video Calls." },
-      { q: "Can I see gifts I've received?", a: "Yes — your Profile tab shows your gift history and total minutes received from other members." },
+      { q: 'How do I gift minutes?', a: 'On the Home or Discover tab, tap a member&apos;s profile card and select the gift icon. Choose how many minutes to send. The recipient gets notified instantly. You can also gift in DMs, messages & Video Calls.' },
+      { q: 'Can I see gifts I&apos;ve received?', a: 'Yes — your Profile tab shows your gift history and total minutes received from other members.' },
     ],
   },
   {
-    title: "📌  Topics & Socials",
+    title: '📌  Topics & Socials',
     items: [
-      { q: "What are pinned topics?", a: "You can pin interest topics to your profile. When you match with someone in a chat, your shared topics are shown so you always have something to talk about." },
-      { q: "How do I pin my socials?", a: "VIP members can pin their social media handles (Instagram, TikTok, Snapchat, CashApp, etc.) to their profile. These appear as tappable badges during video chats so your match can follow you." },
+      { q: 'What are pinned topics?', a: 'You can pin interest topics to your profile. When you match with someone in a chat, your shared topics are shown so you always have something to talk about.' },
+      { q: 'How do I pin my socials?', a: 'VIP members can pin their social media handles (Instagram, TikTok, Snapchat, CashApp, etc.) to their profile. These appear as tappable badges during video chats so your match can follow you.' },
     ],
   },
   {
-    title: "⚠️  Safety & Rules",
+    title: '⚠️  Safety & Rules',
     items: [
-      { q: "What gets you banned?", a: "Nudity, sexual content, harassment, racism, underage users, and ban evasion all result in an immediate ban. Bans are enforced by our moderation team." },
-      { q: "How do I report someone?", a: "During any video chat, tap the flag/report button on screen. Fill in the reason and submit. Our team reviews all reports promptly." },
+      { q: 'What gets you banned?', a: 'Nudity, sexual content, harassment, racism, underage users, and ban evasion all result in an immediate ban. Bans are enforced by our moderation team.' },
+      { q: 'How do I report someone?', a: 'During any video chat, tap the flag/report button on screen. Fill in the reason and submit. Our team reviews all reports promptly.' },
     ],
   },
   {
-    title: "⚖️  Legal Disclaimer",
+    title: '⚖️  Legal Disclaimer',
     items: [
-      { q: "Is Apple involved with rewards?", a: "Apple is not a sponsor of, nor is it involved in any way with, the rewards or contests within this app." },
+      { q: 'Is Apple involved with rewards?', a: 'Apple is not a sponsor of, nor is it involved in any way with, the rewards or contests within this app.' },
     ],
   },
 ];
@@ -235,10 +235,10 @@ export default function HomeScreen() {
 
       // Also include members with non-Free membership as a fallback
       const { data: membershipMembers } = await supabase
-        .from("members")
-        .select("id")
-        .not("membership", "eq", "Free")
-        .not("membership", "is", null);
+        .from('members')
+        .select('id')
+        .not('membership', 'eq', 'Free')
+        .not('membership', 'is', null);
 
       const allVipIds = Array.from(new Set([
         ...privilegedUserIds,
@@ -254,9 +254,9 @@ export default function HomeScreen() {
       // Fetch all VIP members — no is_discoverable or image_status filter
       // so offline VIPs still appear in the spotlight
       const { data: members, error } = await supabase
-        .from("members")
-        .select("*")
-        .in("id", allVipIds)
+        .from('members')
+        .select('*')
+        .in('id', allVipIds)
         .limit(50);
 
       if (error) throw error;
@@ -274,10 +274,10 @@ export default function HomeScreen() {
         (adminRpc.data ?? []).forEach((id: string) => admins.add(id));
         (modRpc.data ?? []).forEach((id: string) => mods.add(id));
         members.forEach((m) => {
-          const role = (m.membership ?? "").toLowerCase();
-          if (role.includes("vip") || role.includes("premium")) vips.add(m.id);
-          if (role === "admin") admins.add(m.id);
-          if (role === "moderator" || role === "mod") mods.add(m.id);
+          const role = (m.membership ?? '').toLowerCase();
+          if (role.includes('vip') || role.includes('premium')) vips.add(m.id);
+          if (role === 'admin') admins.add(m.id);
+          if (role === 'moderator' || role === 'mod') mods.add(m.id);
         });
         setVipIds(vips);
         setAdminIds(admins);
@@ -285,9 +285,9 @@ export default function HomeScreen() {
 
         // Fetch pinned socials
         const { data: settings } = await supabase
-          .from("vip_settings")
-          .select("user_id, pinned_socials")
-          .in("user_id", members.map((m) => m.id));
+          .from('vip_settings')
+          .select('user_id, pinned_socials')
+          .in('user_id', members.map((m) => m.id));
 
         const settingsMap = new Map<string, string[]>();
         settings?.forEach((s: any) => {
@@ -298,7 +298,7 @@ export default function HomeScreen() {
         setVipMembers([]);
       }
     } catch (err) {
-      console.error("[HomeScreen] Error fetching VIP spotlight:", err);
+      console.error('[HomeScreen] Error fetching VIP spotlight:', err);
     } finally {
       setVipLoading(false);
     }
@@ -310,37 +310,37 @@ export default function HomeScreen() {
 
   const handleDirectCall = async (member: DiscoverMember) => {
     if (!user) {
-      router.push("/(auth)/login");
+      router.push('/(auth)/login');
       return;
     }
     try {
       await startCall(member.id);
-      router.push("/video-call");
+      router.push('/video-call');
     } catch (err: any) {
-      Alert.alert("Call failed", err.message || "Something went wrong");
+      Alert.alert('Call failed', err.message || 'Something went wrong');
     }
   };
 
   const handleMessage = (member: DiscoverMember) => {
     if (!user) {
-      router.push("/(auth)/login");
+      router.push('/(auth)/login');
       return;
     }
     router.push({
-      pathname: "/messages/[id]",
+      pathname: '/messages/[id]',
       params: {
-        id: "new",
+        id: 'new',
         partnerId: member.id,
         partnerName: member.name,
-        partnerImage: member.image_url ?? "",
-        partnerGender: member.gender ?? "",
+        partnerImage: member.image_url ?? '',
+        partnerGender: member.gender ?? '',
       },
     });
   };
 
   const handleGift = async (member: DiscoverMember) => {
     if (!user) {
-      router.push("/(auth)/login");
+      router.push('/(auth)/login');
       return;
     }
 
@@ -355,12 +355,12 @@ export default function HomeScreen() {
     const cfg = SOCIAL_CONFIG[platform.toLowerCase()];
     if (cfg?.url) {
       Linking.openURL(cfg.url(handle)).catch(() => {
-        Alert.alert("Error", "Could not open social link");
+        Alert.alert('Error', 'Could not open social link');
       });
     }
   };
 
-  // Auto-scrolling effect for "How It Works"
+  // Auto-scrolling effect for 'How It Works'
   useEffect(() => {
     const interval = setInterval(() => {
       let nextIndex = currentIndex + 1;
@@ -382,14 +382,14 @@ export default function HomeScreen() {
 
   const handleCTA = () => {
     if (user) {
-      router.push("/(tabs)/chat");
+      router.push('/(tabs)/chat');
     } else {
-      router.push("/(auth)/login");
+      router.push('/(auth)/login');
     }
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -421,7 +421,7 @@ export default function HomeScreen() {
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               activeOpacity={0.7}
             >
-              <X size={16} color="#FFFFFF" />
+              <X size={16} color='#FFFFFF' />
             </TouchableOpacity>
           </View>
         )}
@@ -442,17 +442,17 @@ export default function HomeScreen() {
           >
             {STEPS.map((step) => (
               <View key={step.title} style={styles.stepCard}>
-                {"image" in step ? (
-                  <Image source={step.image} style={styles.stepImage} resizeMode="contain" />
+                {'image' in step ? (
+                  <Image source={step.image} style={styles.stepImage} resizeMode='contain' />
                 ) : (
                   <Text style={styles.stepEmoji}>{step.emoji}</Text>
                 )}
                 <Text style={styles.stepTitle}>{step.title}</Text>
                 <Text style={styles.stepDesc}>{step.desc}</Text>
-                {step.title === "Free shop" && (
+                {step.title === 'Free shop' && (
                   <TouchableOpacity 
                     style={styles.stepButton}
-                    onPress={() => router.push("/(tabs)/rewards")}
+                    onPress={() => router.push('/(tabs)/rewards')}
                   >
                     <Text style={styles.stepButtonText}>View shop</Text>
                   </TouchableOpacity>
@@ -470,14 +470,14 @@ export default function HomeScreen() {
             onPress={handleCTA}
           >
             <Text style={styles.ctaText}>
-              {user ? "Start Chatting Now →" : "Get Started Now →"}
+              {user ? 'Start Chatting Now →' : 'Get Started Now →'}
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.rulesButton}
             activeOpacity={0.7}
-            onPress={() => router.push("/rules")}
+            onPress={() => router.push('/rules')}
           >
             <Text style={styles.rulesText}>View Rules</Text>
           </TouchableOpacity>
@@ -513,16 +513,16 @@ export default function HomeScreen() {
                 </Text>
                 <View style={flattenStyle([styles.tableCell, styles.tableCellCenter])}>
                   {row.c24 ? (
-                    <Check size={18} color="#22C55E" />
+                    <Check size={18} color='#22C55E' />
                   ) : (
-                    <X size={18} color="#EF4444" />
+                    <X size={18} color='#EF4444' />
                   )}
                 </View>
                 <View style={flattenStyle([styles.tableCell, styles.tableCellCenter])}>
                   {row.others ? (
-                    <Check size={18} color="#22C55E" />
+                    <Check size={18} color='#22C55E' />
                   ) : (
-                    <X size={18} color="#EF4444" />
+                    <X size={18} color='#EF4444' />
                   )}
                 </View>
               </View>
@@ -530,11 +530,16 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* Female Online Notify Card — male users only */}
+        <FemaleNotifyCard
+          onSettingsPress={() => router.push('/notification-settings')}
+        />
+
         {/* VIP Spotlight Section */}
         <View style={styles.vipSpotlightContainer}>
           <View style={styles.vipHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Sparkles size={18} color="#FACC15" />
+              <Sparkles size={18} color='#FACC15' />
               <Text style={styles.vipTitle}>VIP Spotlight</Text>
             </View>
             <TouchableOpacity onPress={fetchVipSpotlight}>
@@ -544,7 +549,7 @@ export default function HomeScreen() {
 
           {vipLoading ? (
             <View style={styles.vipLoading}>
-              <ActivityIndicator color="#EF4444" />
+              <ActivityIndicator color='#EF4444' />
             </View>
           ) : (
             <FlatList
@@ -597,7 +602,7 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={styles.vipUpgradeBox}
             activeOpacity={0.88}
-            onPress={() => router.push("/vip")}
+            onPress={() => router.push('/vip')}
           >
             {/* Crown + Title */}
             <View style={styles.vipUpgradeHeader}>
@@ -614,10 +619,10 @@ export default function HomeScreen() {
             {/* Perks list */}
             <View style={styles.vipPerksList}>
               {[
-                "😍 Choose Gender",
-                "🎁 Get Gifted by Anyone",
-                "📌 Pin your socials during chats",
-                "🌟 Top of Discover Feed",
+                '😍 Choose Gender',
+                '🎁 Get Gifted by Anyone',
+                '📌 Pin your socials during chats',
+                '🌟 Top of Discover Feed',
               ].map((perk, i) => (
                 <Text key={i} style={styles.vipPerkItem}>{perk}</Text>
               ))}
@@ -630,18 +635,13 @@ export default function HomeScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Female Online Notify Card — male users only */}
-        <FemaleNotifyCard
-          onSettingsPress={() => router.push('/notification-settings')}
-        />
-
         {/* How To Guide Button */}
         <TouchableOpacity
           style={styles.guideButton}
           activeOpacity={0.8}
           onPress={() => setShowGuide(true)}
         >
-          <BookOpen size={18} color="#EF4444" style={{ marginRight: 8 }} />
+          <BookOpen size={18} color='#EF4444' style={{ marginRight: 8 }} />
           <Text style={styles.guideButtonText}>How To Guide</Text>
         </TouchableOpacity>
 
@@ -660,8 +660,8 @@ export default function HomeScreen() {
       <GiftModal
         isOpen={showGiftModal}
         onClose={() => setShowGiftModal(false)}
-        recipientId={selectedRecipient?.id || ""}
-        recipientName={selectedRecipient?.name || ""}
+        recipientId={selectedRecipient?.id || ''}
+        recipientName={selectedRecipient?.name || ''}
         recipientIsVip={
           selectedRecipient
             ? vipIds.has(selectedRecipient.id) || adminIds.has(selectedRecipient.id)
@@ -675,24 +675,24 @@ export default function HomeScreen() {
 
       <GiftCelebration
         visible={showGiftCelebration}
-        recipientName={selectedRecipient?.name || "them"}
+        recipientName={selectedRecipient?.name || 'them'}
         onDismiss={() => setShowGiftCelebration(false)}
       />
 
       {/* How To Guide Modal */}
       <Modal
         visible={showGuide}
-        animationType="slide"
+        animationType='slide'
         transparent={false}
         onRequestClose={() => setShowGuide(false)}
       >
-        <SafeAreaView style={styles.guideModal} edges={["top", "bottom"]}>
+        <SafeAreaView style={styles.guideModal} edges={['top', 'bottom']}>
           {/* Header */}
           <View style={styles.guideHeader}>
-            <BookOpen size={20} color="#FACC15" />
+            <BookOpen size={20} color='#FACC15' />
             <Text style={styles.guideHeaderTitle}>How To Guide</Text>
             <TouchableOpacity onPress={() => setShowGuide(false)} style={styles.guideCloseBtn}>
-              <X size={22} color="#FFFFFF" />
+              <X size={22} color='#FFFFFF' />
             </TouchableOpacity>
           </View>
 
@@ -712,8 +712,8 @@ export default function HomeScreen() {
                 >
                   <Text style={styles.guideSectionTitle}>{section.title}</Text>
                   {openAccordion === sIdx
-                    ? <ChevronUp size={18} color="#FACC15" />
-                    : <ChevronDown size={18} color="#A1A1AA" />
+                    ? <ChevronUp size={18} color='#FACC15' />
+                    : <ChevronDown size={18} color='#A1A1AA' />
                   }
                 </TouchableOpacity>
 
@@ -739,7 +739,7 @@ export default function HomeScreen() {
       <Modal
         visible={!!socialsSheet}
         transparent
-        animationType="slide"
+        animationType='slide'
         onRequestClose={() => setSocialsSheet(null)}
       >
         <TouchableOpacity
@@ -750,9 +750,9 @@ export default function HomeScreen() {
           <View style={styles.socialsSheet}>
             <View style={styles.socialsHandle} />
             <View style={styles.socialsHeaderRow}>
-              <Text style={styles.socialsTitle}>{socialsSheet?.name}'s Socials</Text>
+              <Text style={styles.socialsTitle}>{socialsSheet?.name}&apos;s Socials</Text>
               <TouchableOpacity onPress={() => setSocialsSheet(null)}>
-                <X size={20} color="#A1A1AA" />
+                <X size={20} color='#A1A1AA' />
               </TouchableOpacity>
             </View>
             {(socialsSheet?.socials ?? []).map((s, i) => {
@@ -768,13 +768,13 @@ export default function HomeScreen() {
                   onPress={() => handleOpenSocial(platform, handle)}
                 >
                   <View style={[styles.socialIconCircle, { backgroundColor: cfg.color }]}>
-                    <Icon size={20} color="#FFFFFF" />
+                    <Icon size={20} color='#FFFFFF' />
                   </View>
                   <View style={styles.socialTextCol}>
                     <Text style={styles.socialPlatformLabel}>{cfg.label}</Text>
                     <Text style={styles.socialHandle}>@{handle}</Text>
                   </View>
-                  {cfg.url && <ExternalLink size={14} color="#A1A1AA" />}
+                  {cfg.url && <ExternalLink size={14} color='#A1A1AA' />}
                 </TouchableOpacity>
               );
             })}
@@ -788,40 +788,40 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#1A1A2E",
+    backgroundColor: '#1A1A2E',
   },
   scroll: {
     flex: 1,
-    backgroundColor: "#1A1A2E",
+    backgroundColor: '#1A1A2E',
   },
   scrollContent: {
     paddingBottom: 24,
   },
   header: {
-    alignItems: "center",
+    alignItems: 'center',
     paddingTop: 32,
     paddingBottom: 24,
     paddingHorizontal: 24,
   },
   logoRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
+    flexDirection: 'row',
+    alignItems: 'flex-end',
   },
   logoC24: {
     fontSize: 52,
-    fontWeight: "900",
-    color: "#FFFFFF",
+    fontWeight: '900',
+    color: '#FFFFFF',
     letterSpacing: -1,
   },
   logoClub: {
     fontSize: 52,
-    fontWeight: "900",
-    color: "#EF4444",
+    fontWeight: '900',
+    color: '#EF4444',
     letterSpacing: -1,
   },
   tagline: {
     fontSize: 16,
-    color: "#A1A1AA",
+    color: '#A1A1AA',
     marginTop: 4,
     letterSpacing: 0.5,
   },
@@ -837,20 +837,20 @@ const styles = StyleSheet.create({
     color: '#EF4444',
   },
   warningBanner: {
-    backgroundColor: "#EF4444",
+    backgroundColor: '#EF4444',
     marginHorizontal: 16,
     marginBottom: 16,
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   warningText: {
-    color: "#FFFFFF",
+    color: '#FFFFFF',
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: '600',
     flex: 1,
     marginRight: 8,
   },
@@ -859,8 +859,8 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 22,
-    fontWeight: "800",
-    color: "#FFFFFF",
+    fontWeight: '800',
+    color: '#FFFFFF',
     marginLeft: 20,
     marginBottom: 14,
   },
@@ -870,7 +870,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   stepCard: {
-    backgroundColor: "#1E1E38",
+    backgroundColor: '#1E1E38',
     borderRadius: 24,
     padding: 20,
     width: 200,
@@ -887,104 +887,104 @@ const styles = StyleSheet.create({
   },
   stepTitle: {
     fontSize: 18,
-    fontWeight: "800",
-    color: "#FFFFFF",
+    fontWeight: '800',
+    color: '#FFFFFF',
     marginBottom: 6,
   },
   stepDesc: {
     fontSize: 13,
-    color: "#A1A1AA",
+    color: '#A1A1AA',
     lineHeight: 18,
   },
   stepButton: {
-    backgroundColor: "#EF4444",
+    backgroundColor: '#EF4444',
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 12,
     marginTop: 12,
-    alignItems: "center",
+    alignItems: 'center',
   },
   stepButtonText: {
-    color: "#FFFFFF",
+    color: '#FFFFFF',
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: '800',
   },
   comparisonCard: {
-    backgroundColor: "#1E1E38",
+    backgroundColor: '#1E1E38',
     borderRadius: 20,
     marginHorizontal: 20,
-    overflow: "hidden",
+    overflow: 'hidden',
   },
   tableRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
   },
   tableRowBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: "#2A2A4A",
+    borderBottomColor: '#2A2A4A',
   },
   divider: {
     height: 1,
-    backgroundColor: "#2A2A4A",
+    backgroundColor: '#2A2A4A',
   },
   tableCell: {
     flex: 1,
   },
   tableCellCenter: {
-    alignItems: "center",
+    alignItems: 'center',
   },
   tableFeatureHeader: {
     fontSize: 12,
-    fontWeight: "700",
-    color: "#71717A",
-    textTransform: "uppercase",
+    fontWeight: '700',
+    color: '#71717A',
+    textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   tableHeaderRed: {
     fontSize: 13,
-    fontWeight: "800",
-    color: "#EF4444",
-    textAlign: "center",
+    fontWeight: '800',
+    color: '#EF4444',
+    textAlign: 'center',
   },
   tableHeaderGray: {
     fontSize: 13,
-    fontWeight: "700",
-    color: "#71717A",
-    textAlign: "center",
+    fontWeight: '700',
+    color: '#71717A',
+    textAlign: 'center',
   },
   tableFeatureText: {
     fontSize: 14,
-    color: "#FFFFFF",
-    fontWeight: "500",
+    color: '#FFFFFF',
+    fontWeight: '500',
   },
   ctaContainer: {
     paddingHorizontal: 20,
     marginTop: 8,
   },
   ctaButton: {
-    backgroundColor: "#EF4444",
+    backgroundColor: '#EF4444',
     borderRadius: 100,
     paddingVertical: 18,
-    alignItems: "center",
+    alignItems: 'center',
   },
   ctaText: {
-    color: "#FFFFFF",
+    color: '#FFFFFF',
     fontSize: 18,
-    fontWeight: "800",
+    fontWeight: '800',
     letterSpacing: 0.3,
   },
   rulesButton: {
     paddingVertical: 12,
-    alignItems: "center",
+    alignItems: 'center',
     marginTop: 8,
   },
   rulesText: {
-    color: "#EF4444",
+    color: '#EF4444',
     fontSize: 15,
-    fontWeight: "700",
-    textDecorationLine: "underline",
+    fontWeight: '700',
+    textDecorationLine: 'underline',
   },
   bottomPad: {
     height: 40,
@@ -1038,100 +1038,100 @@ const styles = StyleSheet.create({
   },
   // VIP Upgrade
   vipUpgradeBox: {
-    backgroundColor: "#1E1E38",
+    backgroundColor: '#1E1E38',
     borderRadius: 20,
     marginHorizontal: 20,
     padding: 20,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#2A2A4A",
+    borderColor: '#2A2A4A',
   },
   vipUpgradeHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 16,
   },
   vipUpgradeCrown: {
     fontSize: 24,
-    color: "#FACC15",
+    color: '#FACC15',
   },
   vipUpgradeTitle: {
     fontSize: 18,
-    fontWeight: "800",
-    color: "#FFFFFF",
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
   vipUpgradeTagline: {
     fontSize: 14,
-    color: "#A1A1AA",
+    color: '#A1A1AA',
     marginTop: 4,
   },
   vipUpgradeBadge: {
-    backgroundColor: "#FACC15",
+    backgroundColor: '#FACC15',
     borderRadius: 12,
     padding: 4,
     paddingHorizontal: 8,
   },
   vipUpgradeBadgeText: {
-    color: "#1A1A2E",
+    color: '#1A1A2E',
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: '700',
   },
   vipPerksList: {
     marginBottom: 16,
   },
   vipPerkItem: {
     fontSize: 14,
-    color: "#A1A1AA",
+    color: '#A1A1AA',
     marginBottom: 4,
     lineHeight: 18,
   },
   vipUpgradeCTA: {
-    alignItems: "center",
+    alignItems: 'center',
   },
   vipUpgradeCTAText: {
-    color: "#FACC15",
+    color: '#FACC15',
     fontSize: 16,
-    fontWeight: "800",
+    fontWeight: '800',
     letterSpacing: 0.3,
   },
   // How To Guide
   guideButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginHorizontal: 20,
     marginTop: 16,
     paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: "#EF4444",
-    backgroundColor: "transparent",
+    borderColor: '#EF4444',
+    backgroundColor: 'transparent',
   },
   guideButtonText: {
-    color: "#FFFFFF",
+    color: '#FFFFFF',
     fontSize: 15,
-    fontWeight: "700",
+    fontWeight: '700',
     letterSpacing: 0.3,
   },
   guideModal: {
     flex: 1,
-    backgroundColor: "#1A1A2E",
+    backgroundColor: '#1A1A2E',
   },
   guideHeader: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#2A2A4A",
+    borderBottomColor: '#2A2A4A',
     gap: 10,
   },
   guideHeaderTitle: {
     flex: 1,
     fontSize: 18,
-    fontWeight: "800",
-    color: "#FFFFFF",
+    fontWeight: '800',
+    color: '#FFFFFF',
     letterSpacing: 0.2,
   },
   guideCloseBtn: {
@@ -1147,13 +1147,13 @@ const styles = StyleSheet.create({
   guideSection: {
     marginBottom: 10,
     borderRadius: 12,
-    overflow: "hidden",
+    overflow: 'hidden',
   },
   guideSectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#16213E",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#16213E',
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderRadius: 12,
@@ -1161,12 +1161,12 @@ const styles = StyleSheet.create({
   guideSectionTitle: {
     flex: 1,
     fontSize: 15,
-    fontWeight: "700",
-    color: "#FFFFFF",
+    fontWeight: '700',
+    color: '#FFFFFF',
     marginRight: 8,
   },
   guideItemsContainer: {
-    backgroundColor: "#0F1928",
+    backgroundColor: '#0F1928',
     borderBottomLeftRadius: 12,
     borderBottomRightRadius: 12,
     paddingHorizontal: 16,
@@ -1176,56 +1176,56 @@ const styles = StyleSheet.create({
   guideItem: {
     marginTop: 12,
     borderLeftWidth: 2,
-    borderLeftColor: "#EF4444",
+    borderLeftColor: '#EF4444',
     paddingLeft: 12,
   },
   guideQuestion: {
     fontSize: 13,
-    fontWeight: "700",
-    color: "#FACC15",
+    fontWeight: '700',
+    color: '#FACC15',
     marginBottom: 4,
   },
   guideAnswer: {
     fontSize: 14,
-    color: "#A1A1AA",
+    color: '#A1A1AA',
     lineHeight: 20,
   },
   // Socials Sheet
   socialsOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.8)",
-    justifyContent: "flex-end",
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    justifyContent: 'flex-end',
   },
   socialsSheet: {
-    backgroundColor: "#1A1A2E",
+    backgroundColor: '#1A1A2E',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
     paddingBottom: 36,
-    maxHeight: "80%",
+    maxHeight: '80%',
   },
   socialsHandle: {
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: "#3A3A5A",
-    alignSelf: "center",
+    backgroundColor: '#3A3A5A',
+    alignSelf: 'center',
     marginBottom: 16,
   },
   socialsHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 16,
   },
   socialsTitle: {
     fontSize: 16,
-    fontWeight: "800",
-    color: "#FFFFFF",
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
   socialRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
     marginBottom: 10,
     padding: 12,
@@ -1235,33 +1235,33 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   socialTextCol: {
     flex: 1,
   },
   socialPlatformLabel: {
     fontSize: 12,
-    fontWeight: "600",
-    color: "#A1A1AA",
+    fontWeight: '600',
+    color: '#A1A1AA',
   },
   socialHandle: {
     fontSize: 10,
-    color: "#71717A",
+    color: '#71717A',
     marginTop: 2,
   },
   appleDisclaimer: {
     paddingHorizontal: 20,
     paddingTop: 24,
     paddingBottom: 8,
-    alignItems: "center",
+    alignItems: 'center',
   },
   appleDisclaimerText: {
-    color: "#52525B",
+    color: '#52525B',
     fontSize: 11,
-    textAlign: "center",
-    fontStyle: "italic",
+    textAlign: 'center',
+    fontStyle: 'italic',
     lineHeight: 16,
   },
 });
