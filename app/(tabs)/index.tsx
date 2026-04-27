@@ -483,6 +483,11 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Female Online Notify Card — male users only */}
+        <FemaleNotifyCard
+          onSettingsPress={() => router.push('/notification-settings')}
+        />
+
         {/* Why C24 Comparison */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Why C24?</Text>
@@ -529,11 +534,6 @@ export default function HomeScreen() {
             ))}
           </View>
         </View>
-
-        {/* Female Online Notify Card — male users only */}
-        <FemaleNotifyCard
-          onSettingsPress={() => router.push('/notification-settings')}
-        />
 
         {/* VIP Spotlight Section */}
         <View style={styles.vipSpotlightContainer}>
