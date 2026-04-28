@@ -4,6 +4,7 @@ import {
   FlatList,
   Image,
   StyleSheet,
+  Text,
   TextInput,
   TouchableOpacity,
   View,
@@ -14,7 +15,6 @@ import { ChevronLeft, DollarSign, MessageCircle, RefreshCw, Search } from "lucid
 import { useAuth } from "@/contexts/AuthContext";
 import { useConversations, type Conversation } from "@/hooks/useMessages";
 import { useQueryClient } from "@tanstack/react-query";
-import { Text } from "@/components/ui/text";
 import { CashoutModal } from "@/components/modals/CashoutModal";
 import { FemaleVipBanner } from "@/components/FemaleVipBanner";
 import { MemberProfileModal } from "@/components/MemberProfileModal";
@@ -459,7 +459,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 14,
     height: 44,
-    includeFontPadding: false,
   },
 
   // ── Conversation Row ───────────────────────────────────────────────────────
@@ -542,10 +541,9 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   rowName: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: "700",
     color: "#FFFFFF",
-    flexShrink: 1,
   },
   rowTime: {
     fontSize: 14,

@@ -1191,7 +1191,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     minHeight: 70,
     textAlignVertical: 'top',
-    includeFontPadding: false,
   },
   reportSubmitBtn: {
     backgroundColor: '#EF4444',

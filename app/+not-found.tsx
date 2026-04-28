@@ -1,9 +1,8 @@
 import { Link, Stack, useRouter } from "expo-router";
 import { useEffect } from "react";
-import { StyleSheet, View, ActivityIndicator } from "react-native";
+import { StyleSheet, Text, View, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useCall } from "@/contexts/CallContext";
-import { Text } from "@/components/ui/text";
 
 export default function NotFoundScreen() {
   const router = useRouter();

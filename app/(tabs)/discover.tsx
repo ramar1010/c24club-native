@@ -11,6 +11,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Text,
   TextInput,
   TouchableOpacity,
   View,
@@ -60,7 +61,6 @@ import { FemaleVipBanner } from "@/components/FemaleVipBanner";
 import { notifyGiftAttempt } from "@/lib/gift-utils";
 import { GiftCelebration } from "@/components/GiftCelebration";
 import { DiscoverMember } from "@/types/members";
-import { Text } from "@/components/ui/text";
 import { getTimeAgo, isEffectivelyOnline } from "@/utils/member-utils";
 import { UserCard } from "@/components/UserCard";
 import { MemberProfileModal } from "@/components/MemberProfileModal";
@@ -1491,16 +1491,15 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   bioInput: {
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    borderRadius: 12,
+    backgroundColor: "#111111",
+    borderRadius: 10,
     padding: 12,
     color: "#FFFFFF",
     fontSize: 14,
+    borderWidth: 1,
+    borderColor: "#2A2A4A",
     minHeight: 80,
     textAlignVertical: "top",
-    includeFontPadding: false,
   },
   saveButton: {
     backgroundColor: "#EF4444",
@@ -1533,36 +1532,19 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   socialEditInput: {
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "#111111",
     borderRadius: 10,
     padding: 8,
     color: "#FFFFFF",
     fontSize: 14,
-    includeFontPadding: false,
-  },
-  socialHandleLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#A1A1AA",
+    borderWidth: 1,
+    borderColor: "#2A2A4A",
+    flex: 1,
   },
   socialsEditPlatform: {
     fontSize: 12,
     fontWeight: "600",
     color: "#A1A1AA",
-  },
-  socialInput: {
-    flex: 1,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    color: "#FFFFFF",
-    fontSize: 13,
-    includeFontPadding: false,
   },
 
   // ── Interested in You ─────────────────────────────────────────────────────

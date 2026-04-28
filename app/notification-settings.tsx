@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
+  Text,
   Switch,
   TouchableOpacity,
   StyleSheet,
@@ -14,7 +15,6 @@ import { useNotifyFemaleOnline } from '@/hooks/useNotifyFemaleOnline';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { registerForPushNotifications } from '@/lib/notifications';
-import { Text } from '@/components/ui/text';
 
 export default function NotificationSettingsScreen() {
   const router = useRouter();
@@ -470,11 +470,13 @@ const styles = StyleSheet.create({
   settingDesc: {
     color: '#A1A1AA',
     fontSize: 12,
+    lineHeight: 17,
   },
   // ── Chat notification mode picker ────────────────────────────────────────
   chatNotifySubtitle: {
     color: '#A1A1AA',
     fontSize: 12,
+    lineHeight: 17,
     paddingHorizontal: 16,
     paddingBottom: 10,
   },

@@ -4,6 +4,7 @@ import {
   Dimensions,
   Image,
   StyleSheet,
+  Text,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -22,7 +23,6 @@ import {
 import { DiscoverMember } from "@/types/members";
 import { getTimeAgo, isEffectivelyOnline } from "@/utils/member-utils";
 import { flattenStyle } from "@/utils/flatten-style";
-import { Text } from "@/components/ui/text";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = (SCREEN_WIDTH - 16 * 2 - 12) / 2;

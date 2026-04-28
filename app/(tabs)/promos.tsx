@@ -6,6 +6,7 @@ import {
   Linking,
   RefreshControl,
   StyleSheet,
+  Text,
   TouchableOpacity,
   View,
   Dimensions,
@@ -16,7 +17,6 @@ import { Eye, Heart, Plus, ExternalLink, Star } from "lucide-react-native";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "expo-router";
-import { Text } from "@/components/ui/text";
 
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = width - 32;
