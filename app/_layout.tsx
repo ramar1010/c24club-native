@@ -7,7 +7,7 @@ import React, { useEffect } from "react";
 import "react-native-reanimated";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as Notifications from "expo-notifications";
-import { Platform, Pressable, Text, View } from "react-native";
+import { Platform, Pressable, View } from "react-native";
 import Toast, { ToastConfig } from "react-native-toast-message";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -25,6 +25,7 @@ import { useIAPListener } from "@/hooks/useIAPListener";
 import BannedScreen from "@/components/BannedScreen";
 import BatteryOptimizationPrompt from "@/components/BatteryOptimizationPrompt";
 import { useRedemptionNotifications } from "@/hooks/useRedemptionNotifications";
+import { Text } from "@/components/ui/text";
 
 // Custom toast config for DM notifications
 const toastConfig: ToastConfig = {
@@ -47,7 +48,7 @@ const toastConfig: ToastConfig = {
         <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14, marginBottom: 4 }}>
           {text1}
         </Text>
-        <Text style={{ color: '#A0A0B8', fontSize: 13, lineHeight: 19 }}>
+        <Text style={{ color: '#A0A0B8', fontSize: 13 }}>
           {text2}
         </Text>
       </View>
@@ -73,7 +74,7 @@ const toastConfig: ToastConfig = {
         <Text style={{ color: '#FACC15', fontWeight: '700', fontSize: 14, marginBottom: 3 }}>
           {text1}
         </Text>
-        <Text style={{ color: '#A0A0B8', fontSize: 13, lineHeight: 19 }}>
+        <Text style={{ color: '#A0A0B8', fontSize: 13 }}>
           {text2}
         </Text>
       </View>

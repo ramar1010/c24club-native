@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, ScrollView, StyleSheet } from 'react-native';
 import { supabase } from '@/lib/supabase';
+import { Text } from "@/components/ui/text";
 
 export default function DebugTables() {
   const [logs, setLogs] = useState<string[]>([]);

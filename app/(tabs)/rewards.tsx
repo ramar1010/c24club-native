@@ -6,7 +6,6 @@ import {
   Image,
   ScrollView,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
   Platform,
@@ -15,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { redeemReward } from "@/lib/chat-utils";
+import { Text } from "@/components/ui/text";
 import { Star, Lock, X, MapPin, Edit2, ChevronRight } from "lucide-react-native";
 import { useToast, Toast, ToastTitle, ToastDescription } from "@/components/ui/toast";
 import { useRouter } from "expo-router";
@@ -1321,7 +1321,6 @@ const styles = StyleSheet.create({
   addressOptionText: {
     color: "#71717A",
     fontSize: 13,
-    lineHeight: 18,
     marginLeft: 24,
   },
   newAddressForm: {

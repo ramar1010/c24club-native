@@ -3,7 +3,6 @@ import {
   Image,
   ScrollView,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
   FlatList,
@@ -24,6 +23,7 @@ import { UserCard } from '@/components/UserCard';
 import { GiftModal } from '@/components/modals/GiftModal';
 import { useCall } from '@/contexts/CallContext';
 import { Instagram, Music, DollarSign } from 'lucide-react-native';
+import { Text } from '@/components/ui/text';
 import { Alert, Linking } from 'react-native';
 import { notifyGiftAttempt } from '@/lib/gift-utils';
 import { GiftCelebration } from '@/components/GiftCelebration';
@@ -1084,7 +1084,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#A1A1AA',
     marginBottom: 4,
-    lineHeight: 18,
   },
   vipUpgradeCTA: {
     alignItems: 'center',
@@ -1188,7 +1187,6 @@ const styles = StyleSheet.create({
   guideAnswer: {
     fontSize: 14,
     color: '#A1A1AA',
-    lineHeight: 20,
   },
   // Socials Sheet
   socialsOverlay: {
@@ -1262,6 +1260,5 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
     fontStyle: 'italic',
-    lineHeight: 16,
   },
 });

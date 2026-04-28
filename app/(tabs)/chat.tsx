@@ -922,14 +922,14 @@ export default function ChatScreen() {
                       key={reason}
                       style={flattenStyle([
                         styles.reportReasonBtn,
-reportReason === reason ? styles.reportReasonBtnActive : null,
+                        reportReason === reason ? styles.reportReasonBtnActive : null,
                       ])}
                       onPress={() => setReportReason(reason)}
                       activeOpacity={0.8}
                     >
                       <Text style={flattenStyle([
                         styles.reportReasonText,
-reportReason === reason ? styles.reportReasonTextActive : null,
+                        reportReason === reason ? styles.reportReasonTextActive : null,
                       ])}>
                         {reason}
                       </Text>
@@ -1703,15 +1703,27 @@ const styles = StyleSheet.create({
     color: '#EF4444',
   },
   reportDetailsInput: {
-    backgroundColor: '#1A1A2E',
-    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1,
-    borderColor: '#2A2A4A',
-    color: '#FFFFFF',
+    borderColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 12,
     padding: 12,
-    fontSize: 14,
-    minHeight: 72,
-    textAlignVertical: 'top',
+    color: '#FFFFFF',
+    fontSize: 13,
+    minHeight: 70,
+    marginBottom: 14,
+    includeFontPadding: false,
+  },
+  reportSubmitBtn: {
+    backgroundColor: '#EF4444',
+    borderRadius: 50,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  reportSubmitBtnText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
   },
   reportSuccess: {
     paddingVertical: 24,

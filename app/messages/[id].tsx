@@ -7,7 +7,6 @@ import {
   Modal,
   Platform,
   StyleSheet,
-  Text,
   TextInput,
   TouchableOpacity,
   View,
@@ -41,6 +40,7 @@ import { notifyGiftAttempt } from "@/lib/gift-utils";
 import { GiftCelebration } from "@/components/GiftCelebration";
 import { MemberProfileModal } from "@/components/MemberProfileModal";
 import { DiscoverMember } from "@/types/members";
+import { Text } from "@/components/ui/text";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1209,7 +1209,10 @@ const styles = StyleSheet.create({
   },
   bubbleText: {
     fontSize: 16,
-    lineHeight: 22,
+    flexWrap: "wrap",
+    // Android character clipping fix: add a tiny bit of horizontal padding
+    paddingRight: Platform.OS === "android" ? 4 : 0,
+    paddingLeft: Platform.OS === "android" ? 4 : 0,
   },
   bubbleTextMine: {
     color: "#FFFFFF",
@@ -1220,6 +1223,7 @@ const styles = StyleSheet.create({
   bubbleTime: {
     fontSize: 10,
     marginTop: 3,
+    includeFontPadding: false,
   },
   bubbleTimeMine: {
     color: "rgba(191,219,254,0.6)",
@@ -1286,6 +1290,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     color: "#FFFFFF",
     fontSize: 16,
+    textAlignVertical: "center",
+    includeFontPadding: false,
   },
   sendBtn: {
     width: 48,
@@ -1357,6 +1363,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     minHeight: 70,
     marginBottom: 14,
+    includeFontPadding: false,
   },
   reportSubmitBtn: {
     backgroundColor: '#EF4444',

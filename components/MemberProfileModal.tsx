@@ -7,7 +7,6 @@ import {
   Modal,
   ScrollView,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -27,6 +26,7 @@ import {
 } from "lucide-react-native";
 import { DiscoverMember } from "@/types/members";
 import { getTimeAgo, isEffectivelyOnline } from "@/utils/member-utils";
+import { Text } from "@/components/ui/text";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 

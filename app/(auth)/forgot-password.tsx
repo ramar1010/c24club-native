@@ -5,7 +5,6 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
-  Text,
   TextInput,
   TouchableOpacity,
   View,
@@ -15,6 +14,7 @@ import { useRouter } from "expo-router";
 import { ArrowLeft, Mail } from "lucide-react-native";
 import { supabase } from "@/lib/supabase";
 import { FooterLinks } from "@/components/FooterLinks";
+import { Text } from "@/components/ui/text";
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -175,7 +175,6 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: "#A1A1AA",
-    lineHeight: 22,
   },
   errorContainer: {
     backgroundColor: "rgba(239, 68, 68, 0.15)",
@@ -200,6 +199,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#2A2A4A",
+    includeFontPadding: false,
   },
   resetButton: {
     backgroundColor: "#EF4444",
@@ -237,7 +237,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#A1A1AA",
     textAlign: "center",
-    lineHeight: 24,
     marginBottom: 32,
   },
   emailHighlight: {

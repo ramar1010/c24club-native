@@ -337,7 +337,6 @@ const styles = StyleSheet.create({
     color: "#A1A1AA",
     textAlign: "center",
     marginBottom: 24,
-    lineHeight: 22,
   },
   homeButton: {
     backgroundColor: "#EF4444",

@@ -5,7 +5,6 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
-  Text,
   TextInput,
   TouchableOpacity,
   View,
@@ -15,6 +14,7 @@ import { useRouter } from "expo-router";
 import { Eye, EyeOff } from "lucide-react-native";
 import { supabase } from "@/lib/supabase";
 import FallingGifts from "@/components/FallingGifts";
+import { Text } from "@/components/ui/text";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { FooterLinks } from "@/components/FooterLinks";
@@ -305,6 +305,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#A1A1AA",
     marginTop: 8,
+    textAlign: "center",
+    width: "100%",
   },
   errorContainer: {
     backgroundColor: "rgba(239, 68, 68, 0.15)",
@@ -329,6 +331,8 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#2A2A4A",
+    textAlignVertical: "center",
+    includeFontPadding: false,
   },
   passwordWrapper: {
     flexDirection: "row",
@@ -343,6 +347,7 @@ const styles = StyleSheet.create({
     padding: 16,
     fontSize: 16,
     color: "#FFFFFF",
+    includeFontPadding: false,
   },
   eyeButton: {
     paddingHorizontal: 16,
@@ -359,6 +364,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 17,
     fontWeight: "800",
+    includeFontPadding: false,
   },
   forgotButton: {
     alignItems: "center",

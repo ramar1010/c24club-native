@@ -4,7 +4,6 @@ import {
   Modal as RNModal,
   ScrollView,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
   Image,
@@ -44,6 +43,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCETracker } from "@/hooks/useCETracker";
 import { useCEProgress } from "@/hooks/useCEProgress";
 import { supabase } from "@/lib/supabase";
+import { Text } from "@/components/ui/text";
 import { FreezeModal } from "@/components/modals/FreezeModal";
 import { CashoutModal } from "@/components/modals/CashoutModal";
 import { VipSettingsOverlay } from "@/components/videocall/VipSettingsOverlay";
@@ -1577,7 +1577,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  // ── Unauthenticated ──────────────────────────────────────────────────────────
+  // ── Unauthenticated ───────────────────────────────────────────────────────
   unauthTitle: {
     color: "#F4F4F5",
     fontSize: 22,
@@ -2137,7 +2137,6 @@ const styles = StyleSheet.create({
   progressLabel: {
     color: "#71717A",
     fontSize: 12,
-    lineHeight: 18,
   },
 
   // ── Redemptions ──────────────────────────────────────────────────────────────
@@ -2297,6 +2296,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 14,
+    includeFontPadding: false,
   },
   rowInputs: {
     flexDirection: "row",
@@ -2414,7 +2414,6 @@ const styles = StyleSheet.create({
   ceInfoText: {
     color: "#A1A1AA",
     fontSize: 14,
-    lineHeight: 20,
   },
   ceInfoBold: {
     color: "#F4F4F5",
@@ -2436,7 +2435,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     flex: 1,
-    lineHeight: 18,
   },
 
   // ── Cashout Amount Badge (in redemptions) ────────────────────────────────────

@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   ScrollView,
   Image,
@@ -32,6 +31,7 @@ import {
 } from 'lucide-react-native';
 import { useCEProgress } from "@/hooks/useCEProgress";
 import { useToast, Toast, ToastTitle, ToastDescription } from "@/components/ui/toast";
+import { Text } from "@/components/ui/text";
 import { Button, ButtonText, ButtonSpinner } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { VStack } from '@/components/ui/vstack';

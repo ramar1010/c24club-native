@@ -2,7 +2,6 @@ import React from "react";
 import {
   ScrollView,
   StyleSheet,
-  Text,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -10,6 +9,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { ArrowLeft } from "lucide-react-native";
 import { FooterLinks } from "@/components/FooterLinks";
+import { Text } from "@/components/ui/text";
 
 export default function RulesScreen() {
   const router = useRouter();
@@ -192,7 +192,6 @@ const styles = StyleSheet.create({
   text: {
     fontSize: 15,
     color: "#D1D1D6",
-    lineHeight: 22,
     marginBottom: 12,
   },
   disclaimerBox: {
@@ -208,7 +207,6 @@ const styles = StyleSheet.create({
     color: "#71717A",
     textAlign: "center",
     fontStyle: "italic",
-    lineHeight: 18,
   },
   spacer: {
     height: 40,

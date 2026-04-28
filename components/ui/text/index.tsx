@@ -1,8 +1,10 @@
 import React from 'react';
+import { Platform } from 'react-native';
 
 import type { VariantProps } from '@gluestack-ui/utils/nativewind-utils';
 import { Text as RNText } from 'react-native';
 import { textStyle } from './styles';
+import { flattenStyle } from '@/utils/flatten-style';
 
 type ITextProps = React.ComponentProps<typeof RNText> &
   VariantProps<typeof textStyle>;
@@ -19,6 +21,7 @@ const Text = React.forwardRef<React.ComponentRef<typeof RNText>, ITextProps>(
       sub,
       italic,
       highlight,
+      style,
       ...props
     },
     ref
@@ -37,6 +40,10 @@ const Text = React.forwardRef<React.ComponentRef<typeof RNText>, ITextProps>(
           class: className,
         })}
         {...props}
+        style={flattenStyle([
+          Platform.OS === 'android' ? { includeFontPadding: false } : {},
+          style,
+        ])}
         ref={ref}
       />
     );

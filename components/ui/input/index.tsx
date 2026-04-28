@@ -1,11 +1,12 @@
 'use client';
 import React from 'react';
 import { createInput } from '@gluestack-ui/core/input/creator';
-import { View, Pressable, TextInput } from 'react-native';
+import { View, Pressable, TextInput, Platform } from 'react-native';
 import { tva, withStyleContext, useStyleContext } from '@gluestack-ui/utils/nativewind-utils';
 import type { VariantProps } from '@gluestack-ui/utils/nativewind-utils';
 import { cssInterop } from 'nativewind';
 import { PrimitiveIcon, UIIcon } from '@gluestack-ui/core/icon/creator';
+import { flattenStyle } from '@/utils/flatten-style';
 
 const SCOPE = 'INPUT';
 
@@ -187,7 +188,7 @@ type IInputFieldProps = React.ComponentProps<typeof UIInput.Input> &
 const InputField = React.forwardRef<
   React.ComponentRef<typeof UIInput.Input>,
   IInputFieldProps
->(function InputField({ className, ...props }, ref) {
+>(function InputField({ className, style, ...props }, ref) {
   const { variant: parentVariant, size: parentSize } = useStyleContext(SCOPE);
 
   return (
@@ -201,6 +202,10 @@ const InputField = React.forwardRef<
         },
         class: className,
       })}
+      style={flattenStyle([
+        Platform.OS === 'android' ? { includeFontPadding: false } : {},
+        style,
+      ])}
     />
   );
 });
