@@ -623,13 +623,20 @@ export default function ProfileScreen() {
             <Text style={styles.heroName}>{profile.name || "Member"}</Text>
             <Text style={styles.heroEmail}>{profile.email || ""}</Text>
             <View style={styles.badgesRow}>
-              {profile.gender ? (
-                <View style={styles.genderBadge}>
-                  <Text style={{ color: "#A1A1AA", fontSize: 12, textTransform: "capitalize" }}>
-                    {profile.gender}
-                  </Text>
-                </View>
-              ) : null}
+              <View style={styles.genderBadge}>
+                <Text style={{ color: "#A1A1AA", fontSize: 12, fontWeight: "600" }}>
+                  {profile.gender ? (
+                    <>
+                      <Text style={{ fontSize: 13, lineHeight: 18, includeFontPadding: false }}>
+                        {profile.gender.toLowerCase() === "male" ? "👦" : "👩"}
+                      </Text>{" "}
+                      {profile.gender.charAt(0).toUpperCase() + profile.gender.slice(1)}
+                    </>
+                  ) : (
+                    "Gender Not Set"
+                  )}
+                </Text>
+              </View>
               {isVip && (
                 <View style={styles.vipBadge}>
                   <Star size={12} color="#FACC15" fill="#FACC15" />
@@ -653,8 +660,8 @@ export default function ProfileScreen() {
               <Text style={styles.balanceCardSub}>minutes</Text>
             </View>
             <View style={[styles.balanceCard, styles.balanceCardGold]}>
-              <TouchableOpacity 
-                style={styles.refreshBadge} 
+              <TouchableOpacity
+                style={styles.refreshBadge}
                 onPress={handleRefresh}
                 disabled={isRefreshing}
                 activeOpacity={0.7}
@@ -1954,9 +1961,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     width: "100%",
     marginBottom: 14,
+    gap: 12,
   },
   vipUpgradeCrown: {
     fontSize: 28,
+    lineHeight: 36,
+    includeFontPadding: false,
   },
   vipUpgradeTitle: {
     color: "#FACC15",

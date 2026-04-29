@@ -158,7 +158,9 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
                   )}
                   {isMutualInterest && (
                     <View style={styles.badgeMatch}>
-                      <Text style={styles.badgeText}>💚 Match!</Text>
+                      <Text style={styles.badgeText}>
+                        <Text style={{ fontSize: 11, lineHeight: 14, includeFontPadding: false }}>💚</Text> Match!
+                      </Text>
                     </View>
                   )}
                 </View>
@@ -235,7 +237,9 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
               onPress={onInterest}
               disabled={isInterested}
             >
-              <Text style={styles.actionChipText}>{isInterested ? "💚 Interested" : "💚 Interest"}</Text>
+              <Text style={styles.actionChipText}>
+                <Text style={{ fontSize: 14, lineHeight: 18, includeFontPadding: false }}>💚</Text> {isInterested ? "Interested" : "Interest"}
+              </Text>
             </TouchableOpacity>
 
             {/* Video call */}

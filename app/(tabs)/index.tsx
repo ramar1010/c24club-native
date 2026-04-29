@@ -415,7 +415,7 @@ export default function HomeScreen() {
         {!warningDismissed && (
           <View style={styles.warningBanner}>
             <Text style={styles.warningText}>
-              🔞 18+ Only — By using C24 Club you confirm you are 18 years or older
+              <Text style={{ fontSize: 16, lineHeight: 22, includeFontPadding: false }}>🔞</Text> 18+ Only — By using C24 Club you confirm you are 18 years or older
             </Text>
             <TouchableOpacity
               onPress={() => setWarningDismissed(true)}
@@ -446,7 +446,9 @@ export default function HomeScreen() {
                 {'image' in step ? (
                   <Image source={step.image} style={styles.stepImage} resizeMode='contain' />
                 ) : (
-                  <Text style={styles.stepEmoji}>{step.emoji}</Text>
+                  <Text style={styles.stepEmoji}>
+                    <Text style={{ fontSize: 32, lineHeight: 40, includeFontPadding: false }}>{step.emoji}</Text>
+                  </Text>
                 )}
                 <Text style={styles.stepTitle}>{step.title}</Text>
                 <Text style={styles.stepDesc}>{step.desc}</Text>

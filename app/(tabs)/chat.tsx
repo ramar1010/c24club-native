@@ -67,9 +67,19 @@ function VoiceModeAvatar({ size = 80, label = true, gender }: { size?: number; l
         colors={['#7C3AED', '#4F46E5']}
         style={[styles.voiceAvatarCircle, { width: size, height: size, borderRadius: size / 2 }]}
       >
-        <Text style={{ fontSize: size * 0.45 }}>{emoji}</Text>
+        <Text
+          style={{
+            fontSize: size * 0.45,
+            lineHeight: Platform.OS === 'ios' ? size * 0.7 : undefined,
+            textAlign: 'center',
+            includeFontPadding: false,
+            color: '#FFFFFF',
+          }}
+        >
+          {emoji}
+        </Text>
       </LinearGradient>
-      {label && <Text style={styles.voiceModeLabel}>Voice Mode</Text>}
+      {label && <Text style={styles.voiceModeLabel}>Voice</Text>}
     </View>
   );
 }
@@ -723,11 +733,11 @@ export default function ChatScreen() {
         return (
           <TouchableOpacity
             key={opt}
-            style={flattenStyle([styles.genderPill,isActive ? styles.genderPillActive : null])}
+            style={flattenStyle([styles.genderPill, isActive ? styles.genderPillActive : null])}
             onPress={() => handleGenderPill(opt)}
             activeOpacity={0.8}
           >
-            <Text style={flattenStyle([styles.genderPillText,isActive ? styles.genderPillTextActive : null])}>
+            <Text style={flattenStyle([styles.genderPillText, isActive ? styles.genderPillTextActive : null])}>
               {opt === 'Girls' ? '👧 Girls' : opt === 'Guys' ? '👦 Guys' : 'Both'}
             </Text>
             {isLocked && (
@@ -1242,8 +1252,9 @@ const styles = StyleSheet.create({
   },
   voiceModeLabel: {
     color: '#A1A1AA',
-    fontSize: 10,
-    marginTop: 4,
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 10,
   },
 
   // ─── Waiting ──────────────────────────────────────────────────────────────
