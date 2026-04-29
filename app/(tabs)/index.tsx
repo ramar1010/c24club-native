@@ -70,6 +70,7 @@ const STEPS = [
 const COMPARISON = [
   { feature: 'Earn 100+ rewards', c24: true, others: false },
   { feature: 'Gifted by strangers', c24: true, others: false },
+  { feature: 'Get notified instantly when opposite gender is searching', c24: true, others: false },
   { feature: 'Safe & moderated', c24: true, others: false },
   { feature: '1-on-1 video', c24: true, others: true },
   { feature: 'Free to use', c24: true, others: true },

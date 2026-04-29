@@ -492,6 +492,7 @@ export function useVideoChat() {
         roomIdRef.current = roomId;
         partnerIdRef.current = partnerId;
         setPartnerId(partnerId);
+        setPartnerIsVoiceMode(false); // reset on new match
         if (partnerId) fetchPartnerTopics(partnerId);
 
         if (partnerId) {
@@ -523,6 +524,7 @@ export function useVideoChat() {
           roomIdRef.current = roomId;
           partnerIdRef.current = partnerId;
           setPartnerId(partnerId);
+          setPartnerIsVoiceMode(false); // reset on new match
           if (partnerId) fetchPartnerTopics(partnerId);
           updateCallState('connecting');
           createPeerConnection(roomId, channelIdRef.current, voiceMode);
@@ -561,6 +563,7 @@ export function useVideoChat() {
       setPartnerGender(null);
       setPartnerTopics([]);
       setPartnerId(null);
+      setPartnerIsVoiceMode(false); // Reset voice mode for next match
       updateCallState('waiting');
     }
 

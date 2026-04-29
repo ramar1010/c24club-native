@@ -59,14 +59,15 @@ function formatTime(s: number): string {
 }
 
 // ─── Voice Mode Avatar ────────────────────────────────────────────────────────
-function VoiceModeAvatar({ size = 80, label = true }: { size?: number; label?: boolean }) {
+function VoiceModeAvatar({ size = 80, label = true, gender }: { size?: number; label?: boolean; gender?: string | null }) {
+  const emoji = gender?.toLowerCase() === 'male' ? '👦' : '👩';
   return (
     <View style={{ alignItems: 'center' }}>
       <LinearGradient
         colors={['#7C3AED', '#4F46E5']}
         style={[styles.voiceAvatarCircle, { width: size, height: size, borderRadius: size / 2 }]}
       >
-        <Text style={{ fontSize: size * 0.45 }}>👩</Text>
+        <Text style={{ fontSize: size * 0.45 }}>{emoji}</Text>
       </LinearGradient>
       {label && <Text style={styles.voiceModeLabel}>Voice Mode</Text>}
     </View>
@@ -141,6 +142,28 @@ export default function ChatScreen() {
       setPartnerPinnedTopics([]);
     }
   }, [partnerId, callState]);
+
+  // ─── Remote Video Track Check ──────────────────────────────────────────────
+  const [remoteHasVideo, setRemoteHasVideo] = useState(false);
+
+  useEffect(() => {
+    if (!remoteStream) {
+      setRemoteHasVideo(false);
+      return;
+    }
+
+    const checkTracks = () => {
+      // In React Native WebRTC, stream objects have getVideoTracks()
+      const tracks = typeof remoteStream.getVideoTracks === 'function' ? remoteStream.getVideoTracks() : [];
+      const hasEnabledVideo = tracks.length > 0 && tracks.some((t: any) => t.enabled);
+      setRemoteHasVideo(hasEnabledVideo);
+    };
+
+    checkTracks();
+    // Re-check periodically as tracks can be added/enabled later
+    const interval = setInterval(checkTracks, 2000);
+    return () => clearInterval(interval);
+  }, [remoteStream]);
 
   // ─── Waiting timer (counts up while searching) ────────────────────────────
   const [waitingSeconds, setWaitingSeconds] = useState(0);
@@ -541,151 +564,156 @@ export default function ChatScreen() {
     </View>
   );
 
-  const renderVideoArea = () => (
-    <View style={styles.videoArea}>
-      {/* Remote video */}
-      {partnerIsVoiceMode ? (
-        <View style={styles.remoteVideoPlaceholder}>
-          <VoiceModeAvatar size={120} />
-        </View>
-      ) : remoteStream ? (
-        <View style={StyleSheet.absoluteFill}>
-          <Animated.View style={[
-            StyleSheet.absoluteFill,
-            {
-              transform: [{
-                scale: blurOpacity.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [1, 1.15]
-                })
-              }]
-            }
-          ]}>
-            <RTCView
-              streamURL={typeof remoteStream.toURL === 'function' ? remoteStream.toURL() : remoteStream}
-              style={styles.remoteVideo}
-              objectFit="cover"
-              zOrder={0}
-            />
-          </Animated.View>
-          {isBlurred && (
-            <Animated.View 
-              style={[
-                StyleSheet.absoluteFill, 
-                { 
-                  opacity: blurOpacity,
-                  zIndex: 20,
-                }
-              ]}
-              pointerEvents="none"
-            >
-              <BlurView 
-                intensity={100} 
-                style={StyleSheet.absoluteFill} 
-                tint="dark"
+  const renderVideoArea = () => {
+    // Treat as voice mode if explicitly signaled OR if remote stream has no video tracks
+    const effectivelyVoiceMode = partnerIsVoiceMode || (!!remoteStream && !remoteHasVideo);
+
+    return (
+      <View style={styles.videoArea}>
+        {/* Remote video */}
+        {effectivelyVoiceMode ? (
+          <View style={styles.remoteVideoPlaceholder}>
+            <VoiceModeAvatar size={120} gender={partnerGender} />
+          </View>
+        ) : remoteStream ? (
+          <View style={StyleSheet.absoluteFill}>
+            <Animated.View style={[
+              StyleSheet.absoluteFill,
+              {
+                transform: [{
+                  scale: blurOpacity.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1, 1.15]
+                  })
+                }]
+              }
+            ]}>
+              <RTCView
+                streamURL={typeof remoteStream.toURL === 'function' ? remoteStream.toURL() : remoteStream}
+                style={styles.remoteVideo}
+                objectFit="cover"
+                zOrder={0}
               />
-              {/* Fallback darkening to help the blur stand out */}
-              <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.3)' }]} />
             </Animated.View>
+            {isBlurred && (
+              <Animated.View 
+                style={[
+                  StyleSheet.absoluteFill, 
+                  { 
+                    opacity: blurOpacity,
+                    zIndex: 20,
+                  }
+                ]}
+                pointerEvents="none"
+              >
+                <BlurView 
+                  intensity={100} 
+                  style={StyleSheet.absoluteFill} 
+                  tint="dark"
+                />
+                {/* Fallback darkening to help the blur stand out */}
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.3)' }]} />
+              </Animated.View>
+            )}
+          </View>
+        ) : (
+          <View style={styles.remoteVideoPlaceholder}>
+            <ActivityIndicator size="large" color="#EF4444" />
+            <Text style={{ color: '#A1A1AA', marginTop: 12 }}>Connecting...</Text>
+          </View>
+        )}
+
+        {/* Partner topics (from useVideoChat hook — legacy) */}
+        {partnerTopics.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.topicsRow}
+            contentContainerStyle={styles.topicsContent}
+          >
+            {partnerTopics.map((topic, i) => (
+              <View key={i} style={styles.topicChip}>
+                <Text style={styles.topicChipText}>{topic}</Text>
+              </View>
+            ))}
+          </ScrollView>
+        )}
+
+        {/* Partner's pinned topics — blue chips, top-right */}
+        {partnerPinnedTopics.length > 0 && (
+          <View style={styles.partnerChipsContainer}>
+            {partnerPinnedTopics.map((name, i) => (
+              <View key={i} style={styles.partnerChip}>
+                <Text style={styles.partnerChipText}>{name}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* My pinned topics — red chips, bottom-left */}
+        {pinnedTopicNames.length > 0 && (
+          <View style={styles.myChipsContainer}>
+            {pinnedTopicNames.map((name, i) => (
+              <View key={i} style={styles.myChip}>
+                <Text style={styles.myChipText}>{name}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Topics bookmark tab — left edge */}
+        <TouchableOpacity
+          style={styles.topicsTab}
+          onPress={() => setShowTopicsOverlay(true)}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.topicsTabText}>📌</Text>
+          <Text style={styles.topicsTabLabel}>Topics</Text>
+          {pinnedTopicIds.size > 0 && (
+            <View style={styles.topicsTabBadge}>
+              <Text style={styles.topicsTabBadgeText}>{pinnedTopicIds.size}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        {/* Report button */}
+        <TouchableOpacity style={styles.reportBtn} onPress={() => setShowReport(true)}>
+          <Flag size={18} color="#EF4444" />
+        </TouchableOpacity>
+
+        {/* Partner's VIP pinned socials + Send Cash — shown to their partner only */}
+        <PinnedSocialsDisplay
+          socials={partnerSocials}
+          showSendCash={showGiftIcon && callState === 'connected'}
+          onSendCash={() => setShowGiftOverlay(true)}
+          giftPulseAnim={giftPulseAnim}
+        />
+
+        {/* Local PiP */}
+        <View style={styles.localPip}>
+          {isVoiceMode ? (
+            <VoiceModeAvatar size={60} label={false} gender={profile?.gender} />
+          ) : isCameraOff ? (
+            <View style={styles.pipPlaceholder}>
+              <VideoOff size={24} color="#555" />
+            </View>
+          ) : localStream ? (
+            <RTCView
+              streamURL={typeof localStream.toURL === 'function' ? localStream.toURL() : localStream}
+              style={styles.localPipRTC}
+              objectFit="cover"
+              mirror={true}
+              zOrder={1}
+            />
+          ) : (
+            <View style={styles.pipPlaceholder}>
+              <ActivityIndicator size="small" color="#EF4444" />
+            </View>
           )}
         </View>
-      ) : (
-        <View style={styles.remoteVideoPlaceholder}>
-          <ActivityIndicator size="large" color="#EF4444" />
-          <Text style={{ color: '#A1A1AA', marginTop: 12 }}>Connecting...</Text>
-        </View>
-      )}
-
-      {/* Partner topics (from useVideoChat hook — legacy) */}
-      {partnerTopics.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.topicsRow}
-          contentContainerStyle={styles.topicsContent}
-        >
-          {partnerTopics.map((topic, i) => (
-            <View key={i} style={styles.topicChip}>
-              <Text style={styles.topicChipText}>{topic}</Text>
-            </View>
-          ))}
-        </ScrollView>
-      )}
-
-      {/* Partner's pinned topics — blue chips, top-right */}
-      {partnerPinnedTopics.length > 0 && (
-        <View style={styles.partnerChipsContainer}>
-          {partnerPinnedTopics.map((name, i) => (
-            <View key={i} style={styles.partnerChip}>
-              <Text style={styles.partnerChipText}>{name}</Text>
-            </View>
-          ))}
-        </View>
-      )}
-
-      {/* My pinned topics — red chips, bottom-left */}
-      {pinnedTopicNames.length > 0 && (
-        <View style={styles.myChipsContainer}>
-          {pinnedTopicNames.map((name, i) => (
-            <View key={i} style={styles.myChip}>
-              <Text style={styles.myChipText}>{name}</Text>
-            </View>
-          ))}
-        </View>
-      )}
-
-      {/* Topics bookmark tab — left edge */}
-      <TouchableOpacity
-        style={styles.topicsTab}
-        onPress={() => setShowTopicsOverlay(true)}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.topicsTabText}>📌</Text>
-        <Text style={styles.topicsTabLabel}>Topics</Text>
-        {pinnedTopicIds.size > 0 && (
-          <View style={styles.topicsTabBadge}>
-            <Text style={styles.topicsTabBadgeText}>{pinnedTopicIds.size}</Text>
-          </View>
-        )}
-      </TouchableOpacity>
-
-      {/* Report button */}
-      <TouchableOpacity style={styles.reportBtn} onPress={() => setShowReport(true)}>
-        <Flag size={18} color="#EF4444" />
-      </TouchableOpacity>
-
-      {/* Partner's VIP pinned socials + Send Cash — shown to their partner only */}
-      <PinnedSocialsDisplay
-        socials={partnerSocials}
-        showSendCash={showGiftIcon && callState === 'connected'}
-        onSendCash={() => setShowGiftOverlay(true)}
-        giftPulseAnim={giftPulseAnim}
-      />
-
-      {/* Local PiP */}
-      <View style={styles.localPip}>
-        {isVoiceMode ? (
-          <VoiceModeAvatar size={60} label={false} />
-        ) : isCameraOff ? (
-          <View style={styles.pipPlaceholder}>
-            <VideoOff size={24} color="#555" />
-          </View>
-        ) : localStream ? (
-          <RTCView
-            streamURL={typeof localStream.toURL === 'function' ? localStream.toURL() : localStream}
-            style={styles.localPipRTC}
-            objectFit="cover"
-            mirror={true}
-            zOrder={1}
-          />
-        ) : (
-          <View style={styles.pipPlaceholder}>
-            <ActivityIndicator size="small" color="#EF4444" />
-          </View>
-        )}
       </View>
-    </View>
-  );
+    );
+  };
 
   const renderGenderFilter = () => (
     <View style={styles.genderFilterRow}>
