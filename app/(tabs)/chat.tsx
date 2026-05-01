@@ -47,7 +47,6 @@ import * as WebBrowser from 'expo-web-browser';
 import { createGiftCheckout, checkIsPremiumVip, purchaseUnfreeze } from '@/lib/gift-utils';
 import { GiftCelebration } from '@/components/GiftCelebration';
 import { usePreBlur } from '@/hooks/usePreBlur';
-import { BlurView } from 'expo-blur';
 
 const { width, height } = Dimensions.get('window');
 
@@ -90,6 +89,9 @@ export default function ChatScreen() {
   const { profile, minutes, refreshProfile, updateMinutes } = useAuth();
   const { setShowVipModal } = useCall();
 
+  // ─── Ref for pre-blur snapshot ─────────────────────────────────────────────
+  const videoContainerRef = useRef<View>(null);
+
   const {
     callState,
     localStream,
@@ -117,9 +119,10 @@ export default function ChatScreen() {
   } = useVideoChat();
 
   // ─── Pre-blur on new partner ───────────────────────────────────────────────
-  const { isBlurred, blurOpacity } = usePreBlur(
+  const { isBlurred, showShield, frozenUri, blurOpacity } = usePreBlur(
     callState === 'connected',
     partnerId,
+    videoContainerRef,
     4000,
   );
 
@@ -586,44 +589,36 @@ export default function ChatScreen() {
             <VoiceModeAvatar size={120} gender={partnerGender} />
           </View>
         ) : remoteStream ? (
-          <View style={StyleSheet.absoluteFill}>
-            <Animated.View style={[
-              StyleSheet.absoluteFill,
-              {
-                transform: [{
-                  scale: blurOpacity.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [1, 1.15]
-                  })
-                }]
-              }
-            ]}>
-              <RTCView
-                streamURL={typeof remoteStream.toURL === 'function' ? remoteStream.toURL() : remoteStream}
-                style={styles.remoteVideo}
-                objectFit="cover"
-                zOrder={0}
-              />
-            </Animated.View>
-            {isBlurred && (
-              <Animated.View 
-                style={[
-                  StyleSheet.absoluteFill, 
-                  { 
-                    opacity: blurOpacity,
-                    zIndex: 20,
-                  }
-                ]}
+          <View
+            ref={videoContainerRef}
+            collapsable={false}
+            style={StyleSheet.absoluteFill}
+          >
+            <RTCView
+              streamURL={typeof remoteStream.toURL === 'function' ? remoteStream.toURL() : remoteStream}
+              style={styles.remoteVideo}
+              objectFit="cover"
+              zOrder={0}
+            />
+            {/* Phase 1 — instant black shield */}
+            {showShield && (
+              <Animated.View
+                style={[StyleSheet.absoluteFill, { opacity: blurOpacity, backgroundColor: '#000', zIndex: 20, alignItems: 'center', justifyContent: 'center' }]}
                 pointerEvents="none"
               >
-                <BlurView 
-                  intensity={100} 
-                  style={StyleSheet.absoluteFill} 
-                  tint="dark"
-                />
-                {/* Fallback darkening to help the blur stand out */}
-                <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.3)' }]} />
+                <Text style={{ color: '#FFFFFF', fontSize: 14, opacity: 0.7 }}>Connecting safely…</Text>
               </Animated.View>
+            )}
+            {/* Phase 2 — pixelated snapshot overlay */}
+            {frozenUri && (
+              <View style={[StyleSheet.absoluteFill, { zIndex: 20 }]} pointerEvents="none">
+                <Animated.Image
+                  source={{ uri: frozenUri }}
+                  style={[StyleSheet.absoluteFill, { opacity: blurOpacity }]}
+                  resizeMode="cover"
+                  blurRadius={20}
+                />
+              </View>
             )}
           </View>
         ) : (

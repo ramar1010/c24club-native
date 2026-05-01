@@ -212,6 +212,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           uid: currentUser?.id, 
           email: currentUser?.email 
         });
+
+        // TOKEN_REFRESHED: update session/user but don't re-fetch profile data
+        if (event === "TOKEN_REFRESHED") {
+          setSession(newSession);
+          setUser(currentUser);
+          return;
+        }
         
         setSession(newSession);
         setUser(currentUser);
@@ -223,6 +230,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
              if (isMounted) setLoading(false);
            });
         } else if (event === "SIGNED_OUT") {
+           // Double-check that the session is truly gone before clearing data.
+           // A race with token refresh can fire a spurious SIGNED_OUT.
+           const { data: { session: currentSession } } = await supabase.auth.getSession();
+           if (currentSession) {
+             // Session is still valid — ignore this spurious SIGNED_OUT event
+             console.log("[AuthProvider] Ignoring spurious SIGNED_OUT — session still active");
+             setSession(currentSession);
+             setUser(currentSession.user);
+             return;
+           }
            console.log("[AuthProvider] Clearing data on SIGNED_OUT");
            clearUserData();
         }
