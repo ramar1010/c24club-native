@@ -46,7 +46,6 @@ import { usePinTopics } from '@/hooks/usePinTopics';
 import * as WebBrowser from 'expo-web-browser';
 import { createGiftCheckout, checkIsPremiumVip, purchaseUnfreeze } from '@/lib/gift-utils';
 import { GiftCelebration } from '@/components/GiftCelebration';
-import { usePreBlur } from '@/hooks/usePreBlur';
 
 const { width, height } = Dimensions.get('window');
 
@@ -115,13 +114,6 @@ export default function ChatScreen() {
     setShowCapPopup,
     restartPreview,
   } = useVideoChat();
-
-  // ─── Pre-blur on new partner ───────────────────────────────────────────────
-  const { isBlurred, blurOpacity, secondsLeft } = usePreBlur(
-    callState === 'connected',
-    partnerId,
-    4000,
-  );
 
   // ─── Partner pinned socials (VIP only, fresh fetch on every match) ─────────
   const { socials: partnerSocials } = usePinnedSocials(
@@ -595,28 +587,6 @@ export default function ChatScreen() {
               objectFit="cover"
               zOrder={0}
             />
-            {/* Safety shield — fades out after 4s */}
-            {isBlurred && (
-              <Animated.View
-                style={[StyleSheet.absoluteFill, { opacity: blurOpacity, zIndex: 20 }]}
-                pointerEvents="none"
-              >
-                <LinearGradient
-                  colors={['#0F0F1A', '#1A1A2E', '#0F0F1A']}
-                  style={StyleSheet.absoluteFill}
-                />
-                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-                  <Text style={{ fontSize: 36 }}>🔒</Text>
-                  <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>Connecting safely…</Text>
-                  <Text style={{ color: '#A1A1AA', fontSize: 13 }}>Verifying your match</Text>
-                  {secondsLeft > 0 && (
-                    <View style={{ marginTop: 8, backgroundColor: 'rgba(239,68,68,0.15)', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 6 }}>
-                      <Text style={{ color: '#EF4444', fontSize: 13, fontWeight: '600' }}>{secondsLeft}s</Text>
-                    </View>
-                  )}
-                </View>
-              </Animated.View>
-            )}
           </View>
         ) : (
           <View style={styles.remoteVideoPlaceholder}>

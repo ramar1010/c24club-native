@@ -13,7 +13,6 @@ import {
   Platform,
   Animated,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import {
   Mic,
   MicOff,
@@ -39,7 +38,6 @@ import { useToast, Toast, ToastTitle, ToastDescription } from '@/components/ui/t
 import { flattenStyle } from '@/utils/flatten-style';
 import { createGiftCheckout, checkIsPremiumVip, GIFT_TIERS } from '@/lib/gift-utils';
 import { GiftCelebration } from '@/components/GiftCelebration';
-import { usePreBlur } from '@/hooks/usePreBlur';
 
 // ─── Native WebRTC Imports (Guarded) ──────────────────────────────────────────
 import {
@@ -103,13 +101,6 @@ export default function VideoCallScreen() {
   const [reportSubmitting, setReportSubmitting] = useState(false);
   
   const [partner, setPartner] = useState<{ name: string; image_url: string; id: string; vip_tier?: string } | null>(null);
-  
-  // ─── Pre-blur on connection ──────────────────────────────────────────────
-  const { isBlurred, blurOpacity, secondsLeft } = usePreBlur(
-    callStatus === 'Connected',
-    partner?.id,
-    4000,
-  );
 
   const pc = useRef<RTCPeerConnection | null>(null);
   const isInitiatorRef = useRef(false);
@@ -319,7 +310,6 @@ export default function VideoCallScreen() {
             }
             setRemoteStream(stream);
             setCallStatus('Connected');
-            // Blur triggers automatically via usePreBlur watching partner?.id
           }
         };
 
@@ -611,28 +601,6 @@ export default function VideoCallScreen() {
             objectFit="cover"
             zOrder={0}
           />
-          {/* Safety shield — fades out after 4s */}
-          {isBlurred && (
-            <Animated.View
-              style={[StyleSheet.absoluteFill, { opacity: blurOpacity, zIndex: 20 }]}
-              pointerEvents="none"
-            >
-              <LinearGradient
-                colors={['#0F0F1A', '#1A1A2E', '#0F0F1A']}
-                style={StyleSheet.absoluteFill}
-              />
-              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-                <Text style={{ fontSize: 36 }}>🔒</Text>
-                <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>Connecting safely…</Text>
-                <Text style={{ color: '#A1A1AA', fontSize: 13 }}>Verifying your match</Text>
-                {secondsLeft > 0 && (
-                  <View style={{ marginTop: 8, backgroundColor: 'rgba(239,68,68,0.15)', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 6 }}>
-                    <Text style={{ color: '#EF4444', fontSize: 13, fontWeight: '600' }}>{secondsLeft}s</Text>
-                  </View>
-                )}
-              </View>
-            </Animated.View>
-          )}
         </View>
       ) : (
         <View style={styles.remoteVideoPlaceholder}>
@@ -1131,7 +1099,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
-    paddingBottom: 36,
+    paddingBottom: 36, 
   },
   reportHeader: {
     flexDirection: 'row',
@@ -1151,7 +1119,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   reportReasonBtn: {
-    backgroundColor: '#2A2A4A',
+    backgroundColor: '#2A2A4A', 
     borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 7,
