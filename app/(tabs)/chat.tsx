@@ -89,8 +89,6 @@ export default function ChatScreen() {
   const { profile, minutes, refreshProfile, updateMinutes } = useAuth();
   const { setShowVipModal } = useCall();
 
-  // ─── Ref for pre-blur snapshot ─────────────────────────────────────────────
-  const videoContainerRef = useRef<View>(null);
 
   const {
     callState,
@@ -119,10 +117,9 @@ export default function ChatScreen() {
   } = useVideoChat();
 
   // ─── Pre-blur on new partner ───────────────────────────────────────────────
-  const { isBlurred, showShield, frozenUri, blurOpacity } = usePreBlur(
+  const { isBlurred, blurOpacity, secondsLeft } = usePreBlur(
     callState === 'connected',
     partnerId,
-    videoContainerRef,
     4000,
   );
 
@@ -590,8 +587,6 @@ export default function ChatScreen() {
           </View>
         ) : remoteStream ? (
           <View
-            ref={videoContainerRef}
-            collapsable={false}
             style={StyleSheet.absoluteFill}
           >
             <RTCView
@@ -600,25 +595,27 @@ export default function ChatScreen() {
               objectFit="cover"
               zOrder={0}
             />
-            {/* Phase 1 — instant black shield */}
-            {showShield && (
+            {/* Safety shield — fades out after 4s */}
+            {isBlurred && (
               <Animated.View
-                style={[StyleSheet.absoluteFill, { opacity: blurOpacity, backgroundColor: '#000', zIndex: 20, alignItems: 'center', justifyContent: 'center' }]}
+                style={[StyleSheet.absoluteFill, { opacity: blurOpacity, zIndex: 20 }]}
                 pointerEvents="none"
               >
-                <Text style={{ color: '#FFFFFF', fontSize: 14, opacity: 0.7 }}>Connecting safely…</Text>
-              </Animated.View>
-            )}
-            {/* Phase 2 — pixelated snapshot overlay */}
-            {frozenUri && (
-              <View style={[StyleSheet.absoluteFill, { zIndex: 20 }]} pointerEvents="none">
-                <Animated.Image
-                  source={{ uri: frozenUri }}
-                  style={[StyleSheet.absoluteFill, { opacity: blurOpacity }]}
-                  resizeMode="cover"
-                  blurRadius={20}
+                <LinearGradient
+                  colors={['#0F0F1A', '#1A1A2E', '#0F0F1A']}
+                  style={StyleSheet.absoluteFill}
                 />
-              </View>
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+                  <Text style={{ fontSize: 36 }}>🔒</Text>
+                  <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>Connecting safely…</Text>
+                  <Text style={{ color: '#A1A1AA', fontSize: 13 }}>Verifying your match</Text>
+                  {secondsLeft > 0 && (
+                    <View style={{ marginTop: 8, backgroundColor: 'rgba(239,68,68,0.15)', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 6 }}>
+                      <Text style={{ color: '#EF4444', fontSize: 13, fontWeight: '600' }}>{secondsLeft}s</Text>
+                    </View>
+                  )}
+                </View>
+              </Animated.View>
             )}
           </View>
         ) : (
