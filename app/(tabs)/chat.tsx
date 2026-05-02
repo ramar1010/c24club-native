@@ -46,6 +46,7 @@ import { usePinTopics } from '@/hooks/usePinTopics';
 import * as WebBrowser from 'expo-web-browser';
 import { createGiftCheckout, checkIsPremiumVip, purchaseUnfreeze } from '@/lib/gift-utils';
 import { GiftCelebration } from '@/components/GiftCelebration';
+import { useRevealVideo } from '@/hooks/useRevealVideo';
 
 const { width, height } = Dimensions.get('window');
 
@@ -114,6 +115,14 @@ export default function ChatScreen() {
     setShowCapPopup,
     restartPreview,
   } = useVideoChat();
+
+  // ─── Reveal video after 3s delay on new partner ────────────────────────────
+  const { showVideo, videoOpacity } = useRevealVideo(
+    callState === 'connected',
+    partnerId,
+    3000,
+    600,
+  );
 
   // ─── Partner pinned socials (VIP only, fresh fetch on every match) ─────────
   const { socials: partnerSocials } = usePinnedSocials(
@@ -578,15 +587,33 @@ export default function ChatScreen() {
             <VoiceModeAvatar size={120} gender={partnerGender} />
           </View>
         ) : remoteStream ? (
-          <View
-            style={StyleSheet.absoluteFill}
-          >
-            <RTCView
-              streamURL={typeof remoteStream.toURL === 'function' ? remoteStream.toURL() : remoteStream}
-              style={styles.remoteVideo}
-              objectFit="cover"
-              zOrder={0}
-            />
+          <View style={StyleSheet.absoluteFill}>
+            {/* Placeholder shown for first 3s */}
+            {!showVideo && (
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: '#0F0F1A', alignItems: 'center', justifyContent: 'center', zIndex: 10 }]}>
+                <LinearGradient
+                  colors={['#0F0F1A', '#1A1A2E', '#0F0F1A']}
+                  style={StyleSheet.absoluteFill}
+                />
+                <View style={{ alignItems: 'center', gap: 14 }}>
+                  <VoiceModeAvatar size={90} label={false} gender={partnerGender} />
+                  <View style={{ alignItems: 'center', gap: 4 }}>
+                    <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '600' }}>Match found!</Text>
+                    <Text style={{ color: '#71717A', fontSize: 13 }}>Starting video…</Text>
+                  </View>
+                  <ActivityIndicator size="small" color="#EF4444" style={{ marginTop: 4 }} />
+                </View>
+              </View>
+            )}
+            {/* RTCView — mounted immediately but revealed after delay */}
+            <Animated.View style={[StyleSheet.absoluteFill, { opacity: videoOpacity }]}>
+              <RTCView
+                streamURL={typeof remoteStream.toURL === 'function' ? remoteStream.toURL() : remoteStream}
+                style={styles.remoteVideo}
+                objectFit="cover"
+                zOrder={0}
+              />
+            </Animated.View>
           </View>
         ) : (
           <View style={styles.remoteVideoPlaceholder}>
