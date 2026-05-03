@@ -44,7 +44,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     supportsTablet: true,
     bundleIdentifier: 'com.c24club.app',
     usesAppleSignIn: true,
-    buildNumber: '62',
+    buildNumber: '63',
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
       NSCameraUsageDescription: 'C24 Club needs camera access for video chat.',
@@ -55,7 +55,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     package: 'com.c24club.app',
     googleServicesFile: './google-services.json',
-    versionCode: 62,
+    versionCode: 63,
     permissions: [
       'android.permission.CAMERA',
       'android.permission.RECORD_AUDIO',

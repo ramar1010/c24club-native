@@ -31,7 +31,6 @@ import { useRevealVideo } from '@/hooks/useRevealVideo';
 import { useGiftFeature } from '@/hooks/useGiftFeature';
 import { useFreezeHandler } from '@/hooks/useFreezeHandler';
 import { useNsfwRestriction } from '@/hooks/useNsfwRestriction';
-import { useCameraPreviewScan } from '@/hooks/useCameraPreviewScan';
 import { GiftCelebration } from '@/components/GiftCelebration';
 
 import { ChatTopBar } from '@/components/chat/ChatTopBar';
@@ -49,9 +48,6 @@ import {
 import { VoiceModeAvatar } from '@/components/chat/VoiceModeAvatar';
 import styles from '@/components/chat/chat-styles';
 
-// expo-camera for hidden frame capture (native only)
-import { CameraView } from 'expo-camera';
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatTime(s: number): string {
   const m = Math.floor(s / 60).toString().padStart(2, '0');
@@ -64,9 +60,6 @@ export default function ChatScreen() {
   const router = useRouter();
   const { profile, minutes, refreshProfile, updateMinutes } = useAuth();
   const { setShowVipModal } = useCall();
-
-  // Hidden camera ref — used by useCameraPreviewScan for frame snapshots
-  const hiddenCameraRef = useRef<any>(null);
 
   const {
     callState,
@@ -95,7 +88,7 @@ export default function ChatScreen() {
   } = useVideoChat();
 
   // ─── NSFW shadowban restriction ────────────────────────────────────────────
-  const { isRestricted, recheck: recheckRestriction } = useNsfwRestriction(profile?.id);
+  const { isRestricted } = useNsfwRestriction(profile?.id);
   const [showRestrictionPopup, setShowRestrictionPopup] = useState(false);
 
   // ─── Reveal video after 3s delay on new partner ────────────────────────────
@@ -271,25 +264,6 @@ export default function ChatScreen() {
     }
   }, [callState, pulseAnim]);
 
-  // ─── Pre-call idle camera scan ─────────────────────────────────────────────
-  // Scans the local camera preview every 20s while the user is idle.
-  // If flagged, re-checks the restriction status so the UI blocks them instantly.
-  useCameraPreviewScan({
-    cameraRef: hiddenCameraRef,
-    userId: profile?.id,
-    active: callState === 'idle' && Platform.OS !== 'web',
-    onFlagged: useCallback(async () => {
-      console.warn('[chat] Idle preview flagged — rechecking restriction status');
-      await recheckRestriction();
-      Toast.show({
-        type: 'error',
-        text1: '⚠️ Content Warning',
-        text2: 'Inappropriate content detected on your camera. Your ability to chat has been restricted.',
-        visibilityTime: 6000,
-      });
-    }, [recheckRestriction]),
-  });
-
   // ─── Handlers ─────────────────────────────────────────────────────────────
   const handleStart = useCallback(async () => {
     // Shadowban gate — blocked users see a popup instead of starting
@@ -389,19 +363,6 @@ export default function ChatScreen() {
   // ─── Main layout ───────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/*
-        Hidden CameraView for pre-call frame capture (native only).
-        Positioned off-screen at 1×1 so it never appears in the UI
-        but keeps the camera session alive for takePictureAsync().
-      */}
-      {Platform.OS !== 'web' && (
-        <CameraView
-          ref={hiddenCameraRef}
-          style={{ width: 1, height: 1, position: 'absolute', top: -10, left: -10, opacity: 0 }}
-          facing="front"
-        />
-      )}
-
       {/* Top bar */}
       <ChatTopBar
         callState={callState}
