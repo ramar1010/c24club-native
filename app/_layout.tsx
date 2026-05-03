@@ -7,7 +7,7 @@ import React, { useEffect } from "react";
 import "react-native-reanimated";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as Notifications from "expo-notifications";
-import { Platform, Pressable, Text, View } from "react-native";
+import { Platform, Pressable, Text, View, DeviceEventEmitter } from "react-native";
 import Toast, { ToastConfig } from "react-native-toast-message";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -137,6 +137,14 @@ function RootLayoutInner({ colorScheme, loaded }: { colorScheme: any; loaded: bo
 
   // Ban check — always fresh, never cached
   const { isBanned, banData, banLoading, recheckBan, clearBan } = useBanCheck();
+
+  // Instant ban enforcement — listen for recheck-ban event fired by chat screen
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('recheck-ban', () => {
+      recheckBan();
+    });
+    return () => sub.remove();
+  }, [recheckBan]);
 
   // Global IAP listener — catches unfinished transactions on every app open
   useIAPListener();

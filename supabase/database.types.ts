@@ -371,6 +371,7 @@ export type Database = {
           notify_enabled: boolean | null
           notify_female_searching: boolean | null
           notify_likes: boolean | null
+          nsfw_strike_count: number
           phone_number: string | null
           profession: string | null
           push_token: string | null
@@ -403,6 +404,7 @@ export type Database = {
           notify_enabled?: boolean | null
           notify_female_searching?: boolean | null
           notify_likes?: boolean | null
+          nsfw_strike_count?: number
           phone_number?: string | null
           profession?: string | null
           push_token?: string | null
@@ -435,6 +437,7 @@ export type Database = {
           notify_enabled?: boolean | null
           notify_female_searching?: boolean | null
           notify_likes?: boolean | null
+          nsfw_strike_count?: number
           phone_number?: string | null
           profession?: string | null
           push_token?: string | null
@@ -586,6 +589,10 @@ export type Database = {
       }
       increment_male_search_count: {
         Args: { p_female_id: string }
+        Returns: undefined
+      }
+      increment_nsfw_strike: {
+        Args: { target_user_id: string }
         Returns: undefined
       }
       is_blocked_by: { Args: { partner_id: string }; Returns: boolean }
