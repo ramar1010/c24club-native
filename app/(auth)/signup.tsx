@@ -15,20 +15,14 @@ import { useRouter } from "expo-router";
 import { Eye, EyeOff } from "lucide-react-native";
 import { supabase } from "@/lib/supabase";
 import { generateNonce } from "@/lib/auth-utils";
-import { signInWithGoogleIdToken } from "@/lib/google-auth";
+import { signInWithGoogleOAuth } from "@/lib/google-auth";
 import FallingGifts from "@/components/FallingGifts";
 import { useAuth } from "@/contexts/AuthContext";
-import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { FooterLinks } from "@/components/FooterLinks";
 import { Image } from "react-native";
 
 const GOOGLE_ICON = require("@/assets/images/2a5758d6-4edb-4047-87bb-e6b94dbbbab0-cover.png");
-
-GoogleSignin.configure({
-  webClientId: "212900711433-rild80si8g6sg8q5j7jl8goo6o9ecnqi.apps.googleusercontent.com",
-  iosClientId: "212900711433-81ll0bcmetnektpaaqks8mr0l8ou09fi.apps.googleusercontent.com",
-});
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -158,24 +152,12 @@ export default function SignUpScreen() {
       return;
     }
 
-    // Native Google Sign In — no browser redirect needed
+    // Browser-based Google OAuth — no nonce issues, no native SDK required
     try {
-      await GoogleSignin.hasPlayServices();
-      // v16 embeds a random nonce in the token we can't control. The Supabase
-      // JS client rejects it before reaching the server. Use our REST helper
-      // that calls /auth/v1/token directly, bypassing the client-side check.
-      const userInfo = await GoogleSignin.signIn();
-      const idToken = userInfo.data?.idToken;
-      if (!idToken) {
-        setError("Google Sign In failed — no ID token received.");
-        return;
-      }
-      const { error: authError } = await signInWithGoogleIdToken(idToken);
-      if (authError) setError(authError);
+      const { error: authError } = await signInWithGoogleOAuth();
+      if (authError && authError !== "cancelled") setError(authError);
     } catch (e: any) {
-      if (e.code !== "SIGN_IN_CANCELLED") {
-        setError(e.message || "Google Sign In failed");
-      }
+      setError(e.message || "Google Sign In failed");
     }
   };
 

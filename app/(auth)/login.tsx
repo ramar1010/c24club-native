@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -14,20 +15,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Eye, EyeOff } from "lucide-react-native";
 import { supabase } from "@/lib/supabase";
-import { generateNonce } from "@/lib/auth-utils";
-import { signInWithGoogleIdToken } from "@/lib/google-auth";
+import { signInWithGoogleOAuth } from "@/lib/google-auth";
 import FallingGifts from "@/components/FallingGifts";
-import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { FooterLinks } from "@/components/FooterLinks";
-import { Image } from "react-native";
 
 const GOOGLE_ICON = require("@/assets/images/2a5758d6-4edb-4047-87bb-e6b94dbbbab0-cover.png");
-
-GoogleSignin.configure({
-  webClientId: "212900711433-rild80si8g6sg8q5j7jl8goo6o9ecnqi.apps.googleusercontent.com",
-  iosClientId: "212900711433-81ll0bcmetnektpaaqks8mr0l8ou09fi.apps.googleusercontent.com",
-});
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -38,8 +31,8 @@ export default function LoginScreen() {
   const [error, setError] = useState("");
 
   const handleSignIn = async () => {
-    if (!email.trim() || !password.trim()) {
-      setError("Please fill in all fields");
+    if (!email.trim() || !password) {
+      setError("Please enter your email and password.");
       return;
     }
 
@@ -47,19 +40,20 @@ export default function LoginScreen() {
     setLoading(true);
 
     try {
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
+      const { error: authError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
 
       if (authError) {
         setError(authError.message);
-      } else if (data.session) {
-        router.replace("/(tabs)");
+        setLoading(false);
+        return;
       }
-    } catch (e: any) {
-      setError("Something went wrong. Please try again.");
-    } finally {
+
+      router.replace("/(tabs)");
+    } catch (err: any) {
+      setError(err.message || "Something went wrong. Please try again.");
       setLoading(false);
     }
   };
@@ -94,30 +88,18 @@ export default function LoginScreen() {
       return;
     }
 
-    // Native Google Sign In — no browser redirect needed
+    // Browser-based Google OAuth
     try {
-      await GoogleSignin.hasPlayServices();
-      // v16 embeds a random nonce in the token we can't control. The Supabase
-      // JS client rejects it before reaching the server. Use our REST helper
-      // that calls /auth/v1/token directly, bypassing the client-side check.
-      const userInfo = await GoogleSignin.signIn();
-      const idToken = userInfo.data?.idToken;
-      if (!idToken) {
-        setError("Google Sign In failed — no ID token received.");
-        return;
-      }
-      const { error: authError } = await signInWithGoogleIdToken(idToken);
-      if (authError) setError(authError);
+      const { error: authError } = await signInWithGoogleOAuth();
+      if (authError && authError !== "cancelled") setError(authError);
     } catch (e: any) {
-      if (e.code !== "SIGN_IN_CANCELLED") {
-        setError(e.message || "Google Sign In failed");
-      }
+      setError(e.message || "Google Sign In failed");
     }
   };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-      {/* ── Falling gifts background ── */}
+      {/* Falling gifts background */}
       <FallingGifts />
 
       <KeyboardAvoidingView
@@ -140,14 +122,14 @@ export default function LoginScreen() {
             <Text style={styles.subtitle}>Sign in to your account</Text>
           </View>
 
-          {/* Error Message */}
+          {/* Error */}
           {error !== "" && (
             <View style={styles.errorContainer}>
               <Text style={styles.errorText}>{error}</Text>
             </View>
           )}
 
-          {/* Email Input */}
+          {/* Email */}
           <View style={styles.inputContainer}>
             <TextInput
               style={styles.input}
@@ -162,7 +144,7 @@ export default function LoginScreen() {
             />
           </View>
 
-          {/* Password Input */}
+          {/* Password */}
           <View style={styles.inputContainer}>
             <View style={styles.passwordWrapper}>
               <TextInput
@@ -173,7 +155,6 @@ export default function LoginScreen() {
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
-                autoComplete="password"
                 editable={!loading}
               />
               <TouchableOpacity
@@ -190,6 +171,15 @@ export default function LoginScreen() {
             </View>
           </View>
 
+          {/* Forgot Password */}
+          <TouchableOpacity
+            style={styles.forgotContainer}
+            onPress={() => router.push("/(auth)/forgot-password")}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.forgotText}>Forgot Password?</Text>
+          </TouchableOpacity>
+
           {/* Sign In Button */}
           <TouchableOpacity
             style={styles.signInButton}
@@ -204,15 +194,6 @@ export default function LoginScreen() {
             )}
           </TouchableOpacity>
 
-          {/* Forgot Password */}
-          <TouchableOpacity
-            style={styles.forgotButton}
-            onPress={() => router.push("/(auth)/forgot-password")}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.forgotText}>Forgot Password?</Text>
-          </TouchableOpacity>
-
           {/* Divider */}
           <View style={styles.dividerContainer}>
             <View style={styles.dividerLine} />
@@ -221,23 +202,38 @@ export default function LoginScreen() {
           </View>
 
           {/* OAuth Buttons */}
-          <View style={[styles.oauthRow, Platform.OS !== "ios" ? { flexDirection: "column" } : undefined]}>
+          <View
+            style={
+              Platform.OS !== "ios"
+                ? styles.oauthRowColumn
+                : styles.oauthRow
+            }
+          >
             <TouchableOpacity
               style={styles.oauthButton}
               onPress={() => handleOAuth("google")}
               activeOpacity={0.8}
             >
               <View style={styles.oauthButtonContent}>
-                <Image source={GOOGLE_ICON} style={styles.googleIcon} resizeMode="contain" />
+                <Image
+                  source={GOOGLE_ICON}
+                  style={styles.googleIcon}
+                  resizeMode="contain"
+                />
                 <Text style={styles.oauthText}>Google</Text>
               </View>
             </TouchableOpacity>
             {Platform.OS === "ios" && (
               <AppleAuthentication.AppleAuthenticationButton
-                buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
-                buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE_OUTLINE}
+                buttonType={
+                  AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN
+                }
+                buttonStyle={
+                  AppleAuthentication.AppleAuthenticationButtonStyle
+                    .WHITE_OUTLINE
+                }
                 cornerRadius={100}
-                style={[styles.oauthButton, { height: 50, borderWidth: 0 }]}
+                style={styles.appleButton}
                 onPress={() => handleOAuth("apple")}
               />
             )}
@@ -246,7 +242,7 @@ export default function LoginScreen() {
           {/* Sign Up Link */}
           <View style={styles.bottomLink}>
             <Text style={styles.bottomLinkText}>
-              Don't have an account?{" "}
+              Don&apos;t have an account?{" "}
             </Text>
             <TouchableOpacity
               onPress={() => router.push("/(auth)/signup")}
@@ -279,7 +275,7 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: "center",
-    marginBottom: 40,
+    marginBottom: 36,
   },
   logoRow: {
     flexDirection: "row",
@@ -351,47 +347,59 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
   },
+  forgotContainer: {
+    alignItems: "flex-end",
+    marginBottom: 20,
+    marginTop: 4,
+  },
+  forgotText: {
+    color: "#EF4444",
+    fontSize: 14,
+    fontWeight: "600",
+  },
   signInButton: {
     backgroundColor: "#EF4444",
     borderRadius: 100,
     paddingVertical: 18,
     alignItems: "center",
-    marginTop: 10,
+    marginTop: 4,
   },
   signInText: {
     color: "#FFFFFF",
     fontSize: 17,
     fontWeight: "800",
-  },
-  forgotButton: {
-    alignItems: "center",
-    marginTop: 16,
-  },
-  forgotText: {
-    color: "#71717A",
-    fontSize: 14,
-    fontWeight: "500",
+    letterSpacing: 0.5,
   },
   dividerContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 28,
-    marginBottom: 24,
+    justifyContent: "center",
+    marginVertical: 24,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: "#2A2A4A",
+    backgroundColor: "#71717A",
+    marginHorizontal: 12,
   },
   dividerText: {
     color: "#71717A",
-    fontSize: 13,
-    marginHorizontal: 16,
+    fontSize: 14,
+    fontWeight: "600",
+    marginHorizontal: 12,
   },
   oauthRow: {
     flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    marginVertical: 16,
     gap: 12,
-    marginBottom: 32,
+  },
+  oauthRowColumn: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    marginVertical: 16,
+    gap: 12,
   },
   oauthButton: {
     flex: 1,
@@ -417,10 +425,16 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
   },
+  appleButton: {
+    flex: 1,
+    height: 50,
+    borderRadius: 100,
+  },
   bottomLink: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
+    marginTop: 24,
   },
   bottomLinkText: {
     color: "#71717A",

@@ -1,65 +1,101 @@
 /**
- * Google Sign In helper that bypasses the Supabase JS client's client-side
- * nonce check. The check runs BEFORE the request reaches the server, so
- * server-side skip_nonce_check cannot help when using signInWithIdToken().
+ * Google Sign In via Supabase OAuth (browser-based).
  *
- * We call the Supabase REST API directly instead. skip_nonce_check is ON
- * on this project so the server will accept the token without any nonce.
+ * Replaces the native @react-native-google-signin flow entirely.
+ * Browser OAuth has ZERO nonce involvement — no "nonces mismatch" possible.
+ *
+ * Flow:
+ * 1. supabase.auth.signInWithOAuth() generates an OAuth URL
+ * 2. expo-web-browser opens it in a secure in-app browser
+ * 3. User signs in with Google
+ * 4. Supabase redirects back to c24club://auth/callback with tokens
+ * 5. supabase.auth.exchangeCodeForSession() picks up the session
  */
 
+import * as WebBrowser from "expo-web-browser";
+import * as AuthSession from "expo-auth-session";
 import { supabase } from "@/lib/supabase";
+import { Platform } from "react-native";
 
-const SUPABASE_URL = "https://ncpbiymnafxdfsvpxirb.supabase.co";
-const SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5jcGJpeW1uYWZ4ZGZzdnB4aXJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyNDY0MjgsImV4cCI6MjA4ODgyMjQyOH0.gMgtPIrRCFfHC7yaUSxajl-uTrXIh2GYvaVgs1SXFfA";
+// Required for iOS — dismisses the browser when redirect completes
+WebBrowser.maybeCompleteAuthSession();
 
-export async function signInWithGoogleIdToken(idToken: string): Promise<{ error: string | null }> {
+export async function signInWithGoogleOAuth(): Promise<{ error: string | null }> {
   try {
-    console.log("[GoogleAuth] Calling Supabase REST API directly (skip_nonce_check=ON)...");
-
-    // Call the REST API directly — no nonce sent at all.
-    // skip_nonce_check is enabled on this Supabase project so the server
-    // accepts the token even though Google v16 embeds a nonce in it.
-    const response = await fetch(
-      `${SUPABASE_URL}/auth/v1/token?grant_type=id_token`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({
-          provider: "google",
-          id_token: idToken,
-          // No nonce — skip_nonce_check=true means the server ignores nonce entirely
-        }),
-      }
-    );
-
-    const data = await response.json();
-    console.log("[GoogleAuth] REST response status:", response.status);
-
-    if (!response.ok) {
-      console.error("[GoogleAuth] REST error:", JSON.stringify(data));
-      return { error: data.error_description || data.msg || data.error || "Google Sign In failed" };
-    }
-
-    // Manually set the session so the Supabase JS client picks it up
-    const { error: sessionError } = await supabase.auth.setSession({
-      access_token: data.access_token,
-      refresh_token: data.refresh_token,
+    // Build the redirect URI — must match what's configured in Supabase Google provider
+    const redirectUri = AuthSession.makeRedirectUri({
+      scheme: "c24club",
+      path: "auth/callback",
     });
 
-    if (sessionError) {
-      console.error("[GoogleAuth] setSession error:", sessionError.message);
-      return { error: sessionError.message };
+    console.log("[GoogleOAuth] redirectUri:", redirectUri);
+
+    // Get the OAuth URL from Supabase
+    const { data, error: urlError } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: redirectUri,
+        skipBrowserRedirect: true, // We open the browser ourselves
+      },
+    });
+
+    if (urlError || !data?.url) {
+      console.error("[GoogleOAuth] Failed to get OAuth URL:", urlError?.message);
+      return { error: urlError?.message || "Failed to start Google Sign In" };
     }
 
-    console.log("[GoogleAuth] Sign in successful!");
+    console.log("[GoogleOAuth] Opening browser...");
+
+    // Open browser and wait for redirect
+    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
+
+    console.log("[GoogleOAuth] Browser result type:", result.type);
+
+    if (result.type !== "success") {
+      // User cancelled or browser failed — not an error we show to the user
+      return { error: result.type === "cancel" ? "cancelled" : "Google Sign In was dismissed" };
+    }
+
+    // Extract the code from the redirect URL and exchange it for a session
+    const url = result.url;
+    console.log("[GoogleOAuth] Redirect URL received, exchanging for session...");
+
+    // Parse the URL to get the code or tokens
+    const urlObj = new URL(url);
+    const code = urlObj.searchParams.get("code");
+    const accessToken = urlObj.searchParams.get("access_token");
+    const refreshToken = urlObj.searchParams.get("refresh_token");
+
+    if (code) {
+      // PKCE flow — exchange code for session
+      const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(url);
+      if (exchangeError) {
+        console.error("[GoogleOAuth] Code exchange error:", exchangeError.message);
+        return { error: exchangeError.message };
+      }
+    } else if (accessToken && refreshToken) {
+      // Implicit flow — set session directly
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+      if (sessionError) {
+        console.error("[GoogleOAuth] setSession error:", sessionError.message);
+        return { error: sessionError.message };
+      }
+    } else {
+      // Try exchangeCodeForSession with the full URL anyway
+      const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(url);
+      if (exchangeError) {
+        console.error("[GoogleOAuth] Session exchange error:", exchangeError.message);
+        return { error: exchangeError.message };
+      }
+    }
+
+    console.log("[GoogleOAuth] Sign in successful!");
     return { error: null };
   } catch (err: any) {
-    console.error("[GoogleAuth] Unexpected error:", err);
+    console.error("[GoogleOAuth] Unexpected error:", err);
     return { error: err.message || "Google Sign In failed" };
   }
 }

@@ -24,7 +24,7 @@ function loadEnv() {
       const value = trimmed
         .slice(eqIndex + 1)
         .trim()
-        .replace(/^['"]|['"]$/g, '');
+        .replace(/^["']|["']$/g, '');
 
       result[key] = value;
     }
@@ -44,7 +44,7 @@ module.exports = ({ config }) => ({
   // Expo project slug
   slug: 'cclub',
   name: 'C24 Club',
-  version: '1.9.9',
+  version: '2.0.0',
   orientation: 'portrait',
   icon: './assets/images/icon.png',
   // scheme drives deep links; target name comes from package.json name ('c24-club' → 'c24club')
