@@ -1,12 +1,10 @@
 /**
  * Google Sign In helper that bypasses the Supabase JS client's client-side
  * nonce check. The check runs BEFORE the request reaches the server, so
- * server-side skip_nonce_check cannot help.
+ * server-side skip_nonce_check cannot help when using signInWithIdToken().
  *
- * Google Sign In v16 embeds a random nonce in the ID token but gives us no
- * way to know the raw value. The Supabase client refuses to proceed unless we
- * pass the correct raw nonce. We work around this by calling the Supabase
- * /auth/v1/token REST endpoint directly and then setting the session manually.
+ * We call the Supabase REST API directly instead. skip_nonce_check is ON
+ * on this project so the server will accept the token without any nonce.
  */
 
 import { supabase } from "@/lib/supabase";
@@ -17,25 +15,11 @@ const SUPABASE_ANON_KEY =
 
 export async function signInWithGoogleIdToken(idToken: string): Promise<{ error: string | null }> {
   try {
-    // Decode the JWT to extract the nonce claim Google embedded in the token.
-    // With skip_nonce_check=ON, Supabase only checks presence (both exist or neither) —
-    // it does NOT verify the value, so echoing it back is enough.
-    let tokenNonce: string | undefined;
-    try {
-      const payloadB64 = idToken.split('.')[1];
-      // atob isn't available in all RN environments — use Buffer fallback
-      const decoded =
-        typeof atob === 'function'
-          ? atob(payloadB64)
-          : Buffer.from(payloadB64, 'base64').toString('utf8');
-      const payload = JSON.parse(decoded);
-      tokenNonce = payload.nonce;
-      console.log("[GoogleAuth] token nonce present:", !!tokenNonce);
-    } catch (e) {
-      console.warn("[GoogleAuth] Could not decode JWT payload:", e);
-    }
+    console.log("[GoogleAuth] Calling Supabase REST API directly (skip_nonce_check=ON)...");
 
-    // Call the REST API directly — bypasses the Supabase JS client's local nonce check
+    // Call the REST API directly — no nonce sent at all.
+    // skip_nonce_check is enabled on this Supabase project so the server
+    // accepts the token even though Google v16 embeds a nonce in it.
     const response = await fetch(
       `${SUPABASE_URL}/auth/v1/token?grant_type=id_token`,
       {
@@ -48,21 +32,20 @@ export async function signInWithGoogleIdToken(idToken: string): Promise<{ error:
         body: JSON.stringify({
           provider: "google",
           id_token: idToken,
-          // Echo the nonce from the token back so the server's presence check passes
-          ...(tokenNonce ? { nonce: tokenNonce } : {}),
-          gotrue_meta_security: {},
+          // No nonce — skip_nonce_check=true means the server ignores nonce entirely
         }),
       }
     );
 
     const data = await response.json();
+    console.log("[GoogleAuth] REST response status:", response.status);
 
     if (!response.ok) {
-      console.error("[GoogleAuth] REST error:", data);
-      return { error: data.error_description || data.msg || "Google Sign In failed" };
+      console.error("[GoogleAuth] REST error:", JSON.stringify(data));
+      return { error: data.error_description || data.msg || data.error || "Google Sign In failed" };
     }
 
-    // Manually set the session so the Supabase client picks it up
+    // Manually set the session so the Supabase JS client picks it up
     const { error: sessionError } = await supabase.auth.setSession({
       access_token: data.access_token,
       refresh_token: data.refresh_token,
@@ -73,6 +56,7 @@ export async function signInWithGoogleIdToken(idToken: string): Promise<{ error:
       return { error: sessionError.message };
     }
 
+    console.log("[GoogleAuth] Sign in successful!");
     return { error: null };
   } catch (err: any) {
     console.error("[GoogleAuth] Unexpected error:", err);

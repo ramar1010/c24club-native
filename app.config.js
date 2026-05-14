@@ -44,7 +44,7 @@ module.exports = ({ config }) => ({
   // Expo project slug
   slug: 'cclub',
   name: 'C24 Club',
-  version: '1.9.8',
+  version: '1.9.9',
   orientation: 'portrait',
   icon: './assets/images/icon.png',
   // scheme drives deep links; target name comes from package.json name ('c24-club' → 'c24club')
