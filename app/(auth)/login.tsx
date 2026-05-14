@@ -96,9 +96,9 @@ export default function LoginScreen() {
     // Native Google Sign In — no browser redirect needed
     try {
       await GoogleSignin.hasPlayServices();
-      const { rawNonce, hashedNonce } = await generateNonce();
-      // v16: nonce is passed directly to signIn() — setNonce() no longer exists
-      const userInfo = await GoogleSignin.signIn({ nonce: hashedNonce });
+      // v16 does NOT support nonces in signIn() — nonce is silently ignored,
+      // causing a mismatch on Supabase. Pass idToken directly with no nonce.
+      const userInfo = await GoogleSignin.signIn();
       const idToken = userInfo.data?.idToken;
       if (!idToken) {
         setError("Google Sign In failed — no ID token received.");
@@ -107,7 +107,7 @@ export default function LoginScreen() {
       const { error: authError } = await supabase.auth.signInWithIdToken({
         provider: "google",
         token: idToken,
-        nonce: rawNonce,
+        // no nonce — requires "Skip nonce checks" ON in Supabase Google provider settings
       });
       if (authError) setError(authError.message);
     } catch (e: any) {
