@@ -15,6 +15,7 @@ import { useRouter } from "expo-router";
 import { Eye, EyeOff } from "lucide-react-native";
 import { supabase } from "@/lib/supabase";
 import { generateNonce } from "@/lib/auth-utils";
+import { signInWithGoogleIdToken } from "@/lib/google-auth";
 import FallingGifts from "@/components/FallingGifts";
 import { useAuth } from "@/contexts/AuthContext";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
@@ -160,30 +161,17 @@ export default function SignUpScreen() {
     // Native Google Sign In — no browser redirect needed
     try {
       await GoogleSignin.hasPlayServices();
-      // v16 doesn't let us set a nonce, but Google embeds one in the token anyway.
-      // Decode the JWT to extract whatever nonce is in the token and echo it back
-      // to Supabase — skip_nonce_check is ON so it won't verify the value, but
-      // both sides must either have a nonce or not (presence check).
+      // v16 embeds a random nonce in the token we can't control. The Supabase
+      // JS client rejects it before reaching the server. Use our REST helper
+      // that calls /auth/v1/token directly, bypassing the client-side check.
       const userInfo = await GoogleSignin.signIn();
       const idToken = userInfo.data?.idToken;
       if (!idToken) {
         setError("Google Sign In failed — no ID token received.");
         return;
       }
-      // Extract nonce claim from JWT payload (no library needed)
-      let tokenNonce: string | undefined;
-      try {
-        const payloadB64 = idToken.split('.')[1];
-        const payload = JSON.parse(atob(payloadB64));
-        tokenNonce = payload.nonce;
-      } catch (_) {}
-
-      const { error: authError } = await supabase.auth.signInWithIdToken({
-        provider: "google",
-        token: idToken,
-        ...(tokenNonce ? { nonce: tokenNonce } : {}),
-      });
-      if (authError) setError(authError.message);
+      const { error: authError } = await signInWithGoogleIdToken(idToken);
+      if (authError) setError(authError);
     } catch (e: any) {
       if (e.code !== "SIGN_IN_CANCELLED") {
         setError(e.message || "Google Sign In failed");
