@@ -96,18 +96,28 @@ export default function LoginScreen() {
     // Native Google Sign In — no browser redirect needed
     try {
       await GoogleSignin.hasPlayServices();
-      // v16 does NOT support nonces in signIn() — nonce is silently ignored,
-      // causing a mismatch on Supabase. Pass idToken directly with no nonce.
+      // v16 doesn't let us set a nonce, but Google embeds one in the token anyway.
+      // Decode the JWT to extract whatever nonce is in the token and echo it back
+      // to Supabase — skip_nonce_check is ON so it won't verify the value, but
+      // both sides must either have a nonce or not (presence check).
       const userInfo = await GoogleSignin.signIn();
       const idToken = userInfo.data?.idToken;
       if (!idToken) {
         setError("Google Sign In failed — no ID token received.");
         return;
       }
+      // Extract nonce claim from JWT payload (no library needed)
+      let tokenNonce: string | undefined;
+      try {
+        const payloadB64 = idToken.split('.')[1];
+        const payload = JSON.parse(atob(payloadB64));
+        tokenNonce = payload.nonce;
+      } catch (_) {}
+
       const { error: authError } = await supabase.auth.signInWithIdToken({
         provider: "google",
         token: idToken,
-        // no nonce — requires "Skip nonce checks" ON in Supabase Google provider settings
+        ...(tokenNonce ? { nonce: tokenNonce } : {}),
       });
       if (authError) setError(authError.message);
     } catch (e: any) {
