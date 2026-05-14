@@ -28,7 +28,7 @@ module.exports = function (api) {
       ],
       "@babel/plugin-proposal-export-namespace-from",
       ...buildAdditionalPlugins(api),
-      "react-native-worklets/plugin", // Must be last
+      // react-native-worklets/plugin removed — not used in codebase, caused Metro to hang at 0%
     ],
   };
 };

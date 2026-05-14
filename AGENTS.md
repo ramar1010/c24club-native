@@ -52,6 +52,17 @@ File-based routing via expo-router. All routes live in `app/`.
 - Ban data model (`user_bans`): `id, user_id, ban_type, reason, is_active, unban_payment_session, unbanned_at, created_at, updated_at`
 - Reports model (`user_reports`): `id, reporter_id, reported_user_id, reason, details, screenshot_url, created_at`
 
+### IAP & Gifting Recovery System
+
+- `lib/gift-utils.ts` — Main logic for gifting minutes.
+- **Case-Sensitivity**: All SKU comparisons are case-insensitive (frontend and backend).
+- **Stuck Transaction Recovery**: 
+  - Before requesting a gift purchase, the `recipient_id` is saved to `AsyncStorage` with key `pending_gift_recipient_{sku}`.
+  - `hooks/useIAPListener.ts` (Global Listener) checks for these keys when it detects a `GIFT_SKU`.
+  - If a match is found, it automatically verifies with the backend and finishes the transaction.
+  - This unblocks users who see "Already Owned" errors and ensures recipients get credited even if the app crashes.
+- **StoreKit 2**: Uses `purchaseToken` as the primary identifier on iOS.
+
 ### Notifications
 
 - `lib/usePushNotifications.ts` — Custom hook for registering push tokens and handling foreground/tapped events.

@@ -1,2 +1,31 @@
-# Prevent huge core dump files from being included in the EAS upload
+# Keep local/generated files out of the EAS upload.
+# Source files, including local config plugins in plugins/, are included by default.
+
+node_modules/
+.git/
+.expo/
+.catdoes/
 core
+core/
+dist/
+web-build/
+
+# Local environment and machine files
+.env
+.env.*
+!.env.example
+.DS_Store
+*.tsbuildinfo
+
+# Logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# Local signing material
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem

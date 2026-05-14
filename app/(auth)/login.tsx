@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Eye, EyeOff } from "lucide-react-native";
 import { supabase } from "@/lib/supabase";
+import { generateNonce } from "@/lib/auth-utils";
 import FallingGifts from "@/components/FallingGifts";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import * as AppleAuthentication from "expo-apple-authentication";
@@ -24,6 +25,7 @@ const GOOGLE_ICON = require("@/assets/images/2a5758d6-4edb-4047-87bb-e6b94dbbbab
 
 GoogleSignin.configure({
   webClientId: "212900711433-rild80si8g6sg8q5j7jl8goo6o9ecnqi.apps.googleusercontent.com",
+  iosClientId: "212900711433-81ll0bcmetnektpaaqks8mr0l8ou09fi.apps.googleusercontent.com",
 });
 
 export default function LoginScreen() {
@@ -94,7 +96,9 @@ export default function LoginScreen() {
     // Native Google Sign In — no browser redirect needed
     try {
       await GoogleSignin.hasPlayServices();
-      const userInfo = await GoogleSignin.signIn();
+      const { rawNonce, hashedNonce } = await generateNonce();
+      // v16: nonce is passed directly to signIn() — setNonce() no longer exists
+      const userInfo = await GoogleSignin.signIn({ nonce: hashedNonce });
       const idToken = userInfo.data?.idToken;
       if (!idToken) {
         setError("Google Sign In failed — no ID token received.");
@@ -103,6 +107,7 @@ export default function LoginScreen() {
       const { error: authError } = await supabase.auth.signInWithIdToken({
         provider: "google",
         token: idToken,
+        nonce: rawNonce,
       });
       if (authError) setError(authError.message);
     } catch (e: any) {
@@ -230,13 +235,13 @@ export default function LoginScreen() {
               </View>
             </TouchableOpacity>
             {Platform.OS === "ios" && (
-              <TouchableOpacity
-                style={styles.oauthButton}
+              <AppleAuthentication.AppleAuthenticationButton
+                buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+                buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE_OUTLINE}
+                cornerRadius={100}
+                style={[styles.oauthButton, { height: 50, borderWidth: 0 }]}
                 onPress={() => handleOAuth("apple")}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.oauthText}> Apple</Text>
-              </TouchableOpacity>
+              />
             )}
           </View>
 

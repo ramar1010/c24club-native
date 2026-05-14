@@ -75,12 +75,19 @@ export function useGiftFeature(partnerId: string | null | undefined, callState: 
     }
   }, [showGiftIcon, giftPulseAnim]);
 
-  const handleGiftTier = useCallback(async (tier: string) => {
+  const handleGiftTier = useCallback(async (tier: string, retryCount = 0) => {
     if (!partnerId) return;
     setGiftLoading(tier);
     try {
       const tierId = parseInt(tier, 10);
       const result = await createGiftCheckout(tierId, partnerId);
+      if (!result.success && result.error === 'cleared_retry' && retryCount < 2) {
+        // Stuck transactions were cleared — automatically retry
+        console.log(`[useGiftFeature] Cleared stuck transaction, auto-retrying... (attempt ${retryCount + 1})`);
+        setGiftLoading(null);
+        await handleGiftTier(tier, retryCount + 1);
+        return;
+      }
       if (result.success) {
         setShowGiftOverlay(false);
         setShowGiftCelebration(true);

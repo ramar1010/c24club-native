@@ -340,49 +340,8 @@ export default function NotificationSettingsScreen() {
           </View>
         </View>
 
-        {/* ── COMING SOON ───────────────────────────────────────────────────── */}
-        <View style={styles.section}>
-          <View style={styles.sectionLabelRow}>
-            <Bell size={13} color="#6B7280" />
-            <Text style={styles.sectionLabel}>COMING SOON</Text>
-          </View>
-          {[
-            {
-              id: 'gift_received',
-              label: 'Gift received',
-              desc: 'Know immediately when someone gifts you minutes',
-            },
-          ].map((toggle, i, arr) => (
-            <View
-              key={toggle.id}
-              style={[
-                styles.settingRow,
-                i > 0 ? styles.settingRowBorder : undefined,
-              ]}
-            >
-              <View style={styles.settingInfo}>
-                <View style={styles.labelRow}>
-                  <Text style={styles.settingTitle}>{toggle.label}</Text>
-                  <View style={styles.comingSoonBadge}>
-                    <Text style={styles.comingSoonText}>Soon</Text>
-                  </View>
-                </View>
-                <Text style={styles.settingDesc}>{toggle.desc}</Text>
-              </View>
-              <Switch
-                value={false}
-                onValueChange={() => {}}
-                disabled
-                trackColor={{ false: '#3F3F5A', true: '#EF4444' }}
-                thumbColor="#5A5A7A"
-                ios_backgroundColor="#3F3F5A"
-              />
-            </View>
-          ))}
-        </View>
-
         <Text style={styles.footerNote}>
-          More notification options coming in a future update.
+          Stay tuned for more notification options in future updates.
         </Text>
       </ScrollView>
     </SafeAreaView>

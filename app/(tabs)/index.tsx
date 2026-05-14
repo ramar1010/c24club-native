@@ -10,6 +10,7 @@ import {
   Dimensions,
   ActivityIndicator,
   Modal,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Check, X, User as UserIcon, Sparkles, Video, MessageCircle, Gift, Link2, ExternalLink, Star, BookOpen, ChevronDown, ChevronUp } from 'lucide-react-native';
@@ -151,18 +152,6 @@ const GUIDE_SECTIONS = [
     ],
   },
   {
-    title: '📢  Ad Points & Promos',
-    items: [
-      { q: 'Ad Points & Promos', a: 'Coming soon! Stay tuned for updates on Ad Points and Promos.' },
-    ],
-  },
-  {
-    title: '🎯  Weekly Challenges',
-    items: [
-      { q: 'Weekly Challenges', a: 'Coming soon! Weekly Challenges are on their way.' },
-    ],
-  },
-  {
     title: '💝  Gifting Minutes',
     items: [
       { q: 'How do I gift minutes?', a: 'On the Home or Discover tab, tap a member&apos;s profile card and select the gift icon. Choose how many minutes to send. The recipient gets notified instantly. You can also gift in DMs, messages & Video Calls.' },
@@ -193,6 +182,10 @@ const GUIDE_SECTIONS = [
 // ───────────────────────────────────────────────────────────────────────────────
 
 export default function HomeScreen() {
+  const { width: windowWidth } = useWindowDimensions();
+  const CARD_WIDTH = windowWidth > 600 ? 180 : (windowWidth - 16 * 2 - 12) / 2.2;
+  const CARD_HEIGHT = CARD_WIDTH * (4 / 3);
+
   const { user, profile, loading, minutes } = useAuth();
   const router = useRouter();
   const { startCall, activeInvite } = useCall();
@@ -551,7 +544,7 @@ export default function HomeScreen() {
           </View>
 
           {vipLoading ? (
-            <View style={styles.vipLoading}>
+            <View style={[styles.vipLoading, { height: CARD_HEIGHT }]}>
               <ActivityIndicator color='#EF4444' />
             </View>
           ) : (
@@ -592,7 +585,7 @@ export default function HomeScreen() {
                 </View>
               )}
               ListEmptyComponent={
-                <View style={styles.vipEmpty}>
+                <View style={[styles.vipEmpty, { width: windowWidth - 32, height: CARD_HEIGHT }]}>
                   <Text style={styles.vipEmptyText}>No VIPs online right now</Text>
                 </View>
               }

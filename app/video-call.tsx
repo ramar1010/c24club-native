@@ -12,6 +12,7 @@ import {
   Alert,
   Platform,
   Animated,
+  ScrollView,
 } from 'react-native';
 import {
   Mic,
@@ -30,6 +31,8 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useAuth, MemberProfile } from '@/contexts/AuthContext';
+
+import { dlog } from '@/lib/debug-log';
 import { Text } from '@/components/ui/text';
 import { Heading } from '@/components/ui/heading';
 import { VStack } from '@/components/ui/vstack';
@@ -40,6 +43,7 @@ import { createGiftCheckout, checkIsPremiumVip, GIFT_TIERS } from '@/lib/gift-ut
 import { GiftCelebration } from '@/components/GiftCelebration';
 import { useRevealVideo } from '@/hooks/useRevealVideo';
 import { LinearGradient } from 'expo-linear-gradient';
+import { getFriendlyErrorMessage } from '@/lib/error-utils';
 
 // ─── Native WebRTC Imports (Guarded) ──────────────────────────────────────────
 import {
@@ -48,6 +52,7 @@ import {
   mediaDevices,
   RTCIceCandidate,
   RTCSessionDescription,
+  MediaStream,
 } from '@/lib/webrtc';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -66,21 +71,36 @@ const configuration = {
       credential: "openrelayproject",
     },
   ],
-  iceTransportPolicy: "all",
-  iceCandidatePoolSize: 10,
+  iceTransportPolicy: "all" as any,
 };
 
-export default function VideoCallScreen() {
-  const { inviteId, roomId, partnerId, type, genderPreference } = useLocalSearchParams<{ 
+export default function VideoCallScreen({ modalInviteId, onDismiss }: { modalInviteId?: string; onDismiss?: () => void } = {}) {
+  const params = useLocalSearchParams<{ 
     inviteId?: string;
     roomId?: string;
     partnerId?: string;
     type?: string;
     genderPreference?: 'Both' | 'Male' | 'Female';
   }>();
+  // When rendered as a Modal, modalInviteId takes precedence over route params
+  const inviteId = modalInviteId ?? params.inviteId;
+  const roomId = params.roomId;
+  const partnerId = params.partnerId;
+  const type = params.type;
+  const genderPreference = params.genderPreference;
+
   const { user, profile, minutes, refreshProfile } = useAuth();
   const router = useRouter();
   const toast = useToast();
+
+  // Unified dismiss — works whether rendered as modal or as a route
+  const dismiss = () => {
+    if (onDismiss) {
+      onDismiss();
+    } else {
+      router.back();
+    }
+  };
 
   const matchStatus: string | null = null;
   const skip: ((...args: any[]) => void) | null = null;
@@ -104,6 +124,12 @@ export default function VideoCallScreen() {
   
   const [partner, setPartner] = useState<{ name: string; image_url: string; id: string; vip_tier?: string } | null>(null);
 
+  // ─── Mount-time sync log (runs before any useEffect) ──────────────────────
+  const [_mountLog] = useState(() => {
+    dlog('VideoCall', 'component mounting (sync)', { inviteId, roomId, hasUser: !!user });
+    return null;
+  });
+
   // ─── Reveal video after 3s delay on new partner ────────────────────────────
   const { showVideo, videoOpacity } = useRevealVideo(
     callStatus === 'Connected',
@@ -124,6 +150,7 @@ export default function VideoCallScreen() {
   const isHangingUpRef = useRef(false);
   const localStreamRef = useRef<any | null>(null);  // ref copy avoids stale closures in cleanup
   const isSetupRunRef = useRef(false);              // prevents double setupCall (React Strict Mode)
+  const isMountedRef = useRef(true);                // guards setState after async IAP/gift ops
 
   // Keep senderChannelRef in sync if user loads after mount
   useEffect(() => {
@@ -138,14 +165,33 @@ export default function VideoCallScreen() {
   }, [matchStatus, newRoomId, newPartnerId, type]);
 
   useEffect(() => {
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
+
+  useEffect(() => {
     const activeId = inviteId || roomId;
-    if (!activeId || !user) {
-      router.back();
+
+    // user may be null on first render while AuthContext hydrates from AsyncStorage.
+    // Do NOT call router.back() here — just wait for the next render when user is available.
+    if (!activeId) {
+      dlog('VideoCall', 'no activeId, going back');
+      dismiss();
       return;
     }
 
+    if (!user) {
+      dlog('VideoCall', 'user not yet loaded, waiting for auth hydration...');
+      return; // will re-run when user becomes available
+    }
+
+    dlog('VideoCall', 'useEffect fired with user', { userId: user.id, activeId });
+
     // Guard against double-execution (React Strict Mode / re-renders)
-    if (isSetupRunRef.current) return;
+    if (isSetupRunRef.current) {
+      dlog('VideoCall', 'setupCall already ran, skipping duplicate');
+      return;
+    }
     isSetupRunRef.current = true;
 
     setupCall();
@@ -170,7 +216,7 @@ export default function VideoCallScreen() {
                 <VStack space="xs">
                   <ToastTitle>🎁 Gift Received!</ToastTitle>
                   <ToastDescription>
-                    Someone gifted you {gift.minutes} minutes = ${gift.cash_value.toFixed(2)}!
+                    Someone gifted you {gift.minutes_amount} minutes!
                   </ToastDescription>
                 </VStack>
               </Toast>
@@ -185,7 +231,7 @@ export default function VideoCallScreen() {
       cleanup();
       supabase.removeChannel(giftChannel);
     };
-  }, [inviteId, roomId]);
+  }, [inviteId, roomId, user?.id]);
 
   const cleanup = async () => {
     if (signalingInterval.current) clearInterval(signalingInterval.current);
@@ -224,6 +270,31 @@ export default function VideoCallScreen() {
       const activeId = inviteId ? `direct-${inviteId}` : roomId;
       if (!activeId || !user) return;
 
+      await dlog('VideoCall', 'setupCall START', { activeId, inviteId, roomId, platform: Platform.OS });
+
+      // ── Initiator Cleanup (runs BEFORE the iOS wait) ──────────────────────
+      // Must happen first so we don't wipe Android callee's peer-ready signals
+      // that arrive during the iOS hardware-release delay.
+      if (inviteId) {
+        // Determine initiator early so we can clean up stale signals right away
+        const { data: inviteEarly } = await supabase
+          .from('direct_call_invites')
+          .select('inviter_id')
+          .eq('id', inviteId)
+          .single();
+        if (inviteEarly?.inviter_id === user.id) {
+          console.log('[VideoCall] Initiator: cleaning stale signals before iOS wait...');
+          await supabase.from('room_signals').delete().eq('room_id', activeId);
+        }
+      }
+
+      // iOS Stability: wait for camera hardware to release AFTER cleanup
+      if (Platform.OS === 'ios') {
+        await dlog('VideoCall', 'iOS: waiting 2500ms before acquiring camera');
+        await new Promise(resolve => setTimeout(resolve, 2500));
+        await dlog('VideoCall', 'iOS: wait done');
+      }
+
       setCallStatus('Connecting...');
 
       let isInitiator = false;
@@ -259,11 +330,7 @@ export default function VideoCallScreen() {
         });
         setCallStatus(isInitiator ? 'Calling...' : 'Connecting...');
 
-        // ── 1.1 Initiator Cleanup ──
-        if (isInitiator) {
-           console.log('[VideoCall] Initiator cleaning stale signals...');
-           await supabase.from('room_signals').delete().eq('room_id', activeId);
-        }
+        // Cleanup already ran above — skip here
       } else if (type === 'random' && partnerId) {
         // Fetch partner profile for random match
         const { data: partnerData } = await supabase
@@ -289,29 +356,66 @@ export default function VideoCallScreen() {
       console.log('[VideoCall] Acquiring media stream...');
       let currentStream = localStream;
       if (!currentStream) {
-        currentStream = await mediaDevices.getUserMedia({
-          audio: true,
-          video: { facingMode: 'user' },
-        });
-        console.log('[VideoCall] Media stream acquired successfully');
+        // Always acquire a fresh stream. Do NOT reuse tracks from another peer connection
+        // (even via handoff) — on iOS, WebRTC tracks are owned by the RTCPeerConnection
+        // that created them and cannot be safely moved to a new one. The releaseCamera()
+        // in chat.tsx now stops tracks cleanly; we wait 2500ms above for full hardware release.
+        await dlog('VideoCall', 'calling getUserMedia for fresh stream');
+        const acquireStream = async (attempt = 0): Promise<any> => {
+            try {
+              await dlog('VideoCall', `getUserMedia attempt ${attempt + 1}`);
+              return await mediaDevices.getUserMedia({
+                audio: true,
+                video: { facingMode: 'user' },
+              });
+            } catch (err: any) {
+              await dlog('VideoCall', `getUserMedia FAILED attempt ${attempt + 1}`, { name: err?.name, message: err?.message });
+              if (Platform.OS === 'ios' && attempt < 4) {
+                const delay = (attempt + 1) * 2000;
+                await dlog('VideoCall', `retrying in ${delay}ms`);
+                await new Promise(r => setTimeout(r, delay));
+                return acquireStream(attempt + 1);
+              }
+              if (Platform.OS === 'ios') {
+                await dlog('VideoCall', 'falling back to audio-only stream');
+                return await mediaDevices.getUserMedia({ audio: true, video: false });
+              }
+              throw err;
+            }
+          };
+          currentStream = await acquireStream();
+
+        if (Platform.OS === 'web' && typeof currentStream === 'object' && !currentStream.toURL) {
+           (currentStream as any).toURL = () => currentStream;
+        }
+
+        await dlog('VideoCall', 'stream ready', { tracks: currentStream?.getTracks?.()?.map((t: any) => ({ kind: t.kind, enabled: t.enabled, readyState: t.readyState })) });
         setLocalStream(currentStream);
       }
       // Keep ref in sync for cleanup stale-closure safety
       localStreamRef.current = currentStream;
 
       // 3. Create PeerConnection
+      await dlog('VideoCall', 'creating RTCPeerConnection');
       pc.current = new RTCPeerConnection(configuration);
+      await dlog('VideoCall', 'RTCPeerConnection created, adding tracks');
       
       currentStream.getTracks().forEach((track: any) => {
         pc.current?.addTrack(track, currentStream);
       });
+      await dlog('VideoCall', 'tracks added to PC');
 
       if (pc.current) {
         pc.current.ontrack = (event: any) => {
+          dlog('VideoCall', 'ontrack fired', { streams: event.streams?.length, track: event.track?.kind });
           let stream = event.streams?.[0] ?? null;
           // Web shim: build stream from individual tracks if needed
           if (!stream && event.track) {
-            try { stream = new MediaStream([event.track]); } catch (_) {}
+            try { 
+              if (MediaStream) {
+                stream = new MediaStream([event.track]); 
+              }
+            } catch (_) {}
           }
           if (stream) {
             // Web shim: expose .toURL() for RTCView compatibility
@@ -325,6 +429,7 @@ export default function VideoCallScreen() {
 
         pc.current.onicecandidate = (event: any) => {
           if (event.candidate) {
+            dlog('VideoCall', 'ICE candidate generated');
             // Serialize properly for cross-platform compatibility
             const candidateData = event.candidate.toJSON ? event.candidate.toJSON() : event.candidate;
             sendSignal('ice-candidate', candidateData);
@@ -334,7 +439,7 @@ export default function VideoCallScreen() {
         // Connection state monitoring with 7s grace period (handles brief network flickers)
         pc.current.onconnectionstatechange = () => {
           const state = pc.current?.connectionState;
-          console.log('[VideoCall] connectionState:', state);
+          dlog('VideoCall', 'connectionState changed', { state });
           if (state === 'connected') {
             if (disconnectTimerRef.current) { clearTimeout(disconnectTimerRef.current); disconnectTimerRef.current = null; }
             setCallStatus('Connected');
@@ -346,7 +451,7 @@ export default function VideoCallScreen() {
                 if (!isHangingUpRef.current && pc.current?.connectionState !== 'connected') {
                   console.log('[VideoCall] Grace period expired — ending call');
                   setCallStatus('Ended');
-                  setTimeout(() => router.back(), 2000);
+                  setTimeout(() => dismiss(), 2000);
                 }
               }, 7000);
             }
@@ -358,7 +463,7 @@ export default function VideoCallScreen() {
       signalingInterval.current = setInterval(pollSignals, 700);
 
       // 5. Handshake: Send peer-ready
-      // Callee sends once. Initiator resends every 1.5s until offer is sent.
+      // Both sides resend until handshake completes — this survives the initiator's stale-signal cleanup.
       const sendPeerReady = () => {
         console.log('[VideoCall] Sending peer-ready');
         sendSignal('peer-ready', { from: user.id });
@@ -366,16 +471,52 @@ export default function VideoCallScreen() {
 
       sendPeerReady();
 
+      // Initiator resends until it has sent an offer (localDescription set).
+      // Callee resends until it has received an offer (remoteDescription set).
+      // This ensures peer-ready is never permanently lost due to signal cleanup timing.
+      let peerReadyAttempts = 0;
+      peerReadyInterval.current = setInterval(() => {
+        peerReadyAttempts++;
+        if (peerReadyAttempts >= 20) {
+          if (peerReadyInterval.current) clearInterval(peerReadyInterval.current);
+          return;
+        }
+        if (isInitiatorRef.current && pc.current?.localDescription) {
+          if (peerReadyInterval.current) clearInterval(peerReadyInterval.current);
+          return;
+        }
+        if (!isInitiatorRef.current && pc.current?.remoteDescription) {
+          if (peerReadyInterval.current) clearInterval(peerReadyInterval.current);
+          return;
+        }
+        sendPeerReady();
+      }, 1500);
+
+      // ── Guaranteed offer timer (initiator only) ────────────────────────────
+      // If peer-ready from callee is never received (race condition, missed signal,
+      // or callee on older build), the initiator would deadlock waiting forever.
+      // This fires after 3s and creates the offer unconditionally.
+      // The peer-ready path above is the fast path; this is the safety net.
       if (isInitiator) {
-        let attempts = 0;
-        peerReadyInterval.current = setInterval(() => {
-          attempts++;
-          if (attempts >= 20 || pc.current?.localDescription) {
-            if (peerReadyInterval.current) clearInterval(peerReadyInterval.current);
-            return;
+        setTimeout(async () => {
+          if (!pc.current || pc.current.localDescription) return; // already offered
+          console.log('[VideoCall] Guaranteed offer timer fired — creating offer without peer-ready');
+          try {
+            if (peerReadyInterval.current) {
+              clearInterval(peerReadyInterval.current);
+              peerReadyInterval.current = null;
+            }
+            const offer = await pc.current.createOffer({
+              offerToReceiveAudio: true,
+              offerToReceiveVideo: true,
+            });
+            await pc.current.setLocalDescription(offer);
+            sendSignal('offer', offer);
+            console.log('[VideoCall] Guaranteed offer sent');
+          } catch (e: any) {
+            console.warn('[VideoCall] Guaranteed offer failed:', e?.message);
           }
-          sendPeerReady();
-        }, 1500);
+        }, 3000);
       }
 
       // 6. Broadcast our voice mode status
@@ -387,15 +528,16 @@ export default function VideoCallScreen() {
            const { data } = await supabase.from('direct_call_invites').select('status').eq('id', inviteId).single();
            if (data?.status === 'hangup' || data?.status === 'declined' || data?.status === 'expired') {
               setCallStatus('Ended');
-              setTimeout(() => router.back(), 2000);
+              setTimeout(() => dismiss(), 2000);
            }
         }, 2000);
       }
 
     } catch (err: any) {
+      await dlog('VideoCall', 'setupCall CRASHED', { name: err?.name, message: err?.message, stack: err?.stack });
       console.error('Setup failed:', err);
-      Alert.alert('Call Error', err.message);
-      router.back();
+      Alert.alert('Call Error', getFriendlyErrorMessage(err));
+      dismiss();
     }
   };
 
@@ -462,7 +604,10 @@ export default function VideoCallScreen() {
                 clearInterval(peerReadyInterval.current);
                 peerReadyInterval.current = null;
               }
-              const offer = await pc.current.createOffer({});
+              const offer = await pc.current.createOffer({
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: true,
+              });
               await pc.current.setLocalDescription(offer);
               sendSignal('offer', offer);
             }
@@ -497,13 +642,22 @@ export default function VideoCallScreen() {
             }
           } else if (signal.signal_type === 'call-ended') {
             setCallStatus('Ended');
-            setTimeout(() => router.back(), 2000);
+            setTimeout(() => dismiss(), 2000);
           }
         }
       }
     } catch (err) {
-      console.error('Polling error:', err);
+      console.error('Poll error:', err);
     }
+  };
+
+  const handleHangup = async () => {
+    if (isHangingUpRef.current) return;
+    isHangingUpRef.current = true;
+    setCallStatus('Ended');
+    await sendSignal('call-ended', { from: user?.id });
+    // cleanup() called by useEffect return
+    dismiss();
   };
 
   const toggleMute = () => {
@@ -522,26 +676,17 @@ export default function VideoCallScreen() {
       if (videoTrack) {
         videoTrack.enabled = !videoTrack.enabled;
         setIsCameraOff(!videoTrack.enabled);
+        sendSignal('voice-mode', { enabled: !videoTrack.enabled, from: user?.id });
       }
     }
   };
 
-  const handleEndCall = async () => {
-    isHangingUpRef.current = true;
-    if (disconnectTimerRef.current) { clearTimeout(disconnectTimerRef.current); disconnectTimerRef.current = null; }
-    setCallStatus('Ended');
-    await sendSignal('call-ended', {});
-    await cleanup();
-    router.back();
-  };
-
-  const handleNext = async () => {
-    await cleanup();
+  const handleNext = () => {
     setCallStatus('Searching...');
     (skip as any)?.();
   };
 
-  const handleSendGift = async (tier: typeof GIFT_TIERS[0]) => {
+  const handleSendGift = async (tier: (typeof GIFT_TIERS)[number], retryCount = 0) => {
      if (!partner) return;
      
      // Recipient must be Premium VIP
@@ -551,15 +696,27 @@ export default function VideoCallScreen() {
         return;
      }
 
-     setGiftLoading(tier.id);
-     const result = await createGiftCheckout(tier.id, partner.id);
-     setGiftLoading(null);
-
-     if (result.success) {
-       setShowGiftOverlay(false);
-       setShowGiftCelebration(true);
-     } else if (result.error !== 'cancelled') {
-       Alert.alert('Purchase Failed', result.error || 'Something went wrong. Please try again.');
+     if (isMountedRef.current) setGiftLoading(tier.id);
+     try {
+       const result = await createGiftCheckout(tier.id, partner.id);
+       if (!isMountedRef.current) return; // component unmounted during IAP sheet
+       if (!result.success && result.error === 'cleared_retry' && retryCount < 2) {
+         console.log(`[video-call] Cleared stuck transaction, auto-retrying... (attempt ${retryCount + 1})`);
+         setGiftLoading(null);
+         await handleSendGift(tier, retryCount + 1);
+         return;
+       }
+       if (result.success) {
+         setShowGiftOverlay(false);
+         setShowGiftCelebration(true);
+         refreshProfile();
+       } else if (result.error !== 'cancelled') {
+         Alert.alert('Purchase Failed', getFriendlyErrorMessage(result.error));
+       }
+     } catch (err) {
+       if (isMountedRef.current) Alert.alert('Error', getFriendlyErrorMessage(err));
+     } finally {
+       if (isMountedRef.current) setGiftLoading(null);
      }
   };
 
@@ -569,190 +726,146 @@ export default function VideoCallScreen() {
     try {
       const { error } = await supabase.from('user_reports').insert({
         reporter_id: profile.id,
-        reported_user_id: partnerId ?? null,
+        reported_user_id: partner?.id || partnerId,
         reason: reportReason,
-        details: reportDetails || null,
+        details: reportDetails,
       });
-      if (error) {
-        console.warn('[video-call] Report insert error:', error.message, error.details);
-        setReportSubmitting(false);
-        return;
-      }
+
+      if (error) throw error;
       setReportSubmitted(true);
       setTimeout(() => {
         setShowReport(false);
         setReportSubmitted(false);
         setReportReason('');
         setReportDetails('');
-      }, 1800);
-    } catch (err) {
-      console.warn('[video-call] Report submit error:', err);
+        handleHangup();
+      }, 2000);
+    } catch (err: any) {
+      Alert.alert('Error', getFriendlyErrorMessage(err));
     } finally {
       setReportSubmitting(false);
     }
-  }, [reportReason, reportDetails, profile?.id, partnerId]);
+  }, [reportReason, reportDetails, profile?.id, partner?.id, partnerId]);
 
-  const renderVideoArea = () => (
-    <View style={styles.videoArea}>
-      {/* Remote video */}
-      {partnerIsVoiceMode ? (
-        <View style={styles.remoteVideoPlaceholder}>
-          <Image
-            source={partner?.image_url ? { uri: partner.image_url } : require('@/assets/images/icon.png')}
-            style={styles.voiceModeAvatar}
-          />
-          <Text style={styles.voiceModeLabel}>Voice Mode</Text>
-        </View>
-      ) : remoteStream ? (
-        <View style={StyleSheet.absoluteFill}>
-          {/* Placeholder shown for first 3s */}
-          {!showVideo && (
-            <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', zIndex: 10 }]}>
-              <LinearGradient
-                colors={['#0F0F1A', '#1A1A2E', '#0F0F1A']}
-                style={StyleSheet.absoluteFill}
-              />
-              <View style={{ alignItems: 'center', gap: 14 }}>
-                {partner?.image_url ? (
-                  <Image
-                    source={{ uri: partner.image_url }}
-                    style={{ width: 80, height: 80, borderRadius: 40, opacity: 0.5 }}
-                  />
-                ) : (
-                  <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: '#2A2A4A', alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ fontSize: 36 }}>👤</Text>
-                  </View>
-                )}
-                <View style={{ alignItems: 'center', gap: 4 }}>
-                  <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '600' }}>
-                    {partner?.name ? `Connected with ${partner.name}` : 'Match found!'}
-                  </Text>
-                  <Text style={{ color: '#71717A', fontSize: 13 }}>Starting video…</Text>
-                </View>
-                <ActivityIndicator size="small" color="#EF4444" style={{ marginTop: 4 }} />
-              </View>
-            </View>
-          )}
-          {/* RTCView — mounted immediately but revealed after delay */}
-          <Animated.View style={[StyleSheet.absoluteFill, { opacity: videoOpacity }]}>
-            <RTCView
-              streamURL={typeof remoteStream.toURL === 'function' ? remoteStream.toURL() : remoteStream}
-              style={styles.remoteVideo}
-              objectFit="cover"
-              zOrder={0}
-            />
+  return (
+    <View style={styles.container}>
+      {/* Remote Video (Full Screen) */}
+      <View style={styles.remoteVideoContainer}>
+        {remoteStream && !partnerIsVoiceMode ? (
+          <Animated.View style={{ flex: 1, opacity: videoOpacity }}>
+             <RTCView
+               {...(Platform.OS === 'web'
+                 ? { stream: remoteStream }
+                 : { streamURL: typeof remoteStream?.toURL === 'function' ? remoteStream.toURL() : undefined }
+               )}
+               style={styles.remoteVideo}
+               objectFit="cover"
+               zOrder={0}
+             />
           </Animated.View>
-        </View>
-      ) : (
-        <View style={styles.remoteVideoPlaceholder}>
-          <ActivityIndicator size="large" color="#EF4444" />
-          <Text style={{ color: '#A1A1AA', marginTop: 12 }}>{callStatus}</Text>
-        </View>
-      )}
+        ) : (
+          <View style={styles.placeholderContainer}>
+             <Image 
+               source={{ uri: partner?.image_url || 'https://via.placeholder.com/400' }} 
+               style={styles.partnerAvatar}
+             />
+             <VStack space="md" style={styles.centerItems}>
+               <ActivityIndicator color="#EF4444" size="large" />
+               <Text style={styles.statusText}>
+                 {partnerIsVoiceMode ? `${partner?.name || 'Partner'} is in voice mode` : callStatus}
+               </Text>
+             </VStack>
+          </View>
+        )}
+      </View>
 
-      {/* Local PiP */}
+      {/* Local Video (Floating) */}
       <View style={styles.localVideoContainer}>
         {localStream && !isCameraOff ? (
           <RTCView
-            streamURL={Platform.OS === 'web' ? localStream : localStream.toURL()}
+            {...(Platform.OS === 'web'
+              ? { stream: localStream }
+              : { streamURL: typeof localStream?.toURL === 'function' ? localStream.toURL() : undefined }
+            )}
             style={styles.localVideo}
             objectFit="cover"
             mirror={true}
+            zOrder={1}
           />
         ) : (
-          <View style={styles.localPlaceholder}>
-             <VideoOff size={24} color="#71717A" />
+          <View style={[styles.localVideo, styles.localVideoOff]}>
+            <VideoOff color="#FFFFFF" size={24} />
           </View>
         )}
       </View>
 
       {/* Header Info */}
       <SafeAreaView style={styles.header}>
-        <View style={styles.topBar}>
-          <View style={styles.statusBadge}>
-            <View style={flattenStyle([styles.pulseDot,callStatus === 'Connected' ? styles.onlinePulse : undefined])} />
-            <Text style={styles.statusText}>
-              {callStatus === 'Connected' ? `Connected with ${partner?.name}` : 
-               matchStatus === 'searching' ? 'Searching...' : callStatus}
-            </Text>
+        <HStack style={styles.headerContent} space="md">
+          <TouchableOpacity onPress={() => setShowReport(true)} style={styles.reportButton}>
+             <Flag color="#FFFFFF" size={20} />
+          </TouchableOpacity>
+          <View style={styles.partnerInfo}>
+            <Text style={styles.partnerName}>{partner?.name || 'Stranger'}</Text>
+            {partner?.vip_tier && (
+              <View style={styles.vipBadge}>
+                <Zap size={10} color="#1A1A2E" fill="#1A1A2E" />
+                <Text style={styles.vipText}>VIP</Text>
+              </View>
+            )}
           </View>
-
-        </View>
-        
-        {callStatus === 'Connected' && (
-           <View style={styles.giftHint}>
-              <Text style={styles.giftHintText}>💸 Tap the gift button to send cash!</Text>
-           </View>
-        )}
+        </HStack>
       </SafeAreaView>
 
-      {/* Controls */}
-      <View style={styles.controlsContainer}>
+      {/* Bottom Controls */}
+      <View style={styles.controls}>
         <HStack space="xl" style={styles.controlsRow}>
           <TouchableOpacity 
-            style={flattenStyle([styles.controlButton,isMuted ? styles.activeControl : undefined])} 
+            style={[styles.controlButton, isMuted && styles.activeControl]} 
             onPress={toggleMute}
           >
-            {isMuted ? <MicOff size={24} color="#FFFFFF" /> : <Mic size={24} color="#FFFFFF" />}
+            {isMuted ? <MicOff color="#FFFFFF" size={28} /> : <Mic color="#FFFFFF" size={28} />}
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.hangupButton} onPress={handleHangup}>
+            <PhoneOff color="#FFFFFF" size={32} />
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={styles.giftButton} 
-            onPress={() => setShowGiftOverlay(true)}
-          >
-            <Gift size={28} color="#FFFFFF" />
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.endCallButton} 
-            onPress={handleEndCall}
-          >
-            <PhoneOff size={32} color="#FFFFFF" />
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={flattenStyle([styles.controlButton,isCameraOff ? styles.activeControl : undefined])} 
+            style={[styles.controlButton, isCameraOff && styles.activeControl]} 
             onPress={toggleCamera}
           >
-             {isCameraOff ? <VideoOff size={24} color="#FFFFFF" /> : <Video size={24} color="#FFFFFF" />}
+            {isCameraOff ? <VideoOff color="#FFFFFF" size={28} /> : <Video color="#FFFFFF" size={28} />}
+          </TouchableOpacity>
+        </HStack>
+
+        <HStack space="lg" style={styles.actionRow}>
+          <TouchableOpacity style={styles.actionButton} onPress={() => setShowGiftOverlay(true)}>
+            <Gift color="#FACC15" size={24} />
+            <Text style={styles.actionText}>Gift</Text>
           </TouchableOpacity>
 
           {type === 'random' && (
-            <TouchableOpacity 
-              style={flattenStyle([styles.controlButton, styles.nextButton])} 
-              onPress={handleNext}
-              disabled={matchStatus === 'searching'}
-            >
-               <ChevronRight size={32} color="#FFFFFF" />
+            <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
+              <Text style={styles.nextText}>Next</Text>
+              <ChevronRight color="#FFFFFF" size={20} />
             </TouchableOpacity>
           )}
-
-          <TouchableOpacity
-            style={styles.controlButton}
-            onPress={() => setShowReport(true)}
-          >
-            <Flag size={22} color="#EF4444" />
-          </TouchableOpacity>
         </HStack>
       </View>
 
       {/* Gift Overlay */}
-      {showGiftOverlay && (
-         <View style={styles.overlay}>
-            <TouchableOpacity style={styles.overlayClose} onPress={() => setShowGiftOverlay(false)} />
-            <VStack space="lg" style={styles.giftMenu}>
-               <HStack style={styles.giftHeader}>
-                  <Heading style={styles.giftTitle}>Send a Gift 🎁</Heading>
-                  <TouchableOpacity onPress={() => setShowGiftOverlay(false)}>
-                     <X size={24} color="#71717A" />
-                  </TouchableOpacity>
-               </HStack>
-               
-               <Text style={styles.giftSubtitle}>
-                  Support {partner?.name} by sending minutes they can cash out!
-               </Text>
-               
-               <View style={styles.giftGrid}>
+      <RNModal visible={showGiftOverlay} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.giftSheet}>
+            <HStack style={styles.modalHeader} space="md">
+               <Heading size="md" style={styles.modalTitle}>Send a Gift</Heading>
+               <TouchableOpacity onPress={() => setShowGiftOverlay(false)}>
+                  <X color="#A1A1AA" size={24} />
+               </TouchableOpacity>
+            </HStack>
+            
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.giftList}>
                   {GIFT_TIERS.map((tier) => (
                      <TouchableOpacity 
                        key={tier.id} 
@@ -762,96 +875,85 @@ export default function VideoCallScreen() {
                      >
                         <VStack space="xs" style={styles.centerItems}>
                            {giftLoading === tier.id ? (
-                             <ActivityIndicator size="small" color="#FACC15" />
+                             <ActivityIndicator color="#FACC15" />
                            ) : (
                              <>
-                               <View style={styles.giftIconBg}>
-                                  <DollarSign size={24} color="#FACC15" />
-                               </View>
-                               <Text style={styles.giftMins}>{tier.minutes} mins</Text>
-                               <Text style={styles.giftPrice}>${tier.price.toFixed(2)}</Text>
-                               {tier.senderBonus > 0 && <Text style={styles.bonusText}>+{tier.senderBonus} bonus</Text>}
+                               <Text style={styles.giftEmoji}>🎁</Text>
+                               <Text style={styles.giftMinutes}>{tier.minutes} Min</Text>
+                               <Text style={styles.giftPrice}>${tier.price}</Text>
                              </>
                            )}
                         </VStack>
                      </TouchableOpacity>
                   ))}
-               </View>
-               
-               <View style={styles.infoBox}>
-                  <Text style={styles.infoText}>
-                     Gifts get a 20% bonus on minutes credited to the recipient!
-                  </Text>
-               </View>
-            </VStack>
-         </View>
-      )}
-
-      <GiftCelebration
-        visible={showGiftCelebration}
-        recipientName={partner?.name || 'this user'}
-        onDismiss={() => setShowGiftCelebration(false)}
-      />
+            </ScrollView>
+          </View>
+        </View>
+      </RNModal>
 
       {/* Report Modal */}
-      <RNModal visible={showReport} transparent animationType="slide" onRequestClose={() => setShowReport(false)}>
-        <View style={styles.reportModalOverlay}>
-          <View style={styles.reportSheet}>
-            <View style={styles.reportHeader}>
-              <Text style={styles.reportTitle}>Report User</Text>
-              <TouchableOpacity onPress={() => setShowReport(false)}>
-                <X size={22} color="#71717A" />
-              </TouchableOpacity>
-            </View>
+      <RNModal visible={showReport} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.reportContent}>
             {reportSubmitted ? (
-              <View style={styles.reportSuccess}>
-                <Text style={styles.reportSuccessText}>✅ Report submitted. Thank you!</Text>
-              </View>
+               <View style={styles.reportSuccess}>
+                  <Heart color="#22C55E" size={48} fill="#22C55E" />
+                  <Heading size="md" style={styles.reportSuccessText}>Report Submitted</Heading>
+                  <Text style={styles.statusText}>We will review this match shortly.</Text>
+               </View>
             ) : (
               <>
-                <View style={styles.reportGrid}>
-                  {['Underage User','Inappropriate Behavior','Nudity / Sexual Content','Harassment / Bullying','Hate Speech / Discrimination','Spam / Scam','Violence / Threats','Other'].map((reason) => (
-                    <TouchableOpacity
-                      key={reason}
-                      style={[styles.reportReasonBtn,reportReason === reason ? styles.reportReasonBtnActive : undefined]}
-                      onPress={() => setReportReason(reason)}
-                    >
-                      <Text style={[styles.reportReasonText,reportReason === reason ? styles.reportReasonTextActive : undefined]}>
-                        {reason}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <TextInput
-                  style={styles.reportDetailsInput}
-                  placeholder="Additional details (optional)"
-                  placeholderTextColor="#52525B"
-                  multiline
-                  numberOfLines={3}
-                  value={reportDetails}
-                  onChangeText={setReportDetails}
-                />
-                <TouchableOpacity
-                  style={[styles.reportSubmitBtn,!reportReason ? styles.disabledBtn : undefined]}
-                  onPress={submitReport}
-                  disabled={!reportReason || reportSubmitting}
-                >
-                  {reportSubmitting
-                    ? <ActivityIndicator size="small" color="#fff" />
-                    : <Text style={styles.reportSubmitBtnText}>Submit Report</Text>
-                  }
-                </TouchableOpacity>
+                <HStack style={styles.modalHeader} space="md">
+                  <Heading size="md" style={styles.modalTitle}>Report User</Heading>
+                  <TouchableOpacity onPress={() => setShowReport(false)}>
+                    <X color="#A1A1AA" size={24} />
+                  </TouchableOpacity>
+                </HStack>
+
+                <VStack space="lg">
+                  <VStack space="xs">
+                    <Text style={styles.inputLabel}>Reason</Text>
+                    <TextInput
+                      placeholder="e.g. Inappropriate behavior"
+                      placeholderTextColor="#71717A"
+                      style={styles.input}
+                      value={reportReason}
+                      onChangeText={setReportReason}
+                    />
+                  </VStack>
+
+                  <VStack space="xs">
+                    <Text style={styles.inputLabel}>Details (Optional)</Text>
+                    <TextInput
+                      placeholder="Provide more information..."
+                      placeholderTextColor="#71717A"
+                      style={styles.textarea}
+                      multiline
+                      numberOfLines={4}
+                      value={reportDetails}
+                      onChangeText={setReportDetails}
+                    />
+                  </VStack>
+
+                  <TouchableOpacity 
+                    style={[styles.reportSubmitBtn, !reportReason && styles.disabledBtn]} 
+                    disabled={!reportReason || reportSubmitting}
+                    onPress={submitReport}
+                  >
+                    {reportSubmitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.reportSubmitBtnText}>Submit Report</Text>}
+                  </TouchableOpacity>
+                </VStack>
               </>
             )}
           </View>
         </View>
       </RNModal>
-    </View>
-  );
 
-  return (
-    <View style={styles.container}>
-      {renderVideoArea()}
+      <GiftCelebration 
+        visible={showGiftCelebration} 
+        recipientName={partner?.name || 'User'}
+        onDismiss={() => setShowGiftCelebration(false)} 
+      />
     </View>
   );
 }
@@ -861,339 +963,250 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000000',
   },
-  videoArea: {
-    flex: 1,
-    position: 'relative',
-  },
   remoteVideoContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   remoteVideo: {
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT,
+    flex: 1,
   },
-  remoteVideoPlaceholder: {
+  placeholderContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#1A1A2E',
   },
-  voiceModeAvatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    marginBottom: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  voiceModeLabel: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  placeholderContainer: {
-    alignItems: 'center',
-    gap: 16,
-  },
-  placeholderText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  localVideoContainer: {
-    position: 'absolute',
-    bottom: 120,
-    right: 20,
-    width: 100,
-    height: 150,
-    borderRadius: 16,
-    overflow: 'hidden',
-    backgroundColor: '#1E1E38',
+  partnerAvatar: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    marginBottom: 20,
     borderWidth: 2,
-    borderColor: '#2A2A4A',
-    zIndex: 10,
+    borderColor: '#EF4444',
   },
-  localVideo: {
-    width: 100,
-    height: 150,
-  },
-  localPlaceholder: {
-     flex: 1,
-     justifyContent: 'center',
-     alignItems: 'center',
-  },
-  header: {
-    position: 'absolute',
-    top: 20,
-    width: '100%',
+  centerItems: {
     alignItems: 'center',
-    zIndex: 20,
-  },
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    paddingHorizontal: 20,
-    alignItems: 'flex-start',
-  },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 100,
-    gap: 8,
-    alignSelf: 'flex-start',
-  },
-  pulseDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#EF4444',
-  },
-  onlinePulse: {
-    backgroundColor: '#22C55E',
   },
   statusText: {
     color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
   },
-  statsContainer: {
-    alignItems: 'flex-end',
+  localVideoContainer: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    width: 100,
+    height: 150,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    backgroundColor: '#000000',
   },
-  statRow: {
+  localVideo: {
+    flex: 1,
+  },
+  localVideoOff: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#1E1E3A',
+  },
+  header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+  },
+  headerContent: {
+    padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
   },
-  statText: {
-    color: '#FFFFFF',
-    fontSize: 26,
-    fontWeight: '900',
-    fontFamily: Platform.OS === 'ios' ? 'Avenir-Heavy' : 'sans-serif-medium',
-  },
-  statValue: {
-    color: '#FFFFFF',
-  },
-  pointsText: {
-    color: '#FACC15',
-    fontSize: 14,
-    fontWeight: '800',
-    marginTop: -2,
-  },
-  pointsValue: {
-    color: '#FACC15',
-  },
-  giftHint: {
-     marginTop: 12,
-     backgroundColor: 'rgba(250, 204, 21, 0.2)',
-     paddingHorizontal: 12,
-     paddingVertical: 6,
-     borderRadius: 8,
-  },
-  giftHintText: {
-     color: '#FACC15',
-     fontSize: 12,
-     fontWeight: '800',
-  },
-  controlsContainer: {
-    position: 'absolute',
-    bottom: 40,
-    width: '100%',
+  reportButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 30,
+  },
+  partnerInfo: {
+    flex: 1,
+  },
+  partnerName: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '800',
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  vipBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FACC15',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+    marginTop: 2,
+  },
+  vipText: {
+    color: '#1A1A2E',
+    fontSize: 10,
+    fontWeight: '900',
+    marginLeft: 2,
+  },
+  controls: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingBottom: 40,
+    paddingHorizontal: 30,
   },
   controlsRow: {
-    backgroundColor: 'rgba(30, 30, 56, 0.8)',
-    padding: 20,
-    borderRadius: 40,
+    justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 30,
   },
   controlButton: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   activeControl: {
     backgroundColor: '#EF4444',
   },
-  nextButton: {
-    backgroundColor: '#3B82F6',
-  },
-  giftButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#22C55E',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  endCallButton: {
-    width: 74,
-    height: 74,
-    borderRadius: 37,
+  hangupButton: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: '#EF4444',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  overlay: {
-     position: 'absolute',
-     top: 0,
-     left: 0,
-     right: 0,
-     bottom: 0,
-     backgroundColor: 'rgba(0,0,0,0.7)',
-     zIndex: 50,
-     justifyContent: 'flex-end',
+  actionRow: {
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  overlayClose: {
-     flex: 1,
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
   },
-  giftMenu: {
-     backgroundColor: '#1E1E38',
-     borderTopLeftRadius: 32,
-     borderTopRightRadius: 32,
-     padding: 24,
-     paddingBottom: 48,
+  actionText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+    marginLeft: 8,
   },
-  giftHeader: {
-     justifyContent: 'space-between',
-     alignItems: 'center',
+  nextButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
   },
-  giftTitle: {
-     color: '#FFFFFF',
-     fontSize: 24,
-     fontWeight: '900',
+  nextText: {
+    color: '#1A1A2E',
+    fontSize: 14,
+    fontWeight: '800',
+    marginRight: 4,
   },
-  giftSubtitle: {
-     color: '#A1A1AA',
-     fontSize: 14,
-     marginBottom: 8,
-  },
-  giftGrid: {
-     flexDirection: 'row',
-     flexWrap: 'wrap',
-     gap: 12,
-     justifyContent: 'center',
-  },
-  giftCard: {
-     width: (SCREEN_WIDTH - 72) / 2,
-     backgroundColor: '#1A1A2E',
-     borderRadius: 20,
-     padding: 16,
-     borderWidth: 1,
-     borderColor: '#2A2A4A',
-  },
-  giftIconBg: {
-     width: 48,
-     height: 48,
-     borderRadius: 24,
-     backgroundColor: 'rgba(250, 204, 21, 0.1)',
-     justifyContent: 'center',
-     alignItems: 'center',
-     marginBottom: 4,
-  },
-  giftMins: {
-     color: '#FFFFFF',
-     fontSize: 16,
-     fontWeight: '800',
-  },
-  giftPrice: {
-     color: '#FACC15',
-     fontSize: 14,
-     fontWeight: '700',
-  },
-  bonusText: {
-     color: '#22C55E',
-     fontSize: 11,
-     fontWeight: '600',
-  },
-  centerItems: {
-     alignItems: 'center',
-  },
-  infoBox: {
-     backgroundColor: 'rgba(34, 197, 94, 0.1)',
-     padding: 12,
-     borderRadius: 12,
-     marginTop: 12,
-  },
-  infoText: {
-     color: '#22C55E',
-     fontSize: 12,
-     textAlign: 'center',
-     fontWeight: '600',
-  },
-  reportModalOverlay: {
+  modalOverlay: {
     flex: 1,
-    justifyContent: 'flex-end',
     backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
   },
-  reportSheet: {
-    backgroundColor: '#1E1E38',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    paddingBottom: 36, 
+  giftSheet: {
+    backgroundColor: '#1E1E3A',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    padding: 24,
+    paddingBottom: 40,
   },
-  reportHeader: {
+  modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 24,
   },
-  reportTitle: {
+  modalTitle: {
     color: '#FFFFFF',
-    fontSize: 18,
+  },
+  giftList: {
+    paddingRight: 20,
+  },
+  giftCard: {
+    width: 100,
+    backgroundColor: '#25254A',
+    borderRadius: 20,
+    padding: 16,
+    marginRight: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#3F3F46',
+  },
+  giftEmoji: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  giftMinutes: {
+    color: '#FFFFFF',
+    fontSize: 14,
     fontWeight: '700',
   },
-  reportGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 12,
+  giftPrice: {
+    color: '#FACC15',
+    fontSize: 14,
+    fontWeight: '800',
+    marginTop: 2,
   },
-  reportReasonBtn: {
-    backgroundColor: '#2A2A4A', 
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderWidth: 1,
-    borderColor: '#3F3F5A',
+  reportContent: {
+    backgroundColor: '#1E1E3A',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    padding: 24,
+    paddingBottom: 40,
   },
-  reportReasonBtnActive: {
-    borderColor: '#EF4444',
-    backgroundColor: '#3A1A1A',
-  },
-  reportReasonText: {
+  inputLabel: {
     color: '#A1A1AA',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
   },
-  reportReasonTextActive: {
-    color: '#EF4444',
-  },
-  reportDetailsInput: {
-    backgroundColor: '#2A2A4A',
-    borderRadius: 10,
-    padding: 12,
+  input: {
+    backgroundColor: '#25254A',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     color: '#FFFFFF',
-    fontSize: 13,
-    marginBottom: 12,
-    minHeight: 70,
+    fontSize: 15,
+  },
+  textarea: {
+    backgroundColor: '#25254A',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    color: '#FFFFFF',
+    fontSize: 15,
+    height: 100,
     textAlignVertical: 'top',
   },
   reportSubmitBtn: {
     backgroundColor: '#EF4444',
     borderRadius: 12,
-    paddingVertical: 14,
+    paddingVertical: 16,
     alignItems: 'center',
+    marginTop: 10,
   },
   reportSubmitBtnText: {
     color: '#FFFFFF',

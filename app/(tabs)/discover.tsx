@@ -15,6 +15,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -113,6 +114,14 @@ const SOCIAL_CONFIG: Record<string, { label: string; color: string; icon: any; u
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function DiscoverScreen() {
+  const { width: windowWidth } = useWindowDimensions();
+  const numColumns = windowWidth > 900 ? 4 : windowWidth > 600 ? 3 : 2;
+  const spacing = 12;
+  const horizontalPadding = 16;
+  const totalSpacing = (numColumns - 1) * spacing + horizontalPadding * 2;
+  const CARD_WIDTH = (windowWidth - totalSpacing) / numColumns;
+  const CARD_HEIGHT = CARD_WIDTH * (4 / 3);
+
   const { user, profile, minutes, loading: authLoading, refreshProfile } = useAuth();
   const { startCall, activeInvite } = useCall();
   const router = useRouter();
@@ -1038,9 +1047,10 @@ filter === pill ? styles.filterPillTextActive : null,
       <Animated.View style={{ flex: 1, opacity: shuffleOpacity }}>
       <FlatList
         ref={flatListRef}
+        key={numColumns}
         data={displayedMembers}
         keyExtractor={(item) => item.id}
-        numColumns={2}
+        numColumns={numColumns}
         ListHeaderComponent={renderHeader}
         contentContainerStyle={styles.gridContent}
         columnWrapperStyle={styles.columnWrapper}

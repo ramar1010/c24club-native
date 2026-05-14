@@ -9,9 +9,9 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal",
+      "distribution": "store",
       "android": {
-        "buildType": "apk"
+        "buildType": "app-bundle"
       }
     },
     "verify": {
@@ -22,8 +22,11 @@
       }
     },
     "production": {
-      "node": "20.18.0",
+      "node": "20.19.4",
       "distribution": "store",
+      "env": {
+        "NODE_OPTIONS": "--max-old-space-size=8192"
+      },
       "android": {
         "buildType": "app-bundle"
       }

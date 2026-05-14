@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Animated,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { Flag } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -98,7 +99,7 @@ export function ChatVideoArea({
           {/* RTCView — mounted immediately but revealed after delay */}
           <Animated.View style={[StyleSheet.absoluteFill, { opacity: videoOpacity }]}>
             <RTCView
-              streamURL={typeof remoteStream.toURL === 'function' ? remoteStream.toURL() : remoteStream}
+              streamURL={typeof remoteStream.toURL === 'function' ? remoteStream.toURL() : undefined}
               style={styles.remoteVideo}
               objectFit="cover"
               zOrder={0}
@@ -189,7 +190,7 @@ export function ChatVideoArea({
           </View>
         ) : localStream ? (
           <RTCView
-            streamURL={typeof localStream.toURL === 'function' ? localStream.toURL() : localStream}
+            streamURL={typeof localStream.toURL === 'function' ? localStream.toURL() : undefined}
             style={styles.localPipRTC}
             objectFit="cover"
             mirror={true}

@@ -1,24 +1,34 @@
+import { Platform } from 'react-native';
+
 export const IAP_PRODUCTS = {
-  UNBAN: 'c24_unban_10',
-  GIFT_100_MINUTES: 'c24_gift_100_minutes',
-  GIFT_400_MINUTES: 'c24_gift_400_minutes',
-  GIFT_600_MINUTES: 'c24_gift_600_minutes',
-  GIFT_1000_MINUTES: 'c24_gift_1000_minutes',
-  MINUTE_UNFREEZE: 'c24_minute_unfreeze',
+  UNBAN: Platform.OS === 'ios' ? 'unbanme' : 'c24_unban_10',
+  GIFT_100_MINUTES: Platform.OS === 'ios' ? '100minutes' : 'c24_gift_100_minutes',
+  GIFT_400_MINUTES: Platform.OS === 'ios' ? '400minutes' : 'c24_gift_400_minutes',
+  GIFT_600_MINUTES: Platform.OS === 'ios' ? '600minutes' : 'c24_gift_600_minutes',
+  GIFT_1000_MINUTES: Platform.OS === 'ios' ? '1000Minutes' : 'c24_gift_1000_minutes',
+  MINUTE_UNFREEZE: Platform.OS === 'ios' ? 'unfreeze_minutes' : 'c24_minute_unfreeze',
 };
 
 export const UNBAN_PRODUCT_ID = IAP_PRODUCTS.UNBAN;
 
 export const IAP_SUBSCRIPTIONS = {
-  BASIC_VIP: 'c24_basic_vip',
-  PREMIUM_VIP: 'c24_premium_vip',
+  BASIC_VIP: Platform.select({
+    ios: 'basicvip',
+    android: 'c24_basic_vip',
+    default: 'basicvip',
+  }),
+  PREMIUM_VIP: Platform.select({
+    ios: 'premiumvip',
+    android: 'c24_premium_vip',
+    default: 'premiumvip',
+  }),
 };
 
 export const MINUTE_BUNDLES = [
-  { sku: 'c24_gift_100_minutes', minutes: 100, price: '$1.99', label: '100 Minutes' },
-  { sku: 'c24_gift_400_minutes', minutes: 400, price: '$4.99', label: '400 Minutes' },
-  { sku: 'c24_gift_600_minutes', minutes: 600, price: '$7.99', label: '600 Minutes' },
-  { sku: 'c24_gift_1000_minutes', minutes: 1000, price: '$12.99', label: '1000 Minutes', bestValue: true },
+  { sku: IAP_PRODUCTS.GIFT_100_MINUTES, minutes: 100, price: '$1.99', label: '100 Minutes' },
+  { sku: IAP_PRODUCTS.GIFT_400_MINUTES, minutes: 400, price: '$4.99', label: '400 Minutes' },
+  { sku: IAP_PRODUCTS.GIFT_600_MINUTES, minutes: 600, price: '$7.99', label: '600 Minutes' },
+  { sku: IAP_PRODUCTS.GIFT_1000_MINUTES, minutes: 1000, price: '$12.99', label: '1000 Minutes', bestValue: true },
 ];
 
 export const VIP_PLANS = [

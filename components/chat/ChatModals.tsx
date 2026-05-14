@@ -6,7 +6,7 @@ import {
   TextInput,
   ActivityIndicator,
 } from 'react-native';
-import { X } from 'lucide-react-native';
+import { X, ShieldOff } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { Text } from '@/components/ui/text';
 import SelfieCaptureModal from '@/components/SelfieCaptureModal';
@@ -25,6 +25,9 @@ interface ReportModalProps {
   onReasonSelect: (reason: string) => void;
   onDetailsChange: (text: string) => void;
   onSubmit: () => void;
+  onBlock?: () => void;
+  isBlocked?: boolean;
+  blockLoading?: boolean;
 }
 
 export function ReportModal({
@@ -37,6 +40,9 @@ export function ReportModal({
   onReasonSelect,
   onDetailsChange,
   onSubmit,
+  onBlock,
+  isBlocked,
+  blockLoading,
 }: ReportModalProps) {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -55,6 +61,32 @@ export function ReportModal({
             </View>
           ) : (
             <>
+              {onBlock && (
+                <TouchableOpacity
+                  style={[
+                    styles.blockUserBtn,
+                    isBlocked ? styles.blockUserBtnActive : null,
+                  ]}
+                  onPress={onBlock}
+                  disabled={blockLoading}
+                  activeOpacity={0.8}
+                >
+                  {blockLoading ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <ShieldOff size={16} color={isBlocked ? "#FFFFFF" : "#EF4444"} style={{ marginRight: 8 }} />
+                      <Text style={[
+                        styles.blockUserBtnText,
+                        isBlocked ? { color: '#FFFFFF' } : null
+                      ]}>
+                        {isBlocked ? 'User Blocked' : 'Block this User'}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+
               <View style={styles.reportGrid}>
                 {[
                   'Underage User',

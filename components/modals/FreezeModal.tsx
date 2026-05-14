@@ -15,13 +15,13 @@ import { Crown, Snowflake, X } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { invokeIAP } from "@/lib/iap-supabase";
 import {
   initConnection,
   requestPurchase,
   purchaseUpdatedListener,
   purchaseErrorListener,
   finishTransaction,
-  endConnection,
 } from "@/lib/iap-import";
 import { IAP_PRODUCTS } from "@/lib/iap";
 
@@ -57,13 +57,19 @@ export function FreezeModal({ visible, onClose, liveMinutes }: FreezeModalProps)
 
         purchaseUpdateSub = purchaseUpdatedListener(async (purchase: any) => {
           if (purchase.productId !== IAP_PRODUCTS.MINUTE_UNFREEZE) return;
-          const token = Platform.OS === "android" ? purchase.purchaseToken : purchase.transactionReceipt;
-          if (!token) return;
+          // In react-native-iap v14 (StoreKit 2), purchaseToken is the unified field for the receipt JWS.
+          const token = purchase.purchaseToken ?? purchase.transactionReceipt;
+          if (!token) {
+            console.warn("[FreezeModal] No purchase token available");
+            return;
+          }
 
           try {
             setLoading(true);
-            const { data, error } = await supabase.functions.invoke("iap-purchases", {
-              body: { action: "verify-unfreeze", purchaseToken: token, platform: Platform.OS },
+            const { data, error } = await invokeIAP({
+              action: "verify-unfreeze",
+              purchaseToken: token,
+              platform: Platform.OS,
             });
             if (error) throw error;
             if (data?.success) {
@@ -97,7 +103,7 @@ export function FreezeModal({ visible, onClose, liveMinutes }: FreezeModalProps)
     return () => {
       purchaseUpdateSub?.remove();
       purchaseErrorSub?.remove();
-      endConnection();
+      // NOTE: do NOT call endConnection() — the global useIAPListener owns the connection
     };
   }, [visible]);
 
@@ -110,10 +116,10 @@ export function FreezeModal({ visible, onClose, liveMinutes }: FreezeModalProps)
     try {
       await requestPurchase({
         request: {
-          ios: { sku: IAP_PRODUCTS.MINUTE_UNFREEZE, quantity: 1 },
-          android: { skus: [IAP_PRODUCTS.MINUTE_UNFREEZE] },
+          apple: { sku: IAP_PRODUCTS.MINUTE_UNFREEZE },
+          google: { skus: [IAP_PRODUCTS.MINUTE_UNFREEZE] },
         },
-        type: 'inapp',
+        type: 'in-app',
       });
     } catch (err: any) {
       if (err?.code !== "E_USER_CANCELLED") {

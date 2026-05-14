@@ -597,6 +597,26 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '900',
   },
+  blockUserBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(239,68,68,0.1)',
+    borderRadius: 12,
+    paddingVertical: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.3)',
+  },
+  blockUserBtnActive: {
+    backgroundColor: '#EF4444',
+    borderColor: '#EF4444',
+  },
+  blockUserBtnText: {
+    color: '#EF4444',
+    fontSize: 14,
+    fontWeight: '700',
+  },
   reportGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

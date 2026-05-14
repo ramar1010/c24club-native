@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Eye, EyeOff } from "lucide-react-native";
 import { supabase } from "@/lib/supabase";
+import { generateNonce } from "@/lib/auth-utils";
 import FallingGifts from "@/components/FallingGifts";
 import { useAuth } from "@/contexts/AuthContext";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
@@ -25,6 +26,7 @@ const GOOGLE_ICON = require("@/assets/images/2a5758d6-4edb-4047-87bb-e6b94dbbbab
 
 GoogleSignin.configure({
   webClientId: "212900711433-rild80si8g6sg8q5j7jl8goo6o9ecnqi.apps.googleusercontent.com",
+  iosClientId: "212900711433-81ll0bcmetnektpaaqks8mr0l8ou09fi.apps.googleusercontent.com",
 });
 
 export default function SignUpScreen() {
@@ -60,45 +62,69 @@ export default function SignUpScreen() {
     setError("");
     setLoading(true);
 
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: {
-        data: {
-          name: name.trim(),
-          gender: gender?.toLowerCase() || null,
-        },
-      },
-    });
-
-    if (authError) {
-      setLoading(false);
-      setError(authError.message);
-      return;
-    }
-
-    if (authData?.user) {
-      console.log("[SignUp] Auth success, upserting member record...");
-      const { error: memberError } = await supabase.from("members").upsert({
-        id: authData.user.id,
-        name: name.trim(),
+    try {
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email.trim(),
-        gender: gender?.toLowerCase() || null, // Standardize case
-        membership: "Free",
-        image_status: "pending",
+        password,
+        options: {
+          data: {
+            name: name.trim(),
+            gender: gender?.toLowerCase() || null,
+          },
+        },
       });
 
-      if (memberError) {
-        console.warn("Error upserting member:", memberError.message);
-      } else {
-        console.log("[SignUp] Member record upserted successfully");
-        await refreshProfile();
+      if (authError) {
+        setError(authError.message);
+        setLoading(false);
+        return;
       }
-    }
 
-    setLoading(false);
-    // Refresh context data to ensure profile has the new data
-    router.replace("/(tabs)");
+      if (authData?.user) {
+        console.log("[SignUp] Auth success, upserting member record...");
+        // Upsert the member row — use update after upsert to guarantee gender is written
+        // even if a DB trigger already created the row without gender.
+        const { error: upsertError } = await supabase.from("members").upsert({
+          id: authData.user.id,
+          name: name.trim(),
+          email: email.trim(),
+          gender: gender?.toLowerCase() || null,
+          membership: "Free",
+          image_status: "pending",
+        }, { onConflict: "id" });
+
+        if (upsertError) {
+          console.warn("[SignUp] Upsert error:", upsertError.message);
+          // Try a plain update as fallback in case of RLS conflict on insert
+          await supabase.from("members").update({
+            name: name.trim(),
+            gender: gender?.toLowerCase() || null,
+          }).eq("id", authData.user.id);
+        } else {
+          console.log("[SignUp] Member record upserted successfully");
+        }
+
+        // Re-fetch the profile so AuthContext has the gender-populated row,
+        // then navigate explicitly. This prevents both the stuck spinner and
+        // the missing-gender bug caused by onAuthStateChange racing the upsert.
+        try {
+          await refreshProfile();
+        } catch (e) {
+          console.warn("[SignUp] refreshProfile error (non-fatal):", e);
+        }
+
+        setLoading(false);
+        router.replace("/(tabs)");
+        return;
+      }
+
+      // No user returned — signup may require email confirmation
+      setLoading(false);
+    } catch (err: any) {
+      console.error("[SignUp] Unexpected error:", err);
+      setError(err.message || "Something went wrong. Please try again.");
+      setLoading(false);
+    }
   };
 
   const handleOAuth = async (provider: "google" | "apple") => {
@@ -134,7 +160,9 @@ export default function SignUpScreen() {
     // Native Google Sign In — no browser redirect needed
     try {
       await GoogleSignin.hasPlayServices();
-      const userInfo = await GoogleSignin.signIn();
+      const { rawNonce, hashedNonce } = await generateNonce();
+      // v16: nonce is passed directly to signIn() — setNonce() no longer exists
+      const userInfo = await GoogleSignin.signIn({ nonce: hashedNonce });
       const idToken = userInfo.data?.idToken;
       if (!idToken) {
         setError("Google Sign In failed — no ID token received.");
@@ -143,6 +171,7 @@ export default function SignUpScreen() {
       const { error: authError } = await supabase.auth.signInWithIdToken({
         provider: "google",
         token: idToken,
+        nonce: rawNonce,
       });
       if (authError) setError(authError.message);
     } catch (e: any) {
@@ -329,13 +358,13 @@ gender === option ? styles.genderButtonTextActive : undefined,
               </View>
             </TouchableOpacity>
             {Platform.OS === "ios" && (
-              <TouchableOpacity
-                style={styles.oauthButton}
+              <AppleAuthentication.AppleAuthenticationButton
+                buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+                buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE_OUTLINE}
+                cornerRadius={100}
+                style={[styles.oauthButton, { height: 50, borderWidth: 0 }]}
                 onPress={() => handleOAuth("apple")}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.oauthText}> Apple</Text>
-              </TouchableOpacity>
+              />
             )}
           </View>
 

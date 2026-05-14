@@ -15,7 +15,7 @@ import GluestackInitializer from "@/components/GluestackInitializer";
 import useColorScheme from "@/hooks/useColorScheme";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { CallProvider } from "@/contexts/CallContext";
+import { CallProvider, useCall } from "@/contexts/CallContext";
 import { CallInviteListener } from "@/components/video-call/CallInviteListener";
 import { usePushNotifications } from "@/lib/usePushNotifications";
 import { useDmToast } from "@/hooks/useDmToast";
@@ -25,6 +25,8 @@ import { useIAPListener } from "@/hooks/useIAPListener";
 import BannedScreen from "@/components/BannedScreen";
 import BatteryOptimizationPrompt from "@/components/BatteryOptimizationPrompt";
 import { useRedemptionNotifications } from "@/hooks/useRedemptionNotifications";
+import { Modal } from "react-native";
+import VideoCallScreen from "@/app/video-call";
 
 // Custom toast config for DM notifications
 const toastConfig: ToastConfig = {
@@ -134,6 +136,7 @@ function RootLayoutInner({ colorScheme, loaded }: { colorScheme: any; loaded: bo
   const { session, loading } = auth || { session: null, loading: true };
   const segments = useSegments();
   const router = useRouter();
+  const { directCallInviteId, clearDirectCall } = useCall();
 
   // Ban check — always fresh, never cached
   const { isBanned, banData, banLoading, recheckBan, clearBan } = useBanCheck();
@@ -199,6 +202,22 @@ function RootLayoutInner({ colorScheme, loaded }: { colorScheme: any; loaded: bo
         <Stack.Screen name="+not-found" />
       </Stack>
       <CallInviteListener />
+
+      {/* Direct call — rendered as a Modal to avoid iOS navigation crash */}
+      <Modal
+        visible={!!directCallInviteId}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={clearDirectCall}
+      >
+        {directCallInviteId ? (
+          <VideoCallScreen
+            modalInviteId={directCallInviteId}
+            onDismiss={clearDirectCall}
+          />
+        ) : null}
+      </Modal>
+
       <StatusBar style="auto" />
       <Toast config={toastConfig} />
       <BatteryOptimizationPrompt isAuthenticated={!!session} />

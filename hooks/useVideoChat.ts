@@ -738,6 +738,22 @@ export function useVideoChat() {
     }
   }, [getLocalStream]);
 
+  // Forcefully release ALL camera/mic tracks — call this before navigating
+  // away to a direct call so iOS can immediately reacquire the camera.
+  const releaseCamera = useCallback(() => {
+    if (localStreamRef.current) {
+      // IMPORTANT: Stop all tracks completely. Do NOT hand off the stream.
+      // On iOS, WebRTC tracks are owned by their RTCPeerConnection — reusing them
+      // in a new peer connection causes a native crash. The direct call screen must
+      // acquire a brand new stream from scratch after the hardware releases.
+      localStreamRef.current.getTracks().forEach((track: any) => {
+        try { track.stop(); } catch (_) {}
+      });
+      localStreamRef.current = null;
+    }
+    setLocalStream(null);
+  }, []);
+
   const setShowCapPopup = useCallback((v: boolean) => {
     if (!v) dismissCapPopup();
   }, [dismissCapPopup]);
@@ -777,5 +793,6 @@ export function useVideoChat() {
     handleStop,
     setShowCapPopup,
     restartPreview,
+    releaseCamera,
   };
 }

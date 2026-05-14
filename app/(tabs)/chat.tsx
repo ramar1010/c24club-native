@@ -85,6 +85,7 @@ export default function ChatScreen() {
     handleStop,
     setShowCapPopup,
     restartPreview,
+    releaseCamera,
   } = useVideoChat();
 
   // ─── NSFW shadowban restriction ────────────────────────────────────────────
@@ -183,6 +184,8 @@ export default function ChatScreen() {
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [showSelfieModal, setShowSelfieModal] = useState(false);
   const [showPendingPopup, setShowPendingPopup] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [blockLoading, setBlockLoading] = useState(false);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ─── Animated search pulse ─────────────────────────────────────────────────
@@ -227,10 +230,21 @@ export default function ChatScreen() {
   // ─── Stop session when a direct call is accepted ──────────────────────────
   useEffect(() => {
     const sub = DeviceEventEmitter.addListener('prepare-direct-call', async () => {
-      if (callState !== 'idle') await handleStop();
+      const { dlog } = require('@/lib/debug-log');
+      await dlog('ChatScreen', 'prepare-direct-call received', { callState });
+      if (callState !== 'idle') {
+        await dlog('ChatScreen', 'calling handleStop() because callState=' + callState);
+        await handleStop();
+        await dlog('ChatScreen', 'handleStop() done');
+      } else {
+        await dlog('ChatScreen', 'callState is idle, skipping handleStop');
+      }
+      await dlog('ChatScreen', 'calling releaseCamera()');
+      releaseCamera();
+      await dlog('ChatScreen', 'releaseCamera() done');
     });
     return () => sub.remove();
-  }, [callState, handleStop]);
+  }, [callState, handleStop, releaseCamera]);
 
   // ─── Session init & IP ban check ──────────────────────────────────────────
   useEffect(() => {
@@ -247,6 +261,21 @@ export default function ChatScreen() {
     };
     init();
   }, []);
+
+  // Check block status for current partner
+  useEffect(() => {
+    if (!profile?.id || !partnerId || callState !== 'connected') {
+      setIsBlocked(false);
+      return;
+    }
+    supabase
+      .from('blocked_users')
+      .select('id')
+      .eq('blocker_id', profile.id)
+      .eq('blocked_id', partnerId)
+      .maybeSingle()
+      .then(({ data }) => setIsBlocked(!!data));
+  }, [profile?.id, partnerId, callState]);
 
   // ─── Search pulse animation ────────────────────────────────────────────────
   useEffect(() => {
@@ -299,6 +328,36 @@ export default function ChatScreen() {
     setGenderFilter(option);
   }, [minutes?.is_vip, setShowVipModal]);
 
+  const handleBlock = useCallback(async () => {
+    if (!profile?.id || !partnerId) return;
+    setBlockLoading(true);
+    try {
+      if (isBlocked) {
+        await supabase
+          .from('blocked_users')
+          .delete()
+          .eq('blocker_id', profile.id)
+          .eq('blocked_id', partnerId);
+        setIsBlocked(false);
+      } else {
+        await supabase
+          .from('blocked_users')
+          .insert({ blocker_id: profile.id, blocked_id: partnerId });
+        setIsBlocked(true);
+        // Automatically skip if blocking during call
+        if (callState === 'connected' || callState === 'connecting') {
+          setTimeout(() => {
+            setShowReport(false);
+            handleNextPress();
+          }, 1000);
+        }
+      }
+    } catch (_) {
+    } finally {
+      setBlockLoading(false);
+    }
+  }, [profile?.id, partnerId, isBlocked, callState, handleNextPress]);
+
   const submitReport = useCallback(async () => {
     if (!reportReason || !profile?.id) return;
     setReportSubmitting(true);
@@ -329,7 +388,7 @@ export default function ChatScreen() {
       <View style={styles.idlePreview}>
         {localStream ? (
           <RTCView
-            streamURL={typeof localStream.toURL === 'function' ? localStream.toURL() : localStream}
+            streamURL={typeof localStream.toURL === 'function' ? localStream.toURL() : undefined}
             style={styles.idlePreviewRTC}
             objectFit="cover"
             mirror={true}
@@ -480,6 +539,9 @@ export default function ChatScreen() {
         onReasonSelect={setReportReason}
         onDetailsChange={setReportDetails}
         onSubmit={submitReport}
+        onBlock={handleBlock}
+        isBlocked={isBlocked}
+        blockLoading={blockLoading}
       />
 
       <BannedOverlay visible={showBanned} banReason={banReason} banDate={banDate} />

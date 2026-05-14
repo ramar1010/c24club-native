@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
 import { Alert, Linking, Platform, DeviceEventEmitter } from 'react-native';
+import { dlog, markSession } from '@/lib/debug-log';
 
 export type InviteStatus = 'pending' | 'accepted' | 'declined' | 'expired' | 'hangup';
 
@@ -21,6 +22,8 @@ export interface CallInvite {
 interface CallContextType {
   activeInvite: CallInvite | null;
   incomingInvite: CallInvite | null;
+  directCallInviteId: string | null;
+  clearDirectCall: () => void;
   startCall: (targetUserId: string, targetGender?: string) => Promise<void>;
   acceptInvite: (inviteId: string) => Promise<void>;
   declineInvite: (inviteId: string) => Promise<void>;
@@ -32,6 +35,8 @@ interface CallContextType {
 const CallContext = createContext<CallContextType>({
   activeInvite: null,
   incomingInvite: null,
+  directCallInviteId: null,
+  clearDirectCall: () => {},
   startCall: async () => {},
   acceptInvite: async () => {},
   declineInvite: async () => {},
@@ -48,6 +53,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const { user, profile, minutes, refreshProfile } = useAuth();
   const [activeInvite, setActiveInvite] = useState<CallInvite | null>(null);
   const [incomingInvite, setIncomingInvite] = useState<CallInvite | null>(null);
+  const [directCallInviteId, setDirectCallInviteId] = useState<string | null>(null);
   const [showVipModal, setShowVipModal] = useState(false);
   const router = useRouter();
   
@@ -144,12 +150,23 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
         if (data) {
           if (data.status === 'accepted') {
-            // Stop polling immediately and clear activeInvite BEFORE navigating
-            // This prevents re-pushing to video-call on subsequent poll ticks
             if (callerPollingRef.current) clearInterval(callerPollingRef.current);
             callerPollingRef.current = null;
             setActiveInvite(null);
-            router.push(`/video-call?inviteId=${activeInvite.id}`);
+
+            await markSession(`CALLER_ACCEPTED ${activeInvite.id}`);
+            await dlog('CallContext', 'caller: invite accepted, emitting prepare-direct-call');
+            DeviceEventEmitter.emit('prepare-direct-call', {});
+
+            if (Platform.OS === 'ios') {
+              await dlog('CallContext', 'caller: waiting 1200ms for camera release on iOS');
+              await new Promise(resolve => setTimeout(resolve, 1200));
+              await dlog('CallContext', 'caller: wait done, showing call modal');
+            }
+
+            await dlog('CallContext', 'caller: setting directCallInviteId (no navigation)');
+            setDirectCallInviteId(activeInvite.id);
+            await dlog('CallContext', 'caller: directCallInviteId set');
           } else if (data.status === 'declined') {
             if (callerPollingRef.current) clearInterval(callerPollingRef.current);
             callerPollingRef.current = null;
@@ -307,16 +324,31 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
   const acceptInvite = async (inviteId: string) => {
     try {
+      await markSession(`ACCEPT_INVITE ${inviteId}`);
+      await dlog('CallContext', 'acceptInvite: updating DB to accepted');
       const { error } = await supabase
         .from('direct_call_invites')
         .update({ status: 'accepted' })
         .eq('id', inviteId);
 
       if (error) throw error;
+      await dlog('CallContext', 'acceptInvite: DB updated OK, clearing incomingInvite');
       setIncomingInvite(null);
+
+      await dlog('CallContext', 'acceptInvite: emitting prepare-direct-call');
       DeviceEventEmitter.emit('prepare-direct-call', {});
-      router.push(`/video-call?inviteId=${inviteId}`);
+
+      if (Platform.OS === 'ios') {
+        await dlog('CallContext', 'acceptInvite: waiting 1200ms for camera release on iOS');
+        await new Promise(resolve => setTimeout(resolve, 1200));
+        await dlog('CallContext', 'acceptInvite: wait done, showing call modal');
+      }
+
+      await dlog('CallContext', 'acceptInvite: setting directCallInviteId (no navigation)');
+      setDirectCallInviteId(inviteId);
+      await dlog('CallContext', 'acceptInvite: directCallInviteId set');
     } catch (err: any) {
+      await dlog('CallContext', 'acceptInvite ERROR', err);
       console.error('Error accepting invite:', err.message);
       Alert.alert('Error', 'Failed to accept call.');
     }
@@ -365,6 +397,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     <CallContext.Provider value={{ 
       activeInvite, 
       incomingInvite, 
+      directCallInviteId,
+      clearDirectCall: () => setDirectCallInviteId(null),
       startCall, 
       acceptInvite, 
       declineInvite, 

@@ -39,6 +39,8 @@ import {
   Info,
   Bell,
   Copy,
+  UserX,
+  AlertTriangle,
 } from "lucide-react-native";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCETracker } from "@/hooks/useCETracker";
@@ -165,6 +167,8 @@ export default function ProfileScreen() {
   const [isRedemptionsLoading, setIsRedemptionsLoading] = useState(false);
   const [showCashoutModal, setShowCashoutModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // ── Gift History ────────────────────────────────────────────────────────────
   const [giftHistory, setGiftHistory] = useState<GiftTransaction[]>([]);
@@ -494,6 +498,45 @@ export default function ProfileScreen() {
   const handleSignOut = async () => {
     await signOut();
     router.replace("/(auth)/login");
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!profile?.id) return;
+    setIsDeleting(true);
+    try {
+      // Call the delete_my_account() RPC directly — no edge function needed.
+      // The RPC uses SECURITY DEFINER + auth.uid() so it only deletes the caller's own data.
+      const { data, error } = await supabase.rpc("delete_my_account");
+
+      if (error) throw new Error(error.message);
+      if (data?.success === false) throw new Error(data?.error || "Account deletion failed. Please contact support.");
+
+      toast.show({
+        placement: "top",
+        render: ({ id }) => (
+          <Toast nativeID={"toast-" + id} action="success" variant="solid">
+            <ToastTitle>Account Deleted</ToastTitle>
+            <ToastDescription>Your account has been permanently removed.</ToastDescription>
+          </Toast>
+        ),
+      });
+      
+      await signOut();
+      router.replace("/(auth)/login");
+    } catch (err: any) {
+      toast.show({
+        placement: "top",
+        render: ({ id }) => (
+          <Toast nativeID={"toast-" + id} action="error" variant="solid">
+            <ToastTitle>Deletion Failed</ToastTitle>
+            <ToastDescription>{err.message || "Something went wrong. Please contact support."}</ToastDescription>
+          </Toast>
+        ),
+      });
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+    }
   };
 
   const handleRefresh = async () => {
@@ -1303,6 +1346,27 @@ export default function ProfileScreen() {
             <ChevronRight size={16} color="#52525B" style={styles.menuItemArrow} />
           </TouchableOpacity>
 
+          {/* Debug Logs */}
+          <TouchableOpacity
+            style={styles.menuItem}
+            activeOpacity={0.8}
+            onPress={() => router.push("/debug-logs" as any)}
+          >
+            <Settings size={18} color="#71717A" />
+            <Text style={[styles.menuItemText, { marginLeft: 10, color: '#71717A' }]}>Debug Logs</Text>
+            <ChevronRight size={16} color="#52525B" style={styles.menuItemArrow} />
+          </TouchableOpacity>
+
+          {/* Delete Account */}
+          <TouchableOpacity
+            style={styles.deleteAccountMenuItem}
+            activeOpacity={0.8}
+            onPress={() => setShowDeleteConfirm(true)}
+          >
+            <UserX size={18} color="#71717A" />
+            <Text style={styles.deleteAccountMenuItemText}>Delete Account</Text>
+          </TouchableOpacity>
+
           {/* ── Sign Out ─────────────────────────────────────────────────── */}
           <TouchableOpacity
             style={styles.signOutButton}
@@ -1428,6 +1492,56 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </TouchableOpacity>
         </RNModal>
+
+        {/* Delete Account Confirmation Modal */}
+        <Modal
+          isOpen={showDeleteConfirm}
+          onClose={() => setShowDeleteConfirm(false)}
+        >
+          <ModalBackdrop />
+          <ModalContent style={styles.modalContent}>
+            <ModalHeader style={styles.modalHeader}>
+              <Heading style={styles.whiteText} size="md">
+                Delete Account?
+              </Heading>
+              <ModalCloseButton>
+                <X size={20} color="#A1A1AA" />
+              </ModalCloseButton>
+            </ModalHeader>
+            <ModalBody>
+              <VStack space="md" style={{ paddingVertical: 16 }}>
+                <View style={{ alignItems: 'center', marginBottom: 8 }}>
+                  <AlertTriangle size={48} color="#EF4444" />
+                </View>
+                <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700', textAlign: 'center' }}>
+                  This action is permanent and cannot be undone.
+                </Text>
+                <Text style={{ color: '#A1A1AA', fontSize: 14, textAlign: 'center', lineHeight: 20 }}>
+                  Your profile, earned minutes, chat history, and all associated data will be permanently deleted from our servers.
+                </Text>
+              </VStack>
+            </ModalBody>
+            <ModalFooter style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setShowDeleteConfirm(false)}
+              >
+                <Text style={styles.cancelText}>Keep Account</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.saveButton, { backgroundColor: '#EF4444' }]}
+                onPress={handleDeleteAccount}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.saveText}>Delete Everything</Text>
+                )}
+              </TouchableOpacity>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
 
         {/* Shipping Address Edit Modal (gluestack) */}
         <Modal
@@ -2060,7 +2174,23 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
   },
-
+  deleteAccountMenuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#16213E",
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginBottom: 10,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#27272A",
+  },
+  deleteAccountMenuItemText: {
+    color: "#A1A1AA",
+    fontSize: 15,
+    fontWeight: "600",
+    flex: 1,
+  },
   inlineEditBtn: {
     flexDirection: "row",
     alignItems: "center",

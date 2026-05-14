@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
   Platform,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "@/lib/supabase";
@@ -45,6 +46,7 @@ import { RewardSpinModal } from "@/components/modals/RewardSpinModal";
 import { CashoutChoiceModal } from "@/components/modals/CashoutChoiceModal";
 import { FooterLinks } from "@/components/FooterLinks";
 import * as Clipboard from 'expo-clipboard';
+import { getFriendlyErrorMessage } from "@/lib/error-utils";
 
 const CATEGORY_COLORS: Record<string, string> = {
   Fashion: "#EC4899",
@@ -82,6 +84,9 @@ interface GiftCard {
 }
 
 export default function RewardsScreen() {
+  const { width: windowWidth } = useWindowDimensions();
+  const numColumns = windowWidth > 900 ? 4 : windowWidth > 600 ? 3 : 2;
+
   const { user, profile, minutes, refreshProfile, updateProfile } = useAuth();
   const toast = useToast();
   const router = useRouter();
@@ -301,13 +306,13 @@ export default function RewardsScreen() {
 
       if (error) {
         console.error("[Rewards] Gift card redemption function error:", error);
-        Alert.alert("Redemption Failed", error?.message ?? "Redemption failed. Please try again.");
+        Alert.alert("Redemption Failed", getFriendlyErrorMessage(error));
         return;
       }
 
       if (!data || !data.success) {
         const errorMsg = data?.error ?? data?.message ?? "Failed to redeem gift card. Please check your balance and try again.";
-        Alert.alert("Redemption Failed", errorMsg);
+        Alert.alert("Redemption Failed", getFriendlyErrorMessage(errorMsg));
         return;
       }
 
@@ -354,8 +359,7 @@ export default function RewardsScreen() {
       });
     } catch (err: any) {
       console.error("[Rewards] Gift card redemption error:", err);
-      const message = err?.message || (typeof err === 'string' ? err : "Something went wrong. Please try again.");
-      Alert.alert("Redemption Failed", message);
+      Alert.alert("Redemption Failed", getFriendlyErrorMessage(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -736,10 +740,11 @@ isLocked ? styles.lockedButton : undefined,
         </View>
       ) : (
         <FlatList
+          key={numColumns}
           data={activeCategory === "Gift Cards" ? [] : filtered}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
-          numColumns={2}
+          numColumns={numColumns}
           columnWrapperStyle={styles.columnWrapper}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
@@ -751,7 +756,7 @@ isLocked ? styles.lockedButton : undefined,
                   <Heading size="md" style={styles.sectionTitle}>Digital Gift Cards</Heading>
                   <View style={styles.giftCardGrid}>
                     {giftCards.map((item, index) => (
-                      <View key={`${item.brand}-${item.value_amount}-${index}`} style={styles.giftCardWrapper}>
+                      <View key={`${item.brand}-${item.value_amount}-${index}`} style={[styles.giftCardWrapper, { width: `${100 / numColumns}%` }]}>
                         {renderGiftCard({ item })}
                       </View>
                     ))}

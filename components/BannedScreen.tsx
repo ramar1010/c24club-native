@@ -15,13 +15,13 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import {
   initConnection,
-  endConnection,
   getProducts,
   requestPurchase,
   finishTransaction,
   purchaseUpdatedListener,
   purchaseErrorListener,
 } from '@/lib/iap-import';
+import type { Purchase, PurchaseError } from 'react-native-iap';
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { UNBAN_PRODUCT_ID } from "@/lib/iap";
@@ -73,13 +73,18 @@ export default function BannedScreen({ ban, onUnbanned }: BannedScreenProps) {
         setIapReady(true);
 
         // Prefetch product so it's cached
-        await getProducts({ skus: [UNBAN_PRODUCT_ID], type: "in-app" });
+        await getProducts({ skus: [UNBAN_PRODUCT_ID] });
       } catch (err) {
         console.warn("[BannedScreen] IAP init error:", err);
       }
 
       // Listen for purchase updates
       purchaseUpdateSub = purchaseUpdatedListener(async (purchase: Purchase) => {
+        if (purchase.productId?.toLowerCase() !== UNBAN_PRODUCT_ID.toLowerCase()) {
+          console.log("[BannedScreen] Ignoring unrelated purchase:", purchase.productId);
+          return;
+        }
+
         try {
           // Extract the purchase token — same field name on both platforms
           const purchaseToken = purchase.purchaseToken ?? null;
@@ -141,7 +146,7 @@ export default function BannedScreen({ ban, onUnbanned }: BannedScreenProps) {
     return () => {
       purchaseUpdateSub?.remove();
       purchaseErrorSub?.remove();
-      endConnection().catch(() => {});
+      // NOTE: do NOT call endConnection() — the global useIAPListener owns the connection
     };
   }, [isWeb, isUnderage, onUnbanned]);
 

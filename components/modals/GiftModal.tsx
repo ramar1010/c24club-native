@@ -47,10 +47,16 @@ export const GiftModal = ({
     );
   };
 
-  const handleSendGift = async (tierId: number) => {
+  const handleSendGift = async (tierId: number, retryCount = 0) => {
     setLoading(tierId);
     try {
       const result = await createGiftCheckout(tierId, recipientId);
+      if (!result.success && result.error === 'cleared_retry' && retryCount < 2) {
+        // Stuck transactions were cleared — automatically retry the purchase
+        console.log(`[GiftModal] Cleared stuck transaction, auto-retrying... (attempt ${retryCount + 1})`);
+        await handleSendGift(tierId, retryCount + 1);
+        return;
+      }
       if (!result.success && result.error !== 'cancelled') {
         toast.show({
           placement: "top",
