@@ -8,7 +8,8 @@
  * This polyfill patches StyleSheet.create on web to transparently convert
  * `gap` → `rowGap` + `columnGap` before styles reach the DOM.
  */
-import { Platform, StyleSheet } from "react-native";
+import { Platform } from "react-native";
+import { StyleSheet } from "react-native-web";
 
 function patchStyle(style: Record<string, any>): Record<string, any> {
   if (!style || typeof style !== "object") return style;

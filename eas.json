@@ -9,9 +9,10 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "store",
+      "distribution": "internal",
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease -PreactNativeArchitectures=arm64-v8a"
       }
     },
     "verify": {
@@ -28,7 +29,8 @@
         "NODE_OPTIONS": "--max-old-space-size=8192"
       },
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "app-bundle",
+        "credentialsSource": "remote"
       }
     }
   },

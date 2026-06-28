@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
 import {
   LogOut,
   User,
@@ -48,6 +49,7 @@ import { useCEProgress } from "@/hooks/useCEProgress";
 import { supabase } from "@/lib/supabase";
 import { FreezeModal } from "@/components/modals/FreezeModal";
 import { CashoutModal } from "@/components/modals/CashoutModal";
+import { BountyGuideModal } from "@/components/modals/BountyGuideModal";
 import { VipSettingsOverlay } from "@/components/videocall/VipSettingsOverlay";
 import { FemaleVipBanner } from "@/components/FemaleVipBanner";
 import { FooterLinks } from "@/components/FooterLinks";
@@ -99,10 +101,11 @@ interface GiftTransaction {
   id: string;
   sender_id: string | null;
   recipient_id: string;
-  minutes: number;
-  cash_value: number | null;
+  minutes_amount: number;
   created_at: string;
-  sender_name?: string | null;
+  sender_name: string | null;
+  sender_image_url: string | null;
+  price_cents: number | null;
 }
 
 interface CashoutRequest {
@@ -115,6 +118,33 @@ interface CashoutRequest {
   created_at: string;
   updated_at: string | null;
   notes: string | null;
+}
+
+interface BountyLog {
+  id: string;
+  amount_minutes: number;
+  source: string;
+  created_at: string;
+  paid_out: boolean;
+  partner_name: string | null;
+  partner_image_url: string | null;
+}
+
+interface PendingBounty {
+  id: string;
+  partner_name: string | null;
+  partner_image_url: string | null;
+  last_interaction_at: string;
+  expires_at: string;
+  interaction_type: string;
+}
+
+interface BountySummary {
+  total_minutes_earned: number;
+  total_usd_earned: number;
+  active_links_count: number;
+  recent_logs: BountyLog[];
+  pending_logs?: PendingBounty[];
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────────
@@ -131,12 +161,10 @@ export default function ProfileScreen() {
   const [redemptions, setRedemptions] = useState<MemberRedemption[]>([]);
   const [hasMoreRedemptions, setHasMoreRedemptions] = useState(true);
   const [isLoadingMoreRedemptions, setIsLoadingMoreRedemptions] = useState(false);
-  const [liveMinutes, setLiveMinutes] = useState<number | null>(null);
   
   const [myGiftCards, setMyGiftCards] = useState<MyGiftCard[]>([]);
   const [isGiftCardsLoading, setIsGiftCardsLoading] = useState(false);
 
-  const displayMinutes = liveMinutes ?? minutes?.minutes ?? 0;
 
   // ── Force refresh gender if missing on mount ─────────────────────────────
   useEffect(() => {
@@ -167,14 +195,36 @@ export default function ProfileScreen() {
   const [isRedemptionsLoading, setIsRedemptionsLoading] = useState(false);
   const [showCashoutModal, setShowCashoutModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showBountyGuide, setShowBountyGuide] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   // ── Gift History ────────────────────────────────────────────────────────────
-  const [giftHistory, setGiftHistory] = useState<GiftTransaction[]>([]);
-  const [isGiftHistoryLoading, setIsGiftHistoryLoading] = useState(false);
-  const [hasMoreGifts, setHasMoreGifts] = useState(true);
-  const [isLoadingMoreGifts, setIsLoadingMoreGifts] = useState(false);
+  // Gift History via TanStack Query
+  const { 
+    data: giftHistoryData, 
+    isLoading: isGiftHistoryLoading,
+    refetch: refetchGiftHistory 
+  } = useQuery({
+    queryKey: ["gift_history", profile?.id],
+    enabled: !!profile?.id,
+    queryFn: async () => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      console.log("gift history session user", sessionData.session?.user?.id);
+
+      const { data, error } = await supabase
+        .rpc("get_my_gift_history", { p_direction: "received" })
+        .order("created_at", { ascending: false });
+
+      console.log("gift history rpc data", data);
+      console.log("gift history rpc error", error);
+
+      if (error) throw error;
+      return (data as GiftTransaction[]) || [];
+    }
+  });
+
+  const giftHistory = giftHistoryData || [];
 
   // ── Cashout History ─────────────────────────────────────────────────────────
   const [cashoutHistory, setCashoutHistory] = useState<CashoutRequest[]>([]);
@@ -182,9 +232,12 @@ export default function ProfileScreen() {
   const [hasMoreCashouts, setHasMoreCashouts] = useState(true);
   const [isLoadingMoreCashouts, setIsLoadingMoreCashouts] = useState(false);
 
+  // ── Bounty Summary ──────────────────────────────────────────────────────────
+  const [bountySummary, setBountySummary] = useState<BountySummary | null>(null);
+  const [isBountyLoading, setIsBountyLoading] = useState(false);
+
   // ── CE Info Modal ───────────────────────────────────────────────────────────
   const [showCEInfo, setShowCEInfo] = useState(false);
-
   // ── Address editing ─────────────────────────────────────────────────────────
   const [isEditingAddress, setIsEditingAddress] = useState(false);
   const [isSavingAddress, setIsSavingAddress] = useState(false);
@@ -268,47 +321,6 @@ export default function ProfileScreen() {
     }
   }, [profile?.id]);
 
-  const fetchGiftHistory = useCallback(async (append = false, currentCount = 0) => {
-    if (!profile?.id) return;
-    if (append) setIsLoadingMoreGifts(true);
-    else setIsGiftHistoryLoading(true);
-
-    const offset = append ? currentCount : 0;
-    const limit = 10;
-
-    const { data } = await supabase
-      .from("gift_transactions")
-      .select("*")
-      .eq("recipient_id", profile.id)
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
-
-    if (data) {
-      const enriched: GiftTransaction[] = await Promise.all(
-        (data as GiftTransaction[]).map(async (gift) => {
-          if (!gift.sender_id) return gift;
-          const { data: sender } = await supabase
-            .from("members")
-            .select("name")
-            .eq("id", gift.sender_id)
-            .maybeSingle();
-          return { ...gift, sender_name: sender?.name ?? null };
-        })
-      );
-
-      if (append) {
-        setGiftHistory((prev) => [...prev, ...enriched]);
-      } else {
-        setGiftHistory(enriched);
-      }
-      setHasMoreGifts(data.length === limit);
-    } else {
-      setHasMoreGifts(false);
-    }
-    setIsGiftHistoryLoading(false);
-    setIsLoadingMoreGifts(false);
-  }, [profile?.id]);
-
   const fetchCashoutHistory = useCallback(async (append = false, currentCount = 0) => {
     if (!profile?.id) return;
     if (append) setIsLoadingMoreCashouts(true);
@@ -349,25 +361,40 @@ export default function ProfileScreen() {
     setIsLoadingMoreCashouts(false);
   }, [profile?.id]);
 
+  const fetchBountySummary = useCallback(async () => {
+    if (!profile?.id) return;
+    if (profile.gender?.toLowerCase() !== "female") return;
+    setIsBountyLoading(true);
+    try {
+      console.log(`[Bounty Debug] Fetching summary for UID: ${profile.id}`);
+      const { data, error } = await supabase.rpc('get_bounty_summary');
+
+      if (error) {
+        console.error("[Profile] Bounty RPC error:", error);
+        console.log(`[Bounty Debug] Database error: ${JSON.stringify(error)}`);
+        return;
+      }
+
+      if (data) {
+        console.log(`[Bounty Debug] RPC returned ${data.recent_logs?.length || 0} logs.`);
+        setBountySummary(data as BountySummary);
+      }
+    } catch (e) {
+      console.error("[Profile] Failed to fetch bounty summary via RPC:", e);
+    } finally {
+      setIsBountyLoading(false);
+    }
+  }, [profile?.id, profile?.gender]);
+
   useFocusEffect(
     useCallback(() => {
       fetchRedemptions();
       fetchRedemptionCount();
-      fetchGiftHistory();
+      refetchGiftHistory();
       fetchCashoutHistory();
       fetchMyGiftCards();
-      // Fetch live balance on focus
-      if (profile?.id) {
-        supabase.functions
-          .invoke("earn-minutes", {
-            body: { type: "get_balance", userId: profile.id },
-          })
-          .then(({ data }) => {
-            if (data?.totalMinutes !== undefined) setLiveMinutes(data.totalMinutes);
-          })
-          .catch(() => {});
-      }
-    }, [fetchRedemptions, fetchRedemptionCount, fetchGiftHistory, fetchCashoutHistory, fetchMyGiftCards, profile?.id])
+      fetchBountySummary();
+    }, [fetchRedemptions, fetchRedemptionCount, refetchGiftHistory, fetchCashoutHistory, fetchMyGiftCards, fetchBountySummary, profile?.id])
   );
 
   useEffect(() => {
@@ -546,15 +573,7 @@ export default function ProfileScreen() {
       // 1. Refresh Auth Profile & Minutes
       await refreshProfile();
 
-      // 2. Fetch live balance from edge function
-      if (profile?.id) {
-        const { data } = await supabase.functions.invoke("earn-minutes", {
-          body: { type: "get_balance", userId: profile.id },
-        });
-        if (data?.totalMinutes !== undefined) setLiveMinutes(data.totalMinutes);
-      }
-
-      // 3. Re-fetch histories
+      // 2. Re-fetch histories
       await Promise.all([
         fetchRedemptions(),
         fetchRedemptionCount(),
@@ -643,6 +662,7 @@ export default function ProfileScreen() {
   const isVip = minutes?.is_vip ?? false;
   const isFrozen = minutes?.is_frozen ?? false;
   const giftedMinutes = minutes?.gifted_minutes ?? 0;
+  const isFemale = profile?.gender?.toLowerCase() === "female";
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -650,6 +670,7 @@ export default function ProfileScreen() {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          removeClippedSubviews={false}
         >
           {/* ── Hero Section ─────────────────────────────────────────────── */}
           <View style={styles.heroSection}>
@@ -699,7 +720,7 @@ export default function ProfileScreen() {
             <View style={[styles.balanceCard, styles.balanceCardGreen]}>
               <Text style={styles.balanceCardEmoji}>⏱️</Text>
               <Text style={styles.balanceCardTitle}>Earned Chatting</Text>
-              <Text style={styles.balanceCardNumber}>{displayMinutes}</Text>
+              <Text style={styles.balanceCardNumber}>{minutes?.lifetime_earned ?? 0}</Text>
               <Text style={styles.balanceCardSub}>minutes</Text>
             </View>
             <View style={[styles.balanceCard, styles.balanceCardGold]}>
@@ -728,8 +749,127 @@ export default function ProfileScreen() {
             activeOpacity={0.85}
             onPress={() => setShowCashoutModal(true)}
           >
-            <Text style={styles.cashoutButtonText}>💰 Cash Out My Minutes</Text>
+            <Text style={styles.cashoutButtonText}>💰 Redeem My Minutes</Text>
           </TouchableOpacity>
+
+          {/* ── Bounty Earnings (female users only) ───────────────────────── */}
+          {isFemale && (
+            <View style={styles.card}>
+              <View style={styles.sectionTitleRow}>
+                <DollarSign size={16} color="#EC4899" />
+                <Text style={[styles.sectionHeader, { marginLeft: 8 }]}>Lifetime Bounty History</Text>
+              </View>
+
+              {isBountyLoading && !bountySummary ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator color="#EC4899" />
+                </View>
+              ) : (
+                <>
+                  <View style={styles.bountyStatsRow}>
+                    <View style={styles.bountyStatBox}>
+                      <Text style={styles.bountyStatValue}>
+                        {bountySummary?.total_minutes_earned ?? 0}
+                      </Text>
+                      <Text style={styles.bountyStatLabel}>Minutes earned</Text>
+                    </View>
+                    <View style={styles.bountyStatBox}>
+                      <Text style={styles.bountyStatValue}>
+                        ${((bountySummary?.total_minutes_earned ?? 0) * 0.01).toFixed(2)}
+                      </Text>
+                      <Text style={styles.bountyStatLabel}>Cash value</Text>
+                    </View>
+                    <View style={styles.bountyStatBox}>
+                      <Text style={styles.bountyStatValue}>
+                        {bountySummary?.active_links_count ?? 0}
+                      </Text>
+                      <Text style={styles.bountyStatLabel}>Active tracks</Text>
+                    </View>
+                  </View>
+
+                  {/* Pending Tracker Section */}
+                  {bountySummary?.pending_logs && bountySummary.pending_logs.length > 0 && (
+                    <View style={{ marginBottom: 16 }}>
+                      <Text style={styles.bountySectionHeader}>Pending Tracker</Text>
+                      <Text style={styles.bountySectionSub}>
+                        You'll earn a bounty if these guys go VIP in the next 7 days.
+                      </Text>
+                      <Text style={[styles.bountySectionSub, { color: "#9CA3AF", fontStyle: "italic", marginTop: -4 }]}>
+                        Note: Only the partner with the most recent interaction gets the bounty!
+                      </Text>
+                      {bountySummary.pending_logs.map((pending, idx) => (
+                        <View key={pending.id}>
+                          <View style={styles.bountyLogRow}>
+                            <View style={[styles.bountyLogIcon, { backgroundColor: "rgba(59,130,246,0.12)" }]}>
+                              <Clock size={16} color="#3B82F6" />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={[styles.bountyLogMinutes, { color: "#3B82F6" }]}>
+                                {pending.partner_name || "A member"}
+                              </Text>
+                              <Text style={styles.bountyLogFrom}>
+                                Tracked via {pending.interaction_type === "call" ? "Video Call" : "DM"}
+                              </Text>
+                            </View>
+                            <View style={styles.pendingBadge}>
+                              <Text style={styles.pendingBadgeText}>TRACKING</Text>
+                            </View>
+                          </View>
+                          {idx < (bountySummary?.pending_logs?.length ?? 0) - 1 && (
+                            <View style={styles.giftDivider} />
+                          )}
+                        </View>
+                      ))}
+                      <View style={[styles.giftDivider, { marginVertical: 12, height: 2, backgroundColor: "#27272A" }]} />
+                    </View>
+                  )}
+
+                  <Text style={styles.bountySectionHeader}>Awarded Bounties</Text>
+
+                  {bountySummary?.recent_logs && bountySummary.recent_logs.length > 0 ? (
+                    bountySummary.recent_logs.map((log, idx) => (
+                      <View key={log.id}>
+                        <View style={styles.bountyLogRow}>
+                          <View style={styles.bountyLogIcon}>
+                            <Star size={16} color="#EC4899" fill="#EC4899" />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.bountyLogMinutes}>
+                              +{log.amount_minutes} minutes
+                            </Text>
+                            <Text style={styles.bountyLogFrom}>
+                              {log.partner_name ? `From: ${log.partner_name}` : "From a member"}
+                              {log.source ? ` · ${log.source}` : ""}
+                            </Text>
+                          </View>
+                          <Text style={styles.bountyLogDate}>
+                            {new Date(log.created_at).toLocaleDateString()}
+                          </Text>
+                        </View>
+                        {idx < (bountySummary?.recent_logs?.length ?? 0) - 1 && (
+                          <View style={styles.giftDivider} />
+                        )}
+                      </View>
+                    ))
+                  ) : (
+                    <View style={styles.emptyCard}>
+                      <Text style={styles.emptyText}>
+                        No bounty earnings yet. Chat with guys and earn when they go VIP!
+                      </Text>
+                    </View>
+                  )}
+
+                  <TouchableOpacity
+                    style={styles.bountyLearnBtn}
+                    activeOpacity={0.8}
+                    onPress={() => setShowBountyGuide(true)}
+                  >
+                    <Text style={styles.bountyLearnText}>Learn how to earn more →</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          )}
 
           {/* Unfreeze (only if frozen) */}
           {isFrozen && (
@@ -768,20 +908,27 @@ export default function ProfileScreen() {
                 <View key={gift.id}>
                   <View style={styles.giftHistoryRow}>
                     <View style={styles.giftHistoryIconWrap}>
-                      <Text style={styles.giftHistoryEmoji}>🎁</Text>
+                      {gift.sender_image_url ? (
+                        <Image 
+                          source={{ uri: gift.sender_image_url }} 
+                          style={{ width: 36, height: 36, borderRadius: 18 }} 
+                        />
+                      ) : (
+                        <Text style={styles.giftHistoryEmoji}>🎁</Text>
+                      )}
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.giftHistoryMinutes}>
-                        +{(gift as any).minutes || (gift as any).minutes_amount || (gift as any).amount || 0} minutes
+                        +{gift.minutes_amount || 0} minutes
                       </Text>
                       <Text style={styles.giftHistoryFrom}>
                         {gift.sender_name ? `From: ${gift.sender_name}` : "Anonymous gift"}
                       </Text>
-                      {gift.cash_value != null && (
+                      {gift.price_cents ? (
                         <Text style={styles.giftHistoryCashValue}>
-                          Cash value: ${gift.cash_value.toFixed(2)}
+                          Cash value: ${(gift.price_cents / 100).toFixed(2)}
                         </Text>
-                      )}
+                      ) : null}
                     </View>
                     <Text style={styles.giftHistoryDate}>
                       {new Date(gift.created_at).toLocaleDateString()}
@@ -791,26 +938,13 @@ export default function ProfileScreen() {
                 </View>
               ))
             )}
-            {hasMoreGifts && giftHistory.length > 0 && (
-              <TouchableOpacity
-                style={styles.loadMoreButton}
-                onPress={() => fetchGiftHistory(true, giftHistory.length)}
-                disabled={isLoadingMoreGifts}
-              >
-                {isLoadingMoreGifts ? (
-                  <ActivityIndicator size="small" color="#FACC15" />
-                ) : (
-                  <Text style={styles.loadMoreText}>Load More</Text>
-                )}
-              </TouchableOpacity>
-            )}
           </View>
 
-          {/* ── Cashout History ───────────────────────────────────────────── */}
+          {/* ── Redemption History ───────────────────────────────────────────── */}
           <View style={styles.card}>
             <View style={styles.sectionTitleRow}>
               <DollarSign size={16} color="#10B981" />
-              <Text style={[styles.sectionHeader, { marginLeft: 8 }]}>Cashout History</Text>
+              <Text style={[styles.sectionHeader, { marginLeft: 8 }]}>Redemption History</Text>
             </View>
             {isCashoutHistoryLoading ? (
               <View style={styles.loadingContainer}>
@@ -818,7 +952,7 @@ export default function ProfileScreen() {
               </View>
             ) : cashoutHistory.length === 0 ? (
               <View style={styles.emptyCard}>
-                <Text style={styles.emptyText}>No cashout requests yet.</Text>
+                <Text style={styles.emptyText}>No redemption requests yet.</Text>
               </View>
             ) : (
               cashoutHistory.map((req, idx) => {
@@ -1022,13 +1156,6 @@ export default function ProfileScreen() {
             ) : redemptions.length === 0 ? (
               <View style={styles.emptyCard}>
                 <Text style={styles.emptyText}>No redemptions yet.</Text>
-                <TouchableOpacity
-                  style={styles.emptyButton}
-                  onPress={() => router.push("/(tabs)/rewards" as any)}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.emptyButtonText}>Visit the Reward Store →</Text>
-                </TouchableOpacity>
               </View>
             ) : (
               redemptions.map((redemption) => {
@@ -1067,14 +1194,14 @@ export default function ProfileScreen() {
                                 ${redemption.cashout_amount.toFixed(2)}
                               </Text>
                             </View>
-                            {redemption.cashout_paypal && (
-                              <View style={styles.paypalRow}>
-                                <Mail size={12} color="#A1A1AA" />
-                                <Text style={styles.paypalText}>
-                                  {redemption.cashout_paypal}
-                                </Text>
-                              </View>
-                            )}
+                        {redemption.cashout_paypal && (
+                          <View style={styles.paypalRow}>
+                            <Mail size={12} color="#A1A1AA" />
+                            <Text style={styles.paypalText}>
+                              {redemption.cashout_paypal}
+                            </Text>
+                          </View>
+                        )}
                             {redemption.cashout_status && (
                               <Text style={styles.cashoutStatusText}>
                                 Status: {redemption.cashout_status}
@@ -1324,17 +1451,6 @@ export default function ProfileScreen() {
 
           {/* ── Menu Items ───────────────────────────────────────────────── */}
 
-          {/* Reward Store */}
-          <TouchableOpacity
-            style={styles.menuItem}
-            activeOpacity={0.8}
-            onPress={() => router.push("/(tabs)/rewards" as any)}
-          >
-            <Gift size={18} color="#A1A1AA" />
-            <Text style={[styles.menuItemText, { marginLeft: 10 }]}>Reward Store</Text>
-            <ChevronRight size={16} color="#52525B" style={styles.menuItemArrow} />
-          </TouchableOpacity>
-
           {/* Notification Settings */}
           <TouchableOpacity
             style={styles.menuItem}
@@ -1343,17 +1459,6 @@ export default function ProfileScreen() {
           >
             <Bell size={18} color="#A1A1AA" />
             <Text style={[styles.menuItemText, { marginLeft: 10 }]}>Notification Settings</Text>
-            <ChevronRight size={16} color="#52525B" style={styles.menuItemArrow} />
-          </TouchableOpacity>
-
-          {/* Debug Logs */}
-          <TouchableOpacity
-            style={styles.menuItem}
-            activeOpacity={0.8}
-            onPress={() => router.push("/debug-logs" as any)}
-          >
-            <Settings size={18} color="#71717A" />
-            <Text style={[styles.menuItemText, { marginLeft: 10, color: '#71717A' }]}>Debug Logs</Text>
             <ChevronRight size={16} color="#52525B" style={styles.menuItemArrow} />
           </TouchableOpacity>
 
@@ -1382,7 +1487,7 @@ export default function ProfileScreen() {
 
           {/* Version label */}
           <Text style={{ color: '#52525B', fontSize: 11, textAlign: 'center', marginTop: 12, marginBottom: 4 }}>
-            v1.5.3 (build 44)
+            v2.0.36 (build 175)
           </Text>
         </ScrollView>
 
@@ -1392,13 +1497,19 @@ export default function ProfileScreen() {
         <FreezeModal
           visible={showFreezeModal}
           onClose={() => setShowFreezeModal(false)}
-          liveMinutes={liveMinutes}
+          liveMinutes={minutes?.minutes ?? 0}
         />
 
         {/* Cashout Modal */}
         <CashoutModal
           isOpen={showCashoutModal}
           onClose={() => setShowCashoutModal(false)}
+        />
+
+        {/* Bounty Guide Modal */}
+        <BountyGuideModal
+          isOpen={showBountyGuide}
+          onClose={() => setShowBountyGuide(false)}
         />
 
         {/* VIP Settings Overlay */}
@@ -1977,6 +2088,96 @@ const styles = StyleSheet.create({
     color: "#A1A1AA",
     fontSize: 14,
     fontWeight: "600",
+  },
+
+  // ── Bounty History ───────────────────────────────────────────────────────────
+  bountyStatsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 12,
+  },
+  bountyStatBox: {
+    flex: 1,
+    backgroundColor: "#1A1A2E",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 6,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(236,72,153,0.2)",
+  },
+  bountyStatValue: {
+    color: "#EC4899",
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  bountyStatLabel: {
+    color: "#A1A1AA",
+    fontSize: 11,
+    marginTop: 4,
+    textAlign: "center",
+  },
+  bountyLogRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    gap: 12,
+  },
+  bountyLogIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(236,72,153,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bountySectionHeader: {
+    color: "#F4F4F5",
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  bountySectionSub: {
+    color: "#71717A",
+    fontSize: 12,
+    marginBottom: 8,
+  },
+  pendingBadge: {
+    backgroundColor: "#1E3A8A",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#3B82F6",
+  },
+  pendingBadgeText: {
+    color: "#3B82F6",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  bountyLogMinutes: {
+    color: "#EC4899",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  bountyLogFrom: {
+    color: "#A1A1AA",
+    fontSize: 13,
+    marginTop: 2,
+  },
+  bountyLogDate: {
+    color: "#52525B",
+    fontSize: 12,
+  },
+  bountyLearnBtn: {
+    marginTop: 12,
+    alignItems: "center",
+    paddingVertical: 6,
+  },
+  bountyLearnText: {
+    color: "#EC4899",
+    fontSize: 14,
+    fontWeight: "700",
   },
 
   // ── Cashout History ─────────────────────────────────────────────────────────

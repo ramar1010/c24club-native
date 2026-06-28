@@ -19,6 +19,7 @@ import {
   DEFAULT_SETTINGS,
 } from "@/lib/cashout-utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/lib/supabase";
 import { useToast, Toast, ToastTitle, ToastDescription } from "@/components/ui/toast";
 import Slider from "@react-native-community/slider";
 import { LinearGradient } from "expo-linear-gradient";
@@ -34,6 +35,7 @@ export const CashoutModal = ({ isOpen, onClose }: CashoutModalProps) => {
 
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [spinEarnings, setSpinEarnings] = useState(0);
+  const [bountyMinutes, setBountyMinutes] = useState(0);
   const [isPending, setIsPending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -52,14 +54,21 @@ export const CashoutModal = ({ isOpen, onClose }: CashoutModalProps) => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [s, e, p] = await Promise.all([
+      const [s, e, p, bounty] = await Promise.all([
         fetchCashoutSettings(),
         fetchLuckySpinEarnings(user!.id),
         checkPendingCashout(user!.id),
+        supabase.rpc("get_bounty_summary"),
       ]);
       setSettings(s);
       setSpinEarnings(e);
       setIsPending(p);
+      const bountyData = bounty?.data as
+        | { total_minutes_earned?: number }
+        | null;
+      setBountyMinutes(
+        bounty?.error ? 0 : Number(bountyData?.total_minutes_earned ?? 0),
+      );
       setAmount(Math.max(s.min_cashout_minutes, 100));
       setPaypalEmail(profile?.email || "");
     } finally {
@@ -178,6 +187,19 @@ export const CashoutModal = ({ isOpen, onClose }: CashoutModalProps) => {
               <View style={styles.balanceRow}>
                 <Text style={styles.balanceLabel}>🎁 Gifted Minutes</Text>
                 <Text style={styles.balanceValue}>{giftedMinutes} min</Text>
+              </View>
+              <Text style={styles.sourcesHeading}>Where your minutes came from</Text>
+              {bountyMinutes > 0 && (
+                <View style={styles.balanceRow}>
+                  <Text style={styles.balanceLabel}>💰 Bounty Earnings</Text>
+                  <Text style={styles.balanceValue}>{bountyMinutes} min</Text>
+                </View>
+              )}
+              <View style={styles.balanceRow}>
+                <Text style={styles.balanceLabel}>💝 Gifts from Members</Text>
+                <Text style={styles.balanceValue}>
+                  {Math.max(giftedMinutes - bountyMinutes, 0)} min
+                </Text>
               </View>
               <View style={styles.balanceRow}>
                 <Text style={styles.balanceLabel}>💵 Rate per Minute</Text>
@@ -357,6 +379,15 @@ const styles = StyleSheet.create({
   balanceLabel: {
     color: "#A1A1AA",
     fontSize: 13,
+  },
+  sourcesHeading: {
+    color: "#71717A",
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+    marginTop: 6,
+    marginBottom: 2,
   },
   balanceValue: {
     color: "#FFFFFF",

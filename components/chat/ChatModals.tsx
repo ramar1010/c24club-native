@@ -312,10 +312,10 @@ export function GiftOverlay({ visible, partnerName, giftLoading, onClose, onGift
           <Text style={styles.giftModalPaypal}>💵 They receive real cash via PayPal</Text>
 
           {[
-            { tier: '100', label: 'Gift $1.00 Cash', sublabel: '100 Minutes • You pay $1.99', bonus: null },
-            { tier: '400', label: 'Gift $4.00 Cash', sublabel: '400 Minutes • You pay $4.99', bonus: 'Send $4.00 Cash & Get +100 Minutes Back!' },
-            { tier: '600', label: 'Gift $6.00 Cash', sublabel: '600 Minutes • You pay $7.99', bonus: 'Send $6.00 Cash & Get +150 Minutes Back!' },
-            { tier: '1000', label: 'Gift $10.00 Cash', sublabel: '1000 Minutes • You pay $12.99', bonus: 'Send $10.00 Cash & Get +250 Minutes Back!' },
+            { tier: '100', label: 'Gift 100 Reward Mins', sublabel: '$1.00 Value • You pay $1.99', bonus: null },
+            { tier: '400', label: 'Gift 400 Reward Mins', sublabel: '$4.00 Value • You pay $4.99', bonus: 'Send 400 Mins & Get +100 Minutes Back!' },
+            { tier: '600', label: 'Gift 600 Reward Mins', sublabel: '$6.00 Value • You pay $7.99', bonus: 'Send 600 Mins & Get +150 Minutes Back!' },
+            { tier: '1000', label: 'Gift 1000 Reward Mins', sublabel: '$10.00 Value • You pay $12.99', bonus: 'Send 1000 Mins & Get +250 Minutes Back!' },
           ].map(({ tier, label, sublabel, bonus }) => (
             <View key={tier} style={styles.giftTierWrapper}>
               <TouchableOpacity

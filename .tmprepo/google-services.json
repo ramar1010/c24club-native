@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "212900711433",
+    "project_id": "c24club-lovable",
+    "storage_bucket": "c24club-lovable.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:212900711433:android:43f28252e72eade1bf7cd8",
+        "android_client_info": {
+          "package_name": "com.c24club.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "212900711433-gv05e41dghsenan1tc34htsjrp6bos3o.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.c24club.app",
+            "certificate_hash": "8613b97393be2176cb2e05b32a61e646a3b37197"
+          }
+        },
+        {
+          "client_id": "212900711433-dvgehjcs0qvcbmumd19ai6d2c2e6dolg.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.c24club.app",
+            "certificate_hash": "2d5c108877626d4a154640457260bbd71ba2410c"
+          }
+        },
+        {
+          "client_id": "212900711433-rild80si8g6sg8q5j7jl8goo6o9ecnqi.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBN8TX-nR77dqpLNW4YUtnaiqY1TfR7vc4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "212900711433-rild80si8g6sg8q5j7jl8goo6o9ecnqi.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

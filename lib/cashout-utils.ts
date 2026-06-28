@@ -9,7 +9,7 @@ export interface CashoutSettings {
 export const DEFAULT_SETTINGS: CashoutSettings = {
   min_cashout_minutes: 100,
   max_cashout_minutes: 5000,
-  rate_per_minute: 0.02,
+  rate_per_minute: 0.01,
 };
 
 export const fetchCashoutSettings = async (): Promise<CashoutSettings> => {

@@ -264,7 +264,7 @@ export default function BannedScreen({ ban, onUnbanned }: BannedScreenProps) {
                 <View style={styles.webNotice}>
                   <Ionicons name="phone-portrait-outline" size={18} color="#A0A0B8" style={{ marginRight: 8 }} />
                   <Text style={styles.webNoticeText}>
-                    Payment is only available on the mobile app (iOS or Android).
+                    Payment is only available on the mobile app.
                   </Text>
                 </View>
               ) : (

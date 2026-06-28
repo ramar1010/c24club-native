@@ -13,6 +13,7 @@ import {
   Platform,
   Animated,
   ScrollView,
+  DeviceEventEmitter,
 } from 'react-native';
 import {
   Mic,
@@ -27,6 +28,7 @@ import {
   DollarSign,
   Heart,
   ChevronRight,
+  ShieldOff,
 } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -95,6 +97,7 @@ export default function VideoCallScreen({ modalInviteId, onDismiss }: { modalInv
 
   // Unified dismiss — works whether rendered as modal or as a route
   const dismiss = () => {
+    DeviceEventEmitter.emit('direct-call-dismissed');
     if (onDismiss) {
       onDismiss();
     } else {
@@ -121,6 +124,8 @@ export default function VideoCallScreen({ modalInviteId, onDismiss }: { modalInv
   const [reportDetails, setReportDetails] = useState('');
   const [reportSubmitted, setReportSubmitted] = useState(false);
   const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [blockLoading, setBlockLoading] = useState(false);
   
   const [partner, setPartner] = useState<{ name: string; image_url: string; id: string; vip_tier?: string } | null>(null);
 
@@ -288,12 +293,12 @@ export default function VideoCallScreen({ modalInviteId, onDismiss }: { modalInv
         }
       }
 
-      // iOS Stability: wait for camera hardware to release AFTER cleanup
-      if (Platform.OS === 'ios') {
-        await dlog('VideoCall', 'iOS: waiting 2500ms before acquiring camera');
-        await new Promise(resolve => setTimeout(resolve, 2500));
-        await dlog('VideoCall', 'iOS: wait done');
-      }
+      // Hardware release delay: wait for camera hardware to release AFTER cleanup.
+      // Android needs this too if we just came from ChatScreen's idle preview.
+      const hardwareDelay = Platform.OS === 'ios' ? 2500 : 1000;
+      await dlog('VideoCall', `${Platform.OS}: waiting ${hardwareDelay}ms before acquiring camera`);
+      await new Promise(resolve => setTimeout(resolve, hardwareDelay));
+      await dlog('VideoCall', `${Platform.OS}: wait done`);
 
       setCallStatus('Connecting...');
 
@@ -370,8 +375,10 @@ export default function VideoCallScreen({ modalInviteId, onDismiss }: { modalInv
               });
             } catch (err: any) {
               await dlog('VideoCall', `getUserMedia FAILED attempt ${attempt + 1}`, { name: err?.name, message: err?.message });
-              if (Platform.OS === 'ios' && attempt < 4) {
-                const delay = (attempt + 1) * 2000;
+              // Retry mechanism for both iOS and Android
+              const maxAttempts = Platform.OS === 'ios' ? 4 : 2;
+              if (attempt < maxAttempts) {
+                const delay = (attempt + 1) * (Platform.OS === 'ios' ? 2000 : 800);
                 await dlog('VideoCall', `retrying in ${delay}ms`);
                 await new Promise(r => setTimeout(r, delay));
                 return acquireStream(attempt + 1);
@@ -747,6 +754,27 @@ export default function VideoCallScreen({ modalInviteId, onDismiss }: { modalInv
     }
   }, [reportReason, reportDetails, profile?.id, partner?.id, partnerId]);
 
+  const handleBlock = async () => {
+    if (!profile?.id) return;
+    const targetId = partner?.id || partnerId;
+    if (!targetId) return;
+    setBlockLoading(true);
+    if (isBlocked) {
+      await supabase
+        .from('blocked_users')
+        .delete()
+        .eq('blocker_id', profile.id)
+        .eq('blocked_id', targetId);
+      setIsBlocked(false);
+    } else {
+      await supabase
+        .from('blocked_users')
+        .insert({ blocker_id: profile.id, blocked_id: targetId });
+      setIsBlocked(true);
+    }
+    setBlockLoading(false);
+  };
+
   return (
     <View style={styles.container}>
       {/* Remote Video (Full Screen) */}
@@ -765,8 +793,8 @@ export default function VideoCallScreen({ modalInviteId, onDismiss }: { modalInv
           </Animated.View>
         ) : (
           <View style={styles.placeholderContainer}>
-             <Image 
-               source={{ uri: partner?.image_url || 'https://via.placeholder.com/400' }} 
+             <Image
+               source={partner?.image_url ? { uri: partner.image_url } : require("@/assets/images/splash-icon.png")}
                style={styles.partnerAvatar}
              />
              <VStack space="md" style={styles.centerItems}>
@@ -778,6 +806,20 @@ export default function VideoCallScreen({ modalInviteId, onDismiss }: { modalInv
           </View>
         )}
       </View>
+
+      {/* ── Call Ended Overlay — shown instantly when partner disconnects ── */}
+      {callStatus === 'Ended' && (
+        <View style={callEndedStyles.overlay}>
+          <View style={callEndedStyles.card}>
+            <Text style={callEndedStyles.wave}>👋</Text>
+            <Text style={callEndedStyles.title}>Call ended</Text>
+            <Text style={callEndedStyles.sub}>
+              {partner?.name ? `${partner.name} has left` : 'Your partner has disconnected'}
+            </Text>
+            <ActivityIndicator size="small" color="#EF4444" style={{ marginTop: 14 }} />
+          </View>
+        </View>
+      )}
 
       {/* Local Video (Floating) */}
       <View style={styles.localVideoContainer}>
@@ -793,7 +835,7 @@ export default function VideoCallScreen({ modalInviteId, onDismiss }: { modalInv
             zOrder={1}
           />
         ) : (
-          <View style={[styles.localVideo, styles.localVideoOff]}>
+          <View style={flattenStyle([styles.localVideo, styles.localVideoOff])}>
             <VideoOff color="#FFFFFF" size={24} />
           </View>
         )}
@@ -804,6 +846,17 @@ export default function VideoCallScreen({ modalInviteId, onDismiss }: { modalInv
         <HStack style={styles.headerContent} space="md">
           <TouchableOpacity onPress={() => setShowReport(true)} style={styles.reportButton}>
              <Flag color="#FFFFFF" size={20} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleBlock}
+            style={isBlocked ? styles.blockButtonActive : styles.reportButton}
+            disabled={blockLoading}
+          >
+            {blockLoading ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <ShieldOff color="#FFFFFF" size={20} />
+            )}
           </TouchableOpacity>
           <View style={styles.partnerInfo}>
             <Text style={styles.partnerName}>{partner?.name || 'Stranger'}</Text>
@@ -821,7 +874,7 @@ export default function VideoCallScreen({ modalInviteId, onDismiss }: { modalInv
       <View style={styles.controls}>
         <HStack space="xl" style={styles.controlsRow}>
           <TouchableOpacity 
-            style={[styles.controlButton, isMuted && styles.activeControl]} 
+            style={flattenStyle([styles.controlButton, isMuted && styles.activeControl])} 
             onPress={toggleMute}
           >
             {isMuted ? <MicOff color="#FFFFFF" size={28} /> : <Mic color="#FFFFFF" size={28} />}
@@ -832,7 +885,7 @@ export default function VideoCallScreen({ modalInviteId, onDismiss }: { modalInv
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.controlButton, isCameraOff && styles.activeControl]} 
+            style={flattenStyle([styles.controlButton, isCameraOff && styles.activeControl])} 
             onPress={toggleCamera}
           >
             {isCameraOff ? <VideoOff color="#FFFFFF" size={28} /> : <Video color="#FFFFFF" size={28} />}
@@ -936,7 +989,7 @@ export default function VideoCallScreen({ modalInviteId, onDismiss }: { modalInv
                   </VStack>
 
                   <TouchableOpacity 
-                    style={[styles.reportSubmitBtn, !reportReason && styles.disabledBtn]} 
+                    style={flattenStyle([styles.reportSubmitBtn, !reportReason && styles.disabledBtn])} 
                     disabled={!reportReason || reportSubmitting}
                     onPress={submitReport}
                   >
@@ -1028,6 +1081,14 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  blockButtonActive: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#EF4444',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1224,5 +1285,42 @@ const styles = StyleSheet.create({
   },
   disabledBtn: {
     opacity: 0.4,
+  },
+});
+
+// ─── Call Ended Overlay Styles ────────────────────────────────────────────────
+const callEndedStyles = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 999,
+  },
+  card: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(20, 20, 40, 0.97)',
+    borderRadius: 24,
+    paddingVertical: 36,
+    paddingHorizontal: 48,
+    borderWidth: 1,
+    borderColor: '#2A2A4A',
+    gap: 4,
+  },
+  wave: {
+    fontSize: 52,
+    marginBottom: 8,
+  },
+  title: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  sub: {
+    color: '#A1A1AA',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 4,
   },
 });

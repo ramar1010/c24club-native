@@ -35,7 +35,9 @@ export function useVideoChat() {
   const [partnerGender, setPartnerGender] = useState<string | null>(null);
   const [partnerTopics, setPartnerTopics] = useState<string[]>([]);
   const [partnerId, setPartnerId] = useState<string | null>(null);
+  const [partnerIsVip, setPartnerIsVip] = useState(false);
   const [partnerIsVoiceMode, setPartnerIsVoiceMode] = useState(false);
+  const [partnerLeft, setPartnerLeft] = useState(false);
 
   // ─── Refs (stale-closure-safe mutable values) ────────────────────────────────
   const memberIdRef = useRef<string | null>(null);
@@ -125,6 +127,23 @@ export function useVideoChat() {
 
   // ─── Local stream ─────────────────────────────────────────────────────────────
   const getLocalStream = useCallback(async (voiceMode: boolean) => {
+    // If current stream matches requested mode and is active, reuse it for smoothness
+    if (localStreamRef.current && isMountedRef.current) {
+      const currentTracks = localStreamRef.current.getTracks();
+      const hasVideo = currentTracks.some((t: any) => t.kind === 'video' && t.readyState === 'live');
+      const hasAudio = currentTracks.some((t: any) => t.kind === 'audio' && t.readyState === 'live');
+      
+      // Improved reuse logic: if we want video and have it, or want voice and only need audio
+      const canReuse = voiceMode ? hasAudio : (hasAudio && hasVideo);
+      
+      if (canReuse) {
+        console.log('[useVideoChat] Reusing existing local stream');
+        // Ensure tracks are enabled
+        currentTracks.forEach((t: any) => { t.enabled = true; });
+        return localStreamRef.current;
+      }
+    }
+
     // ✅ Request Android permissions before accessing camera/mic
     if (Platform.OS === 'android') {
       try {
@@ -151,6 +170,10 @@ export function useVideoChat() {
     if (localStreamRef.current) {
       try { localStreamRef.current.getTracks?.()?.forEach((t: any) => t.stop()); } catch (_) {}
       localStreamRef.current = null;
+      // Give native hardware a moment to release before re-acquiring (helps on some Android devices)
+      if (Platform.OS === 'android') {
+        await new Promise(resolve => setTimeout(resolve, 150)); // Reduced from 300ms for faster re-acquisition
+      }
     }
 
     const constraints = voiceMode
@@ -174,7 +197,11 @@ export function useVideoChat() {
 
   // Initialise camera preview on mount
   useEffect(() => {
-    getLocalStream(isVoiceModeRef.current);
+    // Only initialise localStream on mount for Web.
+    // On Native, we use CameraView (expo-camera) for the idle preview to support Gemini scanning.
+    if (Platform.OS === 'web') {
+      getLocalStream(isVoiceModeRef.current);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -268,6 +295,7 @@ export function useVideoChat() {
       if (state === 'connected') {
         // Clear any pending disconnect timer on recovery
         if (disconnectTimerRef.current) { clearTimeout(disconnectTimerRef.current); disconnectTimerRef.current = null; }
+        if (isMountedRef.current) setPartnerLeft(false);
         if (signalIntervalRef.current) { clearInterval(signalIntervalRef.current); signalIntervalRef.current = null; }
         // Fallback if ontrack didn't fire
         if (callStateRef.current !== 'connected' && isMountedRef.current) {
@@ -281,16 +309,21 @@ export function useVideoChat() {
       } else if (['disconnected', 'failed', 'closed'].includes(state)) {
         // Don't auto-reconnect if the user intentionally stopped
         if (!isStoppingRef.current) {
-          // Grace period: wait 7s before giving up — handles brief network flickers
+          // Grace period: wait before giving up — handles brief network flickers
+          // Use slightly longer grace period on Android (10s) vs iOS (7s)
+          const graceMs = Platform.OS === 'android' ? 10000 : 7000;
+
           if (!disconnectTimerRef.current) {
-            console.log(`[useVideoChat] connectionState: ${state} — waiting 7s before reconnecting...`);
+            console.log(`[useVideoChat] connectionState: ${state} — waiting ${graceMs/1000}s before reconnecting...`);
+            // Immediately show "partner left" indicator during grace period
+            if (isMountedRef.current) setPartnerLeft(true);
             disconnectTimerRef.current = setTimeout(() => {
               disconnectTimerRef.current = null;
               if (!isStoppingRef.current && pcRef.current?.connectionState !== 'connected') {
                 console.log('[useVideoChat] Grace period expired — reconnecting...');
                 handlePartnerLeft(voiceMode);
               }
-            }, 7000);
+            }, graceMs);
           }
         }
       }
@@ -304,8 +337,9 @@ export function useVideoChat() {
   const startSignalPolling = useCallback((roomId: string, channelId: string, voiceMode: boolean) => {
     if (signalIntervalRef.current) { clearInterval(signalIntervalRef.current); signalIntervalRef.current = null; }
 
+    // 🔥 Faster intervals for better responsiveness
     // Use slower interval when already connected (keepalive), fast interval during handshake
-    const interval = callStateRef.current === 'connected' ? 5000 : 1000;
+    const interval = callStateRef.current === 'connected' ? 2000 : 400; // Was 5000 : 500
 
     signalIntervalRef.current = setInterval(async () => {
       if (!isMountedRef.current) return;
@@ -362,6 +396,7 @@ export function useVideoChat() {
               console.warn('[useVideoChat] ice-candidate error:', err);
             }
           } else if (sig.signal_type === 'partner-disconnected') {
+            if (isMountedRef.current) setPartnerLeft(true);
             handlePartnerLeft(voiceMode);
           }
         }
@@ -390,6 +425,7 @@ export function useVideoChat() {
   const startMatchPolling = useCallback((genderPreference: string, voiceMode: boolean) => {
     if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
 
+    // 🔥 Reduced interval for faster matching (800ms vs 1200ms)
     pollIntervalRef.current = setInterval(async () => {
       if (!isMountedRef.current) return;
       const memberId = memberIdRef.current;
@@ -421,11 +457,17 @@ export function useVideoChat() {
         partnerIdRef.current = partnerId;
         setPartnerId(partnerId);
         setPartnerIsVoiceMode(false); // reset on new match
+        setPartnerIsVip(false); // reset on new match
         if (partnerId) fetchPartnerTopics(partnerId);
 
         if (partnerId) {
-          supabase.from('members').select('gender').eq('id', partnerId).maybeSingle().then(({ data: pd }) => {
-            if (pd?.gender && isMountedRef.current) setPartnerGender(pd.gender);
+          supabase.from('members').select('gender, member_minutes(is_vip)').eq('id', partnerId).maybeSingle().then(({ data: pd }) => {
+            if (pd?.gender && isMountedRef.current) {
+              setPartnerGender(pd.gender);
+              // @ts-ignore
+              const isVip = pd.member_minutes?.is_vip ?? (Array.isArray(pd.member_minutes) ? pd.member_minutes[0]?.is_vip : false);
+              setPartnerIsVip(!!isVip);
+            }
           });
         }
 
@@ -446,7 +488,7 @@ export function useVideoChat() {
       } catch (err) {
         console.warn('[useVideoChat] startMatchPolling error:', err);
       }
-    }, 2000);
+    }, 800);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [createPeerConnection, startSignalPolling, sendSignal, fetchPartnerTopics, updateCallState]);
 
@@ -463,6 +505,7 @@ export function useVideoChat() {
     processedSignalIds.current.clear();
     sessionIdRef.current = generateUUID();
 
+    // 🔥 UI: Jump to waiting state immediately
     updateCallState('waiting');
 
     // ✅ Acquire local stream BEFORE joining queue
@@ -493,11 +536,17 @@ export function useVideoChat() {
         partnerIdRef.current = partnerId;
         setPartnerId(partnerId);
         setPartnerIsVoiceMode(false); // reset on new match
+        setPartnerIsVip(false); // reset on new match
         if (partnerId) fetchPartnerTopics(partnerId);
 
         if (partnerId) {
-          supabase.from('members').select('gender').eq('id', partnerId).maybeSingle().then(({ data: pd }) => {
-            if (pd?.gender && isMountedRef.current) setPartnerGender(pd.gender);
+          supabase.from('members').select('gender, member_minutes(is_vip)').eq('id', partnerId).maybeSingle().then(({ data: pd }) => {
+            if (pd?.gender && isMountedRef.current) {
+              setPartnerGender(pd.gender);
+              // @ts-ignore
+              const isVip = pd.member_minutes?.is_vip ?? (Array.isArray(pd.member_minutes) ? pd.member_minutes[0]?.is_vip : false);
+              setPartnerIsVip(!!isVip);
+            }
           });
         }
 
@@ -525,6 +574,7 @@ export function useVideoChat() {
           partnerIdRef.current = partnerId;
           setPartnerId(partnerId);
           setPartnerIsVoiceMode(false); // reset on new match
+          setPartnerIsVip(false); // reset on new match
           if (partnerId) fetchPartnerTopics(partnerId);
           updateCallState('connecting');
           createPeerConnection(roomId, channelIdRef.current, voiceMode);
@@ -549,6 +599,7 @@ export function useVideoChat() {
 
     const gp = genderPrefRef.current;
     const oldRoomId = roomIdRef.current;
+    const oldChannelId = channelIdRef.current;
 
     // ✅ Reset UI immediately so the screen responds on the first frame
     partnerIdRef.current = null;
@@ -564,6 +615,8 @@ export function useVideoChat() {
       setPartnerTopics([]);
       setPartnerId(null);
       setPartnerIsVoiceMode(false); // Reset voice mode for next match
+      setPartnerIsVip(false);
+      setPartnerLeft(false);
       updateCallState('waiting');
     }
 
@@ -575,6 +628,10 @@ export function useVideoChat() {
     // 🔥 Run all backend cleanup in parallel (non-blocking relative to join)
     const cleanupPromise = Promise.all([
       flushMinutes(),
+      // Notify partner we are leaving (crucial for "Next" button responsiveness)
+      oldRoomId && oldChannelId
+        ? sendSignal(oldRoomId, oldChannelId, 'partner-disconnected', {}).catch(() => {})
+        : Promise.resolve(),
       memberIdRef.current
         ? supabase.functions.invoke('videocall-match', {
             body: { type: 'disconnect', memberId: memberIdRef.current },
@@ -608,10 +665,15 @@ export function useVideoChat() {
       ? (Date.now() - connectionStartTimeRef.current) / 1000
       : 999;
 
-    let result = { penalized: false, count: 0 };
+    genderPrefRef.current = genderPreference;
+    isVoiceModeRef.current = voiceMode;
 
-    // Use useSkipPenalty for correct threshold (30s), amount (1 min) and param name (amount)
+    // 🔥 Jump to "Waiting" UI state instantly for smoothness
+    const nextPromise = handlePartnerLeft(voiceMode);
+
+    // 🔥 Check penalty in parallel
     const penalized = await checkAndApplyPenalty(connectedDuration);
+    let result = { penalized: false, count: 0 };
     if (penalized) {
       skipPenaltyCountRef.current += 1;
       setSkipPenaltyCount(skipPenaltyCountRef.current);
@@ -619,10 +681,7 @@ export function useVideoChat() {
       refreshBalance();
     }
 
-    genderPrefRef.current = genderPreference;
-    isVoiceModeRef.current = voiceMode;
-
-    await handlePartnerLeft(voiceMode);
+    await nextPromise;
     return result;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checkAndApplyPenalty, handlePartnerLeft, refreshBalance]);
@@ -630,19 +689,12 @@ export function useVideoChat() {
   // ─── handleStop ───────────────────────────────────────────────────────────────
   const handleStop = useCallback(async () => {
     const oldRoomId = roomIdRef.current;
+    const oldChannelId = channelIdRef.current;
 
     // Signal intentional stop — prevents onconnectionstatechange from auto-reconnecting
     isStoppingRef.current = true;
 
     clearAllIntervals();
-
-    // Notify partner
-    if (oldRoomId && channelIdRef.current) {
-      try {
-        await sendSignal(oldRoomId, channelIdRef.current, 'partner-disconnected', {});
-      } catch (_) {}
-    }
-
     cleanupPC();
 
     // Stop local stream
@@ -651,43 +703,53 @@ export function useVideoChat() {
       localStreamRef.current = null;
     }
 
-    // Flush partial minutes via useCallMinutes
-    await flushMinutes();
-
-    // Backend cleanup
-    if (memberIdRef.current) {
-      try {
-        await supabase.functions.invoke('videocall-match', {
-          body: { type: 'disconnect', memberId: memberIdRef.current },
-        });
-        await supabase.functions.invoke('videocall-match', {
-          body: { type: 'leave_queue', memberId: memberIdRef.current },
-        });
-      } catch (_) {}
-    }
-
-    // Delete room signals
-    if (oldRoomId) {
-      try {
-        await supabase.from('room_signals').delete().eq('room_id', oldRoomId);
-      } catch (_) {}
-    }
-
     // Reset everything
     roomIdRef.current = null;
     partnerIdRef.current = null;
     setPartnerId(null);
     connectionStartTimeRef.current = null;
-    autoReconnectingRef.current = false;
-    isStoppingRef.current = false;
 
     if (isMountedRef.current) {
       setLocalStream(null);
       setRemoteStream(null);
       setPartnerGender(null);
       setPartnerTopics([]);
+      setPartnerIsVip(false);
       updateCallState('idle');
     }
+
+    // 🔥 Run all cleanup in the background so the UI feels instant
+    (async () => {
+      // Notify partner
+      if (oldRoomId && oldChannelId) {
+        sendSignal(oldRoomId, oldChannelId, 'partner-disconnected', {}).catch(() => {});
+      }
+
+      // Flush partial minutes
+      await flushMinutes().catch(() => {});
+
+      // Backend cleanup
+      if (memberIdRef.current) {
+        try {
+          await supabase.functions.invoke('videocall-match', {
+            body: { type: 'disconnect', memberId: memberIdRef.current },
+          });
+          await supabase.functions.invoke('videocall-match', {
+            body: { type: 'leave_queue', memberId: memberIdRef.current },
+          });
+        } catch (_) {}
+      }
+
+      // Delete room signals
+      if (oldRoomId) {
+        try {
+          await supabase.from('room_signals').delete().eq('room_id', oldRoomId);
+        } catch (_) {}
+      }
+
+      autoReconnectingRef.current = false;
+      isStoppingRef.current = false;
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sendSignal, cleanupPC, flushMinutes, updateCallState]);
 
@@ -733,7 +795,9 @@ export function useVideoChat() {
 
   // Restart camera preview (called when screen is focused)
   const restartPreview = useCallback(async () => {
-    if (callStateRef.current === 'idle') {
+    // On Native, we let CameraView handle the idle preview.
+    // Re-acquiring WebRTC tracks in idle can cause hardware conflicts.
+    if (callStateRef.current === 'idle' && Platform.OS === 'web') {
       await getLocalStream(isVoiceModeRef.current);
     }
   }, [getLocalStream]);
@@ -772,6 +836,7 @@ export function useVideoChat() {
     isCameraOff,
     isVoiceMode,
     partnerIsVoiceMode,
+    partnerLeft,
     skipPenaltyCount,
     showCapPopup,
     totalMinutes,
@@ -781,6 +846,7 @@ export function useVideoChat() {
     partnerGender,
     partnerTopics,
     partnerId,
+    partnerIsVip,
     capInfo,
     minutesLost,
     showPenaltyToast,

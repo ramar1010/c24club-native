@@ -162,12 +162,13 @@ export const GiftModal = ({
           ))}
         </ScrollView>
 
-        {/* Footer */}
-        <Text style={styles.footerText}>
-          {recipientIsVip
-            ? "Processed via Google Play / App Store"
-            : "Upgrade prompts sent when you tap a tier 💌"}
-        </Text>
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>
+            {recipientIsVip
+              ? "Secure Transaction via App Store"
+              : "Upgrade prompts sent when you tap a tier 💌"}
+          </Text>
+        </View>
       </View>
     </Modal>
   );

@@ -42,7 +42,7 @@ function TabLayoutInner() {
       <Tabs.Screen
         name="chat"
         options={{
-          title: "Chat",
+          title: "Connect",
           tabBarIcon: ({ color }) => (
             <Video size={24} color={color} />
           ),

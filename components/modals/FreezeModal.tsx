@@ -68,6 +68,7 @@ export function FreezeModal({ visible, onClose, liveMinutes }: FreezeModalProps)
             setLoading(true);
             const { data, error } = await invokeIAP({
               action: "verify-unfreeze",
+              sku: purchase.productId,
               purchaseToken: token,
               platform: Platform.OS,
             });

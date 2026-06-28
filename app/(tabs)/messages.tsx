@@ -258,7 +258,7 @@ export default function MessagesScreen() {
           onPress={() => setShowCashoutModal(true)}
         >
           <DollarSign size={14} color="#22C55E" />
-          <Text style={styles.cashOutText}>Cash Out</Text>
+          <Text style={styles.cashOutText}>Redeem</Text>
           {gifted > 0 && (
             <View style={styles.msgBadge}>
               <Text style={styles.msgBadgeText}>{gifted}</Text>
@@ -318,6 +318,7 @@ export default function MessagesScreen() {
           <FlatList
             data={filtered}
             keyExtractor={(item) => item.id}
+            removeClippedSubviews={false}
             ListHeaderComponent={<FemaleVipBanner />}
             renderItem={({ item }) => (
               <ConversationRow

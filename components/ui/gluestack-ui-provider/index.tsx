@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { config } from './config';
-import { View, ViewProps } from 'react-native';
+import { View, type ViewProps } from 'react-native';
 import { flattenStyle } from '@/utils/flatten-style';
 import { OverlayProvider } from '@gluestack-ui/core/overlay/creator';
 import { ToastProvider } from '@gluestack-ui/core/toast/creator';

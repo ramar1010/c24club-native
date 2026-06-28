@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   ChevronLeft,
   DollarSign,
@@ -24,6 +25,7 @@ import {
   ShieldOff,
   Video,
   X,
+  AlertTriangle,
 } from "lucide-react-native";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCall } from "@/contexts/CallContext";
@@ -37,6 +39,7 @@ import { useFreeMsgLimit } from "@/hooks/useFreeMsgLimit";
 import { Alert } from "react-native";
 import { GiftModal } from "@/components/modals/GiftModal";
 import { CashoutModal } from "@/components/modals/CashoutModal";
+import { BountyGuideModal } from "@/components/modals/BountyGuideModal";
 import { notifyGiftAttempt } from "@/lib/gift-utils";
 import { GiftCelebration } from "@/components/GiftCelebration";
 import { MemberProfileModal } from "@/components/MemberProfileModal";
@@ -52,7 +55,13 @@ interface LocalGiftMessage {
   created_at: string;
 }
 
-type DisplayMessage = DmMessage | LocalGiftMessage;
+interface LimitNudgeMessage {
+  id: string;
+  type: "limit_nudge";
+  created_at: string;
+}
+
+type DisplayMessage = DmMessage | LocalGiftMessage | LimitNudgeMessage;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -81,6 +90,39 @@ const GiftBubble = React.memo(function GiftBubble({ message }: GiftBubbleProps) 
           <Text style={styles.giftBubbleTitle}>Cash Gift Sent</Text>
         </View>
         <Text style={styles.giftBubbleSubtext}>You sent a cash gift!</Text>
+      </View>
+    </View>
+  );
+});
+
+// ─── Limit Nudge Bubble ───────────────────────────────────────────────────────
+
+interface LimitNudgeBubbleProps {
+  partnerName: string;
+  onOpenGuide: () => void;
+}
+
+const LimitNudgeBubble = React.memo(function LimitNudgeBubble({
+  partnerName,
+  onOpenGuide,
+}: LimitNudgeBubbleProps) {
+  return (
+    <View style={styles.nudgeBubbleWrapper}>
+      <View style={styles.nudgeBubble}>
+        <View style={styles.giftBubbleRow}>
+          <AlertTriangle size={18} color="#FACC15" />
+          <Text style={styles.giftBubbleTitle}>Message Limit Reached</Text>
+        </View>
+        <Text style={styles.nudgeBubbleText}>
+          {partnerName} cannot chat until he is VIP. Convince him to upgrade to earn commission!
+        </Text>
+        <TouchableOpacity 
+          style={styles.nudgeActionBtn}
+          onPress={onOpenGuide}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.nudgeActionText}>View Earning Guide →</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -135,7 +177,8 @@ const MessageBubble = React.memo(function MessageBubble({
 
 export default function ChatThreadScreen() {
   const router = useRouter();
-  const { user, profile, minutes } = useAuth();
+  const queryClient = useQueryClient();
+  const { user, profile, minutes, refreshProfile } = useAuth();
   const { startCall } = useCall();
   const [debugLog, setDebugLog] = useState<string[]>([]);
 
@@ -162,6 +205,11 @@ export default function ChatThreadScreen() {
   const [partnerProfile, setPartnerProfile] = useState<{ id?: string; name?: string | null; gender?: string | null; role?: string | null; image_url?: string | null } | null>(null);
   const [partnerIsVip, setPartnerIsVip] = useState(false);
   const [partnerVipLoaded, setPartnerVipLoaded] = useState(false);
+  const [partnerMsgError, setPartnerMsgError] = useState<string | null>(null);
+  const [partnerMsgStatus, setPartnerMsgStatus] = useState<{
+    used_count: number;
+    has_reached_limit: boolean;
+  } | null>(null);
 
   // Use fetched profile data as primary source of truth, then fall back to params
   const partnerName = partnerProfile?.name ?? params.partnerName ?? "User";
@@ -316,15 +364,29 @@ export default function ChatThreadScreen() {
       console.log("[GiftModal] partnerVip check via RPC:", { effectivePartnerId, result: vipResult });
       setPartnerIsVip(vipResult);
       setPartnerVipLoaded(true);
+
+      // 4. If female, fetch partner's message status to show paywall nudge
+      if (profile?.gender?.toLowerCase() === "female" && !vipResult) {
+        const { data: status, error } = await supabase.rpc('get_user_free_msg_status', { target_user_id: effectivePartnerId });
+        if (error) {
+          console.error("[PartnerStatus] Initial check RPC error:", error);
+          setPartnerMsgError(error.message);
+        } else if (status) {
+          console.log("[PartnerStatus] Initial check:", status);
+          setPartnerMsgStatus(status);
+        }
+      }
     }
     resolveData();
-  }, [params.id, user, resolvedPartnerId, conversationId]);
+  }, [params.id, user, resolvedPartnerId, conversationId, profile?.gender]);
 
   const [inputText, setInputText] = useState("");
   const flatListRef = useRef<FlatList<DisplayMessage>>(null);
 
   const [showGiftModal, setShowGiftModal] = useState(false);
   const [showCashoutModal, setShowCashoutModal] = useState(false);
+  const [showBountyGuide, setShowBountyGuide] = useState(false);
+  const [bountyTotal, setBountyTotal] = useState(0);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportReason, setReportReason] = useState('');
   const [reportDetails, setReportDetails] = useState('');
@@ -338,12 +400,57 @@ export default function ChatThreadScreen() {
   const gifted = minutes?.gifted_minutes ?? 0;
 
   const isMale = profile?.gender?.toLowerCase() === "male";
+  const isFemale = profile?.gender?.toLowerCase() === "female";
   const genderStr = partnerProfile?.gender || params.partnerGender || "";
   const isPartnerFemale = genderStr.toLowerCase() === "female";
+  const isPartnerMale = genderStr.toLowerCase() === "male";
+
+  // Check for bounty earnings from this partner (female users only)
+  useEffect(() => {
+    if (!user || !partnerId || !isFemale) {
+      setBountyTotal(0);
+      return;
+    }
+    let active = true;
+    supabase
+      .from("bounty_earnings")
+      .select("amount_minutes")
+      .eq("female_id", user.id)
+      .eq("male_id", partnerId)
+      .eq("clawed_back", false)
+      .then(({ data }) => {
+        if (!active) return;
+        const total = (data ?? []).reduce(
+          (sum, row) => sum + (row.amount_minutes ?? 0),
+          0,
+        );
+        setBountyTotal(total);
+      });
+    return () => {
+      active = false;
+    };
+  }, [user, partnerId, isFemale]);
 
   const { data: messages, isLoading, limit, setLimit } = useConversationMessages(
     activeConversationId
   );
+
+  // Re-check partner status when new messages arrive (for female users)
+  useEffect(() => {
+    if (isFemale && !partnerIsVip && partnerId && messages?.length) {
+      supabase.rpc('get_user_free_msg_status', { target_user_id: partnerId })
+        .then(({ data, error }) => {
+          if (error) {
+            console.error("[PartnerStatus] Refresh check RPC error:", error);
+            setPartnerMsgError(error.message);
+          } else if (data) {
+            console.log("[PartnerStatus] Refresh check:", data);
+            setPartnerMsgStatus(data);
+          }
+        });
+    }
+  }, [messages?.length, isFemale, partnerIsVip, partnerId]);
+
   const sendMessage = useSendMessage();
   const { lastError: sendError } = sendMessage;
 
@@ -394,11 +501,21 @@ export default function ChatThreadScreen() {
   // Merge real messages with local gift messages for display
   const displayMessages: DisplayMessage[] = React.useMemo(() => {
     const base: DisplayMessage[] = messages ?? [];
-    if (localGiftMessages.length === 0) return base;
-    return [...base, ...localGiftMessages].sort(
+    let combined = [...base, ...localGiftMessages];
+
+    // Inject limit nudge as the last item if applicable
+    if (isFemale && isPartnerMale && partnerMsgStatus?.has_reached_limit && !partnerIsVip) {
+      combined.push({
+        id: "limit-nudge-system",
+        type: "limit_nudge",
+        created_at: new Date().toISOString(),
+      });
+    }
+
+    return combined.sort(
       (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
-  }, [messages, localGiftMessages]);
+  }, [messages, localGiftMessages, isFemale, isPartnerMale, partnerMsgStatus?.has_reached_limit, partnerIsVip]);
 
   const handleGiftSent = useCallback(
     (info: { tierMinutes: number; cashValue: number }) => {
@@ -413,8 +530,13 @@ export default function ChatThreadScreen() {
       setLocalGiftMessages((prev) => [...prev, giftMsg]);
       // Show celebration overlay
       setShowCelebration(true);
+
+      // Invalidate gift history and minutes queries
+      queryClient.invalidateQueries({ queryKey: ["gift_history"] });
+      queryClient.invalidateQueries({ queryKey: ["gifted_minutes"] });
+      refreshProfile();
     },
-    []
+    [queryClient, refreshProfile]
   );
 
   // Auto-scroll to bottom when messages change
@@ -673,6 +795,11 @@ export default function ChatThreadScreen() {
           onClose={() => setShowCashoutModal(false)}
         />
 
+        <BountyGuideModal
+          isOpen={showBountyGuide}
+          onClose={() => setShowBountyGuide(false)}
+        />
+
         {/* Report Modal */}
         <Modal visible={showReportModal} transparent animationType="slide" onRequestClose={() => setShowReportModal(false)}>
           <View style={styles.reportOverlay}>
@@ -777,44 +904,6 @@ export default function ChatThreadScreen() {
           </View>
         </Modal>
 
-        {/* Info Banners */}
-        {!isVip && isMale && isPartnerFemale && (
-          <View style={[styles.bannerLimit, { backgroundColor: "#1E1E38", borderColor: "#EF4444", borderWidth: 1, padding: 12, borderRadius: 12, marginBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 10, gap: 10 }]}>
-            <MessageSquare size={20} color="#EF4444" />
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: "#FFFFFF", fontWeight: "800", fontSize: 14 }}>
-                Free Message Limit 💬
-              </Text>
-              <Text style={{ color: "#A1A1AA", fontSize: 12, marginTop: 2 }}>
-                You have {remaining} free messages left to {partnerName}.
-              </Text>
-              <Text style={{ fontSize: 10, color: "rgba(239, 68, 68, 0.6)", marginTop: 4, fontStyle: 'italic' }}>
-                Admin Debug: used={usedCount} male={String(isMale)} female={String(isPartnerFemale)} vip={String(isVip)}
-              </Text>
-            </View>
-            <TouchableOpacity 
-              onPress={() => router.push("/vip")}
-              style={{ backgroundColor: "#EF4444", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}
-            >
-              <Text style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 11 }}>Upgrade</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        <View style={styles.bannerGift}>
-          <Gift size={14} color="#D97706" />
-          <Text style={styles.bannerGiftText}>
-            Did you know? Users can send you cash gifts in DMs! Earned gifts can be cashed out via PayPal.
-          </Text>
-        </View>
-
-        <View style={styles.bannerPrivacy}>
-          <Text style={styles.bannerPrivacyText}>
-            All video chats are encrypted and private — not even C24Club can see them. DM text messages are monitored. No solicitation for gifts.{" "}
-            <Text style={styles.bannerPrivacyLink}>Rules</Text>
-          </Text>
-        </View>
-
         {/* Messages */}
         {isLoading && !messages ? (
           <View style={styles.centered}>
@@ -826,8 +915,23 @@ export default function ChatThreadScreen() {
             data={displayMessages}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listContent}
+            removeClippedSubviews={false}
             ListHeaderComponent={
               <>
+                <View style={styles.bannerPrivacy}>
+                  <Text style={styles.bannerPrivacyText}>
+                    All video chats are encrypted and private — not even C24Club can see them. DM text messages are monitored. No solicitation for gifts.{" "}
+                    <Text style={styles.bannerPrivacyLink}>Rules</Text>
+                  </Text>
+                </View>
+
+                <View style={styles.bannerGift}>
+                  <Gift size={14} color="#D97706" />
+                  <Text style={styles.bannerGiftText}>
+                    Did you know? Users can send you cash gifts in DMs! Earned gifts can be cashed out via PayPal.
+                  </Text>
+                </View>
+
                 {hasMore && (
                   <TouchableOpacity
                     style={styles.loadMoreBtn}
@@ -841,6 +945,14 @@ export default function ChatThreadScreen() {
             renderItem={({ item }) => {
               if ("type" in item && item.type === "gift") {
                 return <GiftBubble message={item as LocalGiftMessage} />;
+              }
+              if ("type" in item && item.type === "limit_nudge") {
+                return (
+                  <LimitNudgeBubble 
+                    partnerName={partnerName} 
+                    onOpenGuide={() => setShowBountyGuide(true)} 
+                  />
+                );
               }
               const msg = item as DmMessage;
               return <MessageBubble message={msg} isMine={msg.sender_id === user?.id} />;
@@ -1103,6 +1215,50 @@ const styles = StyleSheet.create({
   // ── Banners ────────────────────────────────────────────────────────────────
   bannerLimit: {
     // defined inline above for visibility
+  },
+  bountyBanner: {
+    margin: 12,
+    marginBottom: 6,
+    backgroundColor: "rgba(236,72,153,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(236,72,153,0.3)",
+    borderRadius: 14,
+    padding: 14,
+    gap: 12,
+  },
+  bountyBannerTitle: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  bountyBannerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  bountyBannerPrimary: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#EC4899",
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 100,
+  },
+  bountyBannerPrimaryText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  bountyBannerSecondary: {
+    paddingHorizontal: 6,
+    paddingVertical: 9,
+  },
+  bountyBannerSecondaryText: {
+    color: "#F9A8D4",
+    fontSize: 13,
+    fontWeight: "700",
+    textDecorationLine: "underline",
   },
   bannerGift: {
     flexDirection: "row",
@@ -1429,5 +1585,38 @@ const styles = StyleSheet.create({
     color: '#A1A1AA',
     fontSize: 15,
     fontWeight: '600',
+  },
+  nudgeBubbleWrapper: {
+    marginVertical: 12,
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  nudgeBubble: {
+    backgroundColor: "rgba(250,204,21,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(250,204,21,0.3)",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    width: "100%",
+  },
+  nudgeBubbleText: {
+    color: "#E4E4E7",
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 4,
+  },
+  nudgeActionBtn: {
+    marginTop: 12,
+    backgroundColor: "rgba(250,204,21,0.15)",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignSelf: "flex-start",
+  },
+  nudgeActionText: {
+    color: "#FACC15",
+    fontSize: 13,
+    fontWeight: "700",
   },
 });

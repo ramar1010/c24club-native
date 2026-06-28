@@ -31,9 +31,11 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   Platform,
   Animated,
+  Dimensions,
+  Linking,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -53,6 +55,10 @@ import {
   ChevronLeft,
   AlertCircle,
   RefreshCw,
+  ExternalLink,
+  HelpCircle,
+  CircleCheck,
+  ShieldCheck,
 } from 'lucide-react-native';
 import {
   initConnection,
@@ -61,13 +67,25 @@ import {
   purchaseUpdatedListener,
   purchaseErrorListener,
   getAvailablePurchases,
+  Subscription,
 } from '@/lib/iap-import';
 import { supabase } from "@/lib/supabase";
-import { invokeIAP } from "@/lib/iap-supabase";
+import { invokeIAP, getIAPOriginalTransactionId, getIAPSubscriptionEnd } from "@/lib/iap-supabase";
 import { useAuth } from '@/contexts/AuthContext';
 import { IAP_SUBSCRIPTIONS } from '@/lib/iap';
 import { FooterLinks } from '@/components/FooterLinks';
 import { flattenStyle } from '@/utils/flatten-style';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  Modal,
+  ModalBackdrop,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+} from "@/components/ui/modal";
+import { Button, ButtonText, ButtonIcon, ButtonSpinner } from "@/components/ui/button";
+import { Heading } from "@/components/ui/heading";
 
 // ── Feature definitions ──────────────────────────────────────────────────────
 
@@ -103,17 +121,24 @@ type ScreenStatus =
 export default function VipUpsellScreen() {
   const router = useRouter();
   const { highlight } = useLocalSearchParams<{ highlight?: string }>();
-  const { minutes, refreshProfile } = useAuth();
+  const { minutes, refreshProfile, syncVipStatus, user, updateMinutesFromRow } = useAuth();
 
   // Screen-level state machine
   const [status, setStatus] = useState<ScreenStatus>('idle');
   const [setupError, setSetupError] = useState<string | null>(null);
+
+  // Store-fetched products (for localized prices and availability check)
+  const [storeProducts, setStoreProducts] = useState<Subscription[]>([]);
 
   // Which SKU is currently being purchased (so we can show the right button spinner)
   const [purchasingSku, setPurchasingSku] = useState<string | null>(null);
 
   // Restoring purchases
   const [restoring, setRestoring] = useState(false);
+  
+  // Success / Activation modal
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [activationError, setActivationError] = useState<string | null>(null);
 
   // Android: offer tokens are required when calling requestSubscription
   const offerTokensRef = useRef<Record<string, string>>({});
@@ -152,9 +177,15 @@ export default function VipUpsellScreen() {
       // Step 2: Register SKUs with StoreKit / Play Billing.
       // This is required before requestSubscription will trigger the native sheet.
       const skus = [IAP_SUBSCRIPTIONS.BASIC_VIP, IAP_SUBSCRIPTIONS.PREMIUM_VIP];
-      console.log('[VIP] getSubscriptions for SKUs:', skus);
+      console.log('[VIP] Requesting SKUs from store:', skus);
       const subs = await getSubscriptions({ skus });
-      console.log('[VIP] getSubscriptions returned:', subs?.length, 'products');
+      
+      const foundSkus = subs?.map((s: any) => s.productId ?? s.id) ?? [];
+      console.log('[VIP] Store returned products for SKUs:', foundSkus);
+
+      if (subs && subs.length > 0) {
+        setStoreProducts(subs);
+      }
 
       if (!subs || subs.length === 0) {
         throw new Error('No products returned from the store. Check SKU configuration.');
@@ -187,8 +218,9 @@ export default function VipUpsellScreen() {
     runSetup();
 
     // Local purchaseUpdatedListener — complements the global one in useIAPListener.
-    // Its sole job here is to clear the local purchasing state and show a success alert
-    // on this screen when the user's purchase comes through.
+    // Its sole job here is to clear the local purchasing state on this screen 
+    // when the user's purchase comes through. The actual verification and 
+    // finishing is handled by the global useIAPListener.
     const updateSub = purchaseUpdatedListener((purchase: any) => {
       const sku: string = purchase?.productId ?? '';
       console.log('[VIP] purchaseUpdatedListener (local) fired for SKU:', sku);
@@ -200,19 +232,14 @@ export default function VipUpsellScreen() {
 
       if (isOurSku) {
         clearPurchaseTimeout();
-        setPurchasingSku(null);
-        setStatus('ready');
 
-        // Refresh profile so UI reflects VIP status immediately.
-        // The global listener also calls refreshProfile, but doing it here
-        // ensures the VIP screen itself updates without delay.
-        refreshProfile().catch(() => {});
+        // Clear any potential caches (redundant with global but safe)
+        if (user?.id) {
+          AsyncStorage.removeItem(`vip_status_${user.id}`).catch(() => {});
+        }
 
-        Alert.alert(
-          '🎉 Welcome to VIP!',
-          "Your subscription is now active. Enjoy your VIP perks!",
-          [{ text: 'Awesome!', onPress: () => router.back() }]
-        );
+        // Show the success/activation modal as requested
+        setShowSuccessModal(true);
       }
     });
 
@@ -235,13 +262,8 @@ export default function VipUpsellScreen() {
       const messageLower = message.toLowerCase();
       if (code === 'E_ALREADY_OWNED' || messageLower.includes('already owned') || messageLower.includes('duplicate')) {
         // User already has this subscription but the app doesn't reflect it yet.
-        // Auto-trigger restore so VIP status syncs without extra user action.
-        Alert.alert(
-          'Already Subscribed',
-          'You already have an active subscription. Syncing your account now…',
-          [{ text: 'OK' }]
-        );
-        handleRestore();
+        // Show the success modal to force the "Sync & Activate" step
+        setShowSuccessModal(true);
         return;
       }
 
@@ -258,6 +280,27 @@ export default function VipUpsellScreen() {
       clearPurchaseTimeout();
     };
   }, [runSetup]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Listen to VIP status changes to clear the loading state and show success alert
+  useEffect(() => {
+    const isNowVip = minutes?.is_vip || minutes?.admin_granted_vip;
+    if (isNowVip && (purchasingSku || showSuccessModal)) {
+      console.log('[VIP] VIP status activated! Clearing purchasing state.');
+      setPurchasingSku(null);
+      setStatus('ready');
+      clearPurchaseTimeout();
+      setShowSuccessModal(false);
+      
+      // Final confirmation
+      setTimeout(() => {
+        Alert.alert(
+          '🎉 VIP Active!',
+          "Your subscription is now fully active. Enjoy your VIP perks!",
+          [{ text: 'Awesome!', onPress: () => router.back() }]
+        );
+      }, 500);
+    }
+  }, [minutes?.is_vip, minutes?.admin_granted_vip, purchasingSku, router, showSuccessModal]);
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -279,13 +322,25 @@ export default function VipUpsellScreen() {
 
     if (status === 'purchasing') return; // already in flight
 
+    // Verify product is actually available in store cache
+    const product = storeProducts.find(p => (p.productId ?? (p as any).id) === sku);
+    
+    if (!product && Platform.OS !== 'web') {
+      Alert.alert(
+        'Item Not Found',
+        `The product "${sku}" could not be retrieved from the App Store. Please ensure it is approved and cleared for sale in App Store Connect.`,
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     // Android: we need the offer token to proceed
-    if (Platform.OS === 'android') {
+    if (Platform.OS === 'android' && product) {
       const token = offerTokensRef.current[sku];
       if (!token) {
         Alert.alert(
           'Not Ready',
-          'Store connection not ready. Please wait a moment and try again.'
+          'Subscription offer not ready. Please wait a moment and try again.'
         );
         return;
       }
@@ -334,13 +389,8 @@ export default function VipUpsellScreen() {
 
       if (code === 'E_USER_CANCELLED') return;
 
-      if (code === 'E_ALREADY_OWNED' || message.toLowerCase().includes('already owned')) {
-        Alert.alert(
-          'Already Subscribed',
-          'You already have an active subscription. Syncing your account now…',
-          [{ text: 'OK' }]
-        );
-        handleRestore();
+      if (code === 'E_ALREADY_OWNED' || message.toLowerCase().includes('already owned') || message.toLowerCase().includes('duplicate')) {
+        setShowSuccessModal(true);
         return;
       }
 
@@ -364,7 +414,8 @@ export default function VipUpsellScreen() {
       console.log('[VIP] Available purchases:', purchases?.length, purchases?.map((p: any) => p.productId));
 
       if (!purchases || purchases.length === 0) {
-        Alert.alert('No Active Subscription', 'No active VIP subscription was found on this Apple ID. If you believe this is an error, please contact support.');
+        const storeAccount = Platform.OS === 'ios' ? 'Apple ID' : 'Google Play account';
+        Alert.alert('No Active Subscription', `No active VIP subscription was found on this ${storeAccount}. If you believe this is an error, please contact support.`);
         setRestoring(false);
         return;
       }
@@ -373,34 +424,46 @@ export default function VipUpsellScreen() {
       const VIP_SKUS = [IAP_SUBSCRIPTIONS.BASIC_VIP, IAP_SUBSCRIPTIONS.PREMIUM_VIP];
       const vipPurchase = purchases.find((p: any) => VIP_SKUS.includes(p.productId));
 
+      // All known iOS VIP SKU variants (case-insensitive match)
+      const ALL_VIP_SKUS_LOWER = ['basicvip', 'premiumvip', 'c24_basic_vip', 'c24_premium_vip'];
+      const vipPurchase2 = !vipPurchase
+        ? purchases.find((p: any) => ALL_VIP_SKUS_LOWER.includes((p.productId ?? '').toLowerCase()))
+        : null;
+      const resolvedPurchase = vipPurchase ?? vipPurchase2;
+
       if (!vipPurchase) {
-        Alert.alert('No Active Subscription', 'No active VIP subscription was found. If you believe this is an error, please contact support.');
+        // strict match failed — try case-insensitive fallback (resolvedPurchase)
+      }
+      // resolvedPurchase is guaranteed non-null here (vipPurchase is non-null implies resolvedPurchase is non-null)
+      // Log and continue
+      // (moved log below resolvedPurchase null check)
+      if (!resolvedPurchase) {
+
+        const storeAccount = Platform.OS === 'ios' ? 'Apple ID' : 'Google Play account';
+        Alert.alert('No Active Subscription', `No active VIP subscription was found on this ${storeAccount}. If you believe this is an error, contact support.`);
         setRestoring(false);
         return;
       }
-
-      // In rn-iap v14 (StoreKit 2), both iOS and Android use purchaseToken.
+      console.log('[VIP] productIds from Apple:', purchases.map((p: any) => p.productId), '| using:', resolvedPurchase.productId);
+      // rn-iap v14 (StoreKit 2): purchaseToken is the unified receipt field.
       // transactionReceipt no longer exists — purchaseToken is the unified field.
-      const token = vipPurchase.purchaseToken;
-      if (!token) {
-        // Fallback: try transactionId as last resort
-        const fallbackToken = (vipPurchase as any).transactionReceipt ?? (vipPurchase as any).transactionId;
-        if (!fallbackToken) {
-          throw new Error('Could not retrieve purchase receipt from Apple. Please try again or contact support.');
-        }
-        console.warn('[VIP] purchaseToken was null, using fallback:', fallbackToken);
-      }
-      const finalToken = token ?? (vipPurchase as any).transactionReceipt ?? (vipPurchase as any).transactionId;
-      console.log('[VIP] Found VIP purchase to restore:', vipPurchase.productId, '| token present:', !!finalToken);
-
-      // Step 3: Send to backend to activate VIP in DB
-      // Use verify-subscription (not restore-subscription) — it's the same logic
-      // and has been battle-tested. restore-subscription is an alias for it.
+      const finalToken = resolvedPurchase.purchaseToken
+        ?? (resolvedPurchase as any).transactionReceipt
+        ?? (resolvedPurchase as any).transactionId
+        ?? 'ios-restore';
+      console.log('[VIP] Restoring SKU:', resolvedPurchase.productId, '| token present:', finalToken !== 'ios-restore');
+      const originalTransactionId = getIAPOriginalTransactionId(resolvedPurchase as Record<string, unknown>);
+      const subscriptionEnd = getIAPSubscriptionEnd(resolvedPurchase as Record<string, unknown>);
+      // Step 3: Send to backend to activate VIP in DB.
+    setActivationError(null);
       const { data, error } = await invokeIAP({
         action: 'verify-subscription',
-        sku: vipPurchase.productId,
+        sku: resolvedPurchase.productId,
         purchaseToken: finalToken,
         platform: Platform.OS,
+        transactionId: (resolvedPurchase as any).transactionId ?? finalToken,
+        original_transaction_id: originalTransactionId,
+        subscription_end: subscriptionEnd,
       });
 
       if (error) throw error;
@@ -408,23 +471,55 @@ export default function VipUpsellScreen() {
 
       console.log('[VIP] Restore successful via verify-subscription');
 
-      // Step 4: Refresh profile so UI updates
-      await refreshProfile();
+      // Step 4: Update local state immediately from response
+      if (data.member_minutes) {
+        console.log('[VIP] Updating minutes immediately from restore response row');
+        updateMinutesFromRow(data.member_minutes);
+      } else {
+        await refreshProfile();
+      }
 
       // Determine tier from the SKU we just verified
-      const restoredTier = (vipPurchase.productId === 'premiumvip' || vipPurchase.productId === 'c24_premium_vip') ? 'Premium' : 'Basic';
+      const restoredTier = (['premiumvip', 'c24_premium_vip'].includes((resolvedPurchase.productId ?? '').toLowerCase())) ? 'Premium' : 'Basic';
       Alert.alert('✅ VIP Restored', `Your ${restoredTier} VIP subscription has been restored!`);
+      setShowSuccessModal(false);
+
+      // (resolvedPurchase used above via vipPurchase — kept for reference)
     } catch (err: any) {
       console.error('[VIP] Restore error:', err);
-      Alert.alert('Restore Failed', err?.message ?? 'An unexpected error occurred. Please contact support.');
+      setActivationError(err?.message ?? 'An unexpected error occurred. Please contact support.');
+      // Only show alert if NOT in success modal (as success modal has its own error display)
+      if (!showSuccessModal) {
+        Alert.alert('Restore Failed', err?.message ?? 'An unexpected error occurred. Please contact support.');
+      }
     } finally {
       setRestoring(false);
     }
   };
 
+  // ── Restore purchases (replaced above) ──────────────────────────────────
+
+
   // ── Derived state ────────────────────────────────────────────────────────
   const currentTier = minutes?.vip_tier ?? null;
   const isPurchasing = status === 'purchasing';
+
+  // Localized price helpers
+  const getSubData = (sku: string) => {
+    const sub = storeProducts.find(s => (s.productId ?? (s as any).id) === sku);
+    return sub;
+  };
+
+  const premiumSub = getSubData(IAP_SUBSCRIPTIONS.PREMIUM_VIP);
+  const basicSub = getSubData(IAP_SUBSCRIPTIONS.BASIC_VIP);
+  
+  // If we found the product, we use the store's localized price.
+  // Otherwise we fall back to hardcoded defaults (useful for development/preview).
+  const premiumPrice = premiumSub?.localizedPrice ?? '9.99';
+  const basicPrice = basicSub?.localizedPrice ?? '2.49';
+  
+  const isPremiumAvailable = !!premiumSub || Platform.OS === 'web';
+  const isBasicAvailable = !!basicSub || Platform.OS === 'web';
 
   // ── Render ───────────────────────────────────────────────────────────────
   return (
@@ -448,7 +543,7 @@ export default function VipUpsellScreen() {
           >
             <Gift size={20} color="#1A1A2E" />
             <Text style={styles.giftingBannerText}>
-              Guys can send you cash gifts when you're Premium VIP 💸
+              Premium VIPs can receive community support and rewards 🎁
             </Text>
           </Animated.View>
         )}
@@ -503,9 +598,15 @@ export default function VipUpsellScreen() {
           <View style={styles.cardHeader}>
             <Text style={styles.tierName}>PREMIUM VIP</Text>
             <View style={styles.priceRow}>
-              <Text style={styles.currency}>$</Text>
-              <Text style={styles.price}>9.99</Text>
-              <Text style={styles.interval}>/month</Text>
+              {premiumSub?.localizedPrice ? (
+                <Text style={styles.price}>{premiumSub.localizedPrice}</Text>
+              ) : (
+                <>
+                  <Text style={styles.currency}>$</Text>
+                  <Text style={styles.price}>9.99</Text>
+                  <Text style={styles.interval}>/month</Text>
+                </>
+              )}
             </View>
           </View>
 
@@ -548,18 +649,29 @@ export default function VipUpsellScreen() {
             <TouchableOpacity
               style={flattenStyle([
                 styles.premiumButton,
-                isPurchasing && styles.buttonDisabled,
+                (isPurchasing || !isPremiumAvailable) && styles.buttonDisabled,
               ])}
-              onPress={() => handlePurchase(IAP_SUBSCRIPTIONS.PREMIUM_VIP)}
-              disabled={isPurchasing}
+              onPress={() => isPremiumAvailable && handlePurchase(IAP_SUBSCRIPTIONS.PREMIUM_VIP)}
+              disabled={isPurchasing || !isPremiumAvailable}
               activeOpacity={0.85}
             >
-              {purchasingSku === IAP_SUBSCRIPTIONS.PREMIUM_VIP ? (
+              {!isPremiumAvailable && status === 'ready' ? (
+                <Text style={styles.premiumButtonText}>PLAN UNAVAILABLE</Text>
+              ) : purchasingSku === IAP_SUBSCRIPTIONS.PREMIUM_VIP ? (
                 <ActivityIndicator color="#1A1A2E" />
               ) : (
                 <Text style={styles.premiumButtonText}>GET PREMIUM</Text>
               )}
             </TouchableOpacity>
+          )}
+          
+          {!isPremiumAvailable && status === 'ready' && Platform.OS !== 'web' && (
+            <View style={styles.skuDebugInfo}>
+              <HelpCircle size={12} color="#EF4444" />
+              <Text style={styles.skuDebugText}>
+                SKU "{IAP_SUBSCRIPTIONS.PREMIUM_VIP}" not found in store
+              </Text>
+            </View>
           )}
         </View>
 
@@ -568,9 +680,15 @@ export default function VipUpsellScreen() {
           <View style={styles.cardHeader}>
             <Text style={styles.tierName}>BASIC VIP</Text>
             <View style={styles.priceRow}>
-              <Text style={styles.currency}>$</Text>
-              <Text style={styles.price}>2.49</Text>
-              <Text style={styles.interval}>/week</Text>
+              {basicSub?.localizedPrice ? (
+                <Text style={styles.price}>{basicSub.localizedPrice}</Text>
+              ) : (
+                <>
+                  <Text style={styles.currency}>$</Text>
+                  <Text style={styles.price}>2.49</Text>
+                  <Text style={styles.interval}>/week</Text>
+                </>
+              )}
             </View>
           </View>
 
@@ -594,17 +712,31 @@ export default function VipUpsellScreen() {
             </View>
           ) : (
             <TouchableOpacity
-              style={flattenStyle([styles.basicButton, isPurchasing && styles.buttonDisabled])}
-              onPress={() => handlePurchase(IAP_SUBSCRIPTIONS.BASIC_VIP)}
-              disabled={isPurchasing}
+              style={flattenStyle([
+                styles.basicButton,
+                (isPurchasing || !isBasicAvailable) && styles.buttonDisabled,
+              ])}
+              onPress={() => isBasicAvailable && handlePurchase(IAP_SUBSCRIPTIONS.BASIC_VIP)}
+              disabled={isPurchasing || !isBasicAvailable}
               activeOpacity={0.85}
             >
-              {purchasingSku === IAP_SUBSCRIPTIONS.BASIC_VIP ? (
+              {!isBasicAvailable && status === 'ready' ? (
+                <Text style={styles.basicButtonText}>PLAN UNAVAILABLE</Text>
+              ) : purchasingSku === IAP_SUBSCRIPTIONS.BASIC_VIP ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <Text style={styles.basicButtonText}>GET BASIC</Text>
               )}
             </TouchableOpacity>
+          )}
+
+          {!isBasicAvailable && status === 'ready' && Platform.OS !== 'web' && (
+            <View style={styles.skuDebugInfo}>
+              <HelpCircle size={12} color="#EF4444" />
+              <Text style={styles.skuDebugText}>
+                SKU "{IAP_SUBSCRIPTIONS.BASIC_VIP}" not found in store
+              </Text>
+            </View>
           )}
         </View>
 
@@ -632,7 +764,83 @@ export default function VipUpsellScreen() {
         )}
 
         <FooterLinks />
+
+        {/* Legal Subscription Info */}
+        <View style={styles.legalSection}>
+          <Text style={styles.legalText}>
+            Payment will be charged to your Apple ID account at the confirmation of purchase. Subscription automatically renews unless it is canceled at least 24 hours before the end of the current period. Your account will be charged for renewal within 24 hours prior to the end of the current period. You can manage and cancel your subscriptions by going to your account settings on the App Store after purchase.
+          </Text>
+          
+          <View style={styles.legalLinksRow}>
+            <TouchableOpacity 
+              onPress={() => Linking.openURL('https://c24club.com/privacy')}
+              style={styles.legalLink}
+            >
+              <Text style={styles.legalLinkText}>Privacy Policy</Text>
+              <ExternalLink size={12} color="#71717A" />
+            </TouchableOpacity>
+            
+            <View style={styles.legalLinkDivider} />
+            
+            <TouchableOpacity 
+              onPress={() => Linking.openURL('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/')}
+              style={styles.legalLink}
+            >
+              <Text style={styles.legalLinkText}>Terms of Use (EULA)</Text>
+              <ExternalLink size={12} color="#71717A" />
+            </TouchableOpacity>
+          </View>
+        </View>
       </ScrollView>
+
+      {/* Success / Activation Modal */}
+      <Modal 
+        isOpen={showSuccessModal} 
+        onClose={() => !restoring && setShowSuccessModal(false)} 
+        size="md"
+      >
+        <ModalBackdrop />
+        <ModalContent style={{ backgroundColor: '#1A1A2E', borderColor: '#27272A', borderWidth: 1 }}>
+          <ModalHeader style={{ borderBottomWidth: 0, paddingTop: 24 }}>
+            <View style={{ alignItems: 'center', width: '100%' }}>
+              <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(34,197,94,0.15)', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+                <ShieldCheck size={32} color="#22C55E" />
+              </View>
+              <Heading size="lg" style={{ color: '#FFFFFF', textAlign: 'center' }}>Payment Received!</Heading>
+            </View>
+          </ModalHeader>
+          
+          <ModalBody style={{ paddingHorizontal: 24, paddingBottom: 24 }}>
+            <Text style={{ color: '#A1A1AA', textAlign: 'center', fontSize: 15, lineHeight: 22, marginBottom: 20 }}>
+              To finish activating your VIP perks and unlock the Discover feed, please tap the button below to sync your status with our servers.
+            </Text>
+            
+            {activationError && (
+              <View style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderRadius: 10, padding: 12, marginBottom: 20, borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)' }}>
+                <Text style={{ color: '#EF4444', fontSize: 13, textAlign: 'center' }}>{activationError}</Text>
+              </View>
+            )}
+
+            <Button 
+              size="lg" 
+              onPress={handleRestore} 
+              disabled={restoring}
+              style={{ backgroundColor: '#22C55E', borderRadius: 12, height: 56 }}
+            >
+              {restoring ? <ButtonSpinner color="#FFFFFF" /> : <ButtonText style={{ fontWeight: '800' }}>Sync & Activate VIP</ButtonText>}
+            </Button>
+            
+            {!restoring && (
+              <TouchableOpacity 
+                onPress={() => setShowSuccessModal(false)}
+                style={{ marginTop: 16, paddingVertical: 8, alignItems: 'center' }}
+              >
+                <Text style={{ color: '#71717A', fontSize: 14 }}>Close</Text>
+              </TouchableOpacity>
+            )}
+          </ModalBody>
+        </ModalContent>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -890,6 +1098,20 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
 
+  // ── Debug ───────────────────────────────────────────────────────────────
+  skuDebugInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 12,
+  },
+  skuDebugText: {
+    fontSize: 10,
+    color: '#EF4444',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+
   // ── Footer ───────────────────────────────────────────────────────────────
   footerNote: {
     fontSize: 12,
@@ -906,5 +1128,39 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#A1A1AA',
     textDecorationLine: 'underline',
+  },
+  legalSection: {
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 40,
+    alignItems: 'center',
+  },
+  legalText: {
+    fontSize: 11,
+    color: '#71717A',
+    textAlign: 'center',
+    lineHeight: 16,
+    marginBottom: 16,
+  },
+  legalLinksRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  legalLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  legalLinkText: {
+    fontSize: 12,
+    color: '#A1A1AA',
+    fontWeight: '600',
+  },
+  legalLinkDivider: {
+    width: 1,
+    height: 12,
+    backgroundColor: '#3F3F46',
   },
 });

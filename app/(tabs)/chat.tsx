@@ -9,6 +9,7 @@ import {
   DeviceEventEmitter,
   StyleSheet,
   Modal,
+  Text as RNText,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -25,13 +26,20 @@ import { RTCView } from '@/lib/webrtc';
 import SelfieCaptureModal from '@/components/SelfieCaptureModal';
 import { FemaleNotifyCard } from '@/components/FemaleNotifyCard';
 import { PinTopicsOverlay } from '@/components/videocall/PinTopicsOverlay';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePinnedSocials } from '@/hooks/usePinnedSocials';
 import { usePinTopics } from '@/hooks/usePinTopics';
 import { useRevealVideo } from '@/hooks/useRevealVideo';
+import { useChatBlur } from '@/hooks/useChatBlur';
 import { useGiftFeature } from '@/hooks/useGiftFeature';
 import { useFreezeHandler } from '@/hooks/useFreezeHandler';
 import { useNsfwRestriction } from '@/hooks/useNsfwRestriction';
+import { useCameraPreviewScan } from '@/hooks/useCameraPreviewScan';
+import { usePreCallScan } from '@/hooks/usePreCallScan';
 import { GiftCelebration } from '@/components/GiftCelebration';
+import { Check } from 'lucide-react-native';
+import { CameraView } from 'expo-camera';
+import ViewShot, { captureRef } from 'react-native-view-shot';
 
 import { ChatTopBar } from '@/components/chat/ChatTopBar';
 import { ChatVideoArea } from '@/components/chat/ChatVideoArea';
@@ -60,6 +68,7 @@ export default function ChatScreen() {
   const router = useRouter();
   const { profile, minutes, refreshProfile, updateMinutes } = useAuth();
   const { setShowVipModal } = useCall();
+  const cameraRef = useRef<CameraView>(null);
 
   const {
     callState,
@@ -77,20 +86,43 @@ export default function ChatScreen() {
     partnerGender,
     partnerTopics,
     partnerId,
+    partnerIsVip,
+    partnerLeft,
     toggleMute,
     toggleCamera,
     toggleVoiceMode,
     startCall,
     handleNext,
-    handleStop,
+    handleStop: handleStopRaw,
     setShowCapPopup,
     restartPreview,
     releaseCamera,
   } = useVideoChat();
 
   // ─── NSFW shadowban restriction ────────────────────────────────────────────
-  const { isRestricted } = useNsfwRestriction(profile?.id);
+  // partnerLeft is destructured from main useVideoChat() call above
+  // (partnerLeft already in main destructure above)
+  const { isRestricted, recheck: recheckRestriction } = useNsfwRestriction(profile?.id);
   const [showRestrictionPopup, setShowRestrictionPopup] = useState(false);
+
+  const handleStop = useCallback(async () => {
+    await handleStopRaw();
+    refreshProfile();
+  }, [handleStopRaw, refreshProfile]);
+
+  const handleMessageMe = useCallback(async () => {
+    if (!partnerId) return;
+
+    // Stop call and release camera before navigating
+    await handleStop();
+    releaseCamera();
+
+    // Navigate to DM
+    router.push({
+      pathname: '/messages/[id]',
+      params: { id: 'new', partnerId: partnerId }
+    });
+  }, [partnerId, handleStop, releaseCamera, router]);
 
   // ─── Reveal video after 3s delay on new partner ────────────────────────────
   const { showVideo, videoOpacity } = useRevealVideo(
@@ -99,6 +131,27 @@ export default function ChatScreen() {
     3000,
     600,
   );
+
+  // ─── Sticky Auto-Blur ──────────────────────────────────────────────────────
+  const { isBlurred, handleUnblur, setIsNsfwFlagged } = useChatBlur(partnerId, callState);
+
+  // ─── Pre-chat & Idle Scanning (Gemini Flash) ──────────────────────────────
+  const onFlagged = useCallback(() => {
+    setShowRestrictionPopup(true);
+    setIsNsfwFlagged(true);
+    recheckRestriction(); // Force update the restricted state immediately
+    if (callState !== 'idle') handleStopRaw();
+  }, [callState, handleStop, recheckRestriction, setIsNsfwFlagged]);
+
+  // Periodic scan while in idle preview
+  const { runScan: runGeminiScan } = useCameraPreviewScan({
+    cameraRef,
+    userId: profile?.id,
+    active: callState === 'idle',
+    onFlagged,
+  });
+
+  const { scan: runPreCallScan } = usePreCallScan({ cameraRef, userId: profile?.id, onFlagged });
 
   // ─── Partner pinned socials ────────────────────────────────────────────────
   const { socials: partnerSocials } = usePinnedSocials(
@@ -161,17 +214,18 @@ export default function ChatScreen() {
     if (!isMale && !isFemale) return;
     Toast.show({
       type: 'dmToast',
-      text1: isMale ? '🔔 10+ girls notified!' : '🎁 50+ guys notified!',
+      text1: isMale ? '🔔 10+ women notified!' : '🎁 50+ men notified!',
       text2: isMale
-        ? "We just notified 10+ girls you are here! Stay here or come back, we'll notify you!"
-        : "We just notified 50+ guys you are here, get gifted cash & rewards from guys! Stay here or come back & we'll notify you!",
+        ? "We just notified 10+ women you are here! Stay active to meet new people."
+        : "We just notified 50+ men you are here. Stay active to attract more gifts and rewards!",
       visibilityTime: 20000,
       position: 'top',
     });
   }, [waitingSeconds, callState, profile?.gender]);
 
   // ─── Overlay states ────────────────────────────────────────────────────────
-  const [genderFilter, setGenderFilter] = useState<'Both' | 'Girls' | 'Guys'>('Both');
+  const [genderFilter, setGenderFilter] = useState<'Both' | 'Women' | 'Men'>('Both');
+  const [isStarting, setIsStarting] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showSkipPenalty, setShowSkipPenalty] = useState(false);
   const [showMinuteLossToast, setShowMinuteLossToast] = useState(false);
@@ -184,9 +238,30 @@ export default function ChatScreen() {
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [showSelfieModal, setShowSelfieModal] = useState(false);
   const [showPendingPopup, setShowPendingPopup] = useState(false);
+  const [isReportAiScanning, setIsReportAiScanning] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
   const [blockLoading, setBlockLoading] = useState(false);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const viewShotRef = useRef<any>(null);
+
+  // ─── Safety Agreement ──────────────────────────────────────────────────────
+  const [showSafetyAgreement, setShowSafetyAgreement] = useState(false);
+  const [isDirectCallActive, setIsDirectCallActive] = useState(false);
+
+  useEffect(() => {
+    const checkAgreement = async () => {
+      const agreed = await AsyncStorage.getItem('c24_chat_safety_agreed');
+      if (!agreed) {
+        setShowSafetyAgreement(true);
+      }
+    };
+    checkAgreement();
+  }, []);
+
+  const handleAgreeSafety = async () => {
+    await AsyncStorage.setItem('c24_chat_safety_agreed', 'true');
+    setShowSafetyAgreement(false);
+  };
 
   // ─── Animated search pulse ─────────────────────────────────────────────────
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -232,6 +307,7 @@ export default function ChatScreen() {
     const sub = DeviceEventEmitter.addListener('prepare-direct-call', async () => {
       const { dlog } = require('@/lib/debug-log');
       await dlog('ChatScreen', 'prepare-direct-call received', { callState });
+      setIsDirectCallActive(true);
       if (callState !== 'idle') {
         await dlog('ChatScreen', 'calling handleStop() because callState=' + callState);
         await handleStop();
@@ -243,7 +319,13 @@ export default function ChatScreen() {
       releaseCamera();
       await dlog('ChatScreen', 'releaseCamera() done');
     });
-    return () => sub.remove();
+    const subDismiss = DeviceEventEmitter.addListener('direct-call-dismissed', () => {
+      setIsDirectCallActive(false);
+    });
+    return () => {
+      sub.remove();
+      subDismiss.remove();
+    };
   }, [callState, handleStop, releaseCamera]);
 
   // ─── Session init & IP ban check ──────────────────────────────────────────
@@ -295,13 +377,23 @@ export default function ChatScreen() {
 
   // ─── Handlers ─────────────────────────────────────────────────────────────
   const handleStart = useCallback(async () => {
-    // Shadowban gate — blocked users see a popup instead of starting
-    if (isRestricted) {
-      setShowRestrictionPopup(true);
-      return;
+    setIsStarting(true);
+    // Run one final high-quality scan before allowing the user to enter the queue
+    if (Platform.OS !== 'web') {
+      const isFlagged = await runPreCallScan();
+      if (isFlagged) {
+        setShowRestrictionPopup(true);
+        setIsStarting(false);
+        return;
+      }
     }
-    const gpMap: Record<string, string> = { Both: 'Both', Girls: 'Female', Guys: 'Male' };
-    await startCall(gpMap[genderFilter] ?? 'Both', isVoiceMode);
+
+    const gpMap: Record<string, string> = { Both: 'Both', Women: 'Female', Men: 'Male' };
+    try {
+      await startCall(gpMap[genderFilter] ?? 'Both', isVoiceMode);
+    } finally {
+      setIsStarting(false);
+    }
   }, [genderFilter, isVoiceMode, startCall, isRestricted]);
 
   const handleCancel = useCallback(async () => {
@@ -309,7 +401,7 @@ export default function ChatScreen() {
   }, [handleStop]);
 
   const handleNextPress = useCallback(async () => {
-    const gpMap: Record<string, string> = { Both: 'Both', Girls: 'Female', Guys: 'Male' };
+    const gpMap: Record<string, string> = { Both: 'Both', Women: 'Female', Men: 'Male' };
     const result = await handleNext(gpMap[genderFilter] ?? 'Both', isVoiceMode);
     if (result.penalized) {
       if (result.count <= 3) {
@@ -322,7 +414,7 @@ export default function ChatScreen() {
     }
   }, [genderFilter, isVoiceMode, handleNext]);
 
-  const handleGenderPill = useCallback((option: 'Both' | 'Girls' | 'Guys') => {
+  const handleGenderPill = useCallback((option: 'Both' | 'Women' | 'Men') => {
     const isLocked = option !== 'Both' && !minutes?.is_vip;
     if (isLocked) { setShowVipModal(true); return; }
     setGenderFilter(option);
@@ -361,6 +453,50 @@ export default function ChatScreen() {
   const submitReport = useCallback(async () => {
     if (!reportReason || !profile?.id) return;
     setReportSubmitting(true);
+
+    // ─── Instant Evidence AI Scan ───────────────────────────────────────────
+    if (reportReason === 'Nudity / Sexual Content' && partnerId && callState === 'connected') {
+      setIsReportAiScanning(true);
+      try {
+        const uri = await captureRef(viewShotRef, {
+          format: 'jpg',
+          quality: 0.5,
+          result: 'base64',
+        });
+
+        if (uri) {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.access_token) {
+            const res = await fetch('https://ncpbiymnafxdfsvpxirb.supabase.co/functions/v1/moderate-frame', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({
+                frame: uri,
+                reported_user_id: partnerId,
+                source: 'user_report_evidence',
+              }),
+            });
+
+            if (res.ok) {
+              const scanData = await res.json();
+              if (scanData.flagged) {
+                console.log('[ReportScan] Instant evidence flagged partner.');
+                setIsNsfwFlagged(true); // Blur instantly
+                // The edge function already handles the strike/ban if score is high enough
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[ReportScan] Capture error:', err);
+      } finally {
+        setIsReportAiScanning(false);
+      }
+    }
+
     try {
       const { error } = await supabase.from('user_reports').insert({
         reporter_id: profile.id,
@@ -381,28 +517,6 @@ export default function ChatScreen() {
       setReportSubmitting(false);
     }
   }, [reportReason, reportDetails, profile?.id, partnerId]);
-
-  // ─── Idle & Waiting area renderers ────────────────────────────────────────
-  const renderIdleArea = () => (
-    <View style={styles.idleArea}>
-      <View style={styles.idlePreview}>
-        {localStream ? (
-          <RTCView
-            streamURL={typeof localStream.toURL === 'function' ? localStream.toURL() : undefined}
-            style={styles.idlePreviewRTC}
-            objectFit="cover"
-            mirror={true}
-            zOrder={1}
-          />
-        ) : (
-          <View style={styles.idlePreviewPlaceholder}>
-            <Video size={32} color="#555" />
-            <Text style={{ color: '#555', fontSize: 11, marginTop: 6 }}>Camera</Text>
-          </View>
-        )}
-      </View>
-    </View>
-  );
 
   const renderWaitingArea = () => (
     <View style={styles.waitingArea}>
@@ -443,7 +557,40 @@ export default function ChatScreen() {
             contentContainerStyle={{ flexGrow: 1 }}
             showsVerticalScrollIndicator={false}
           >
-            {renderIdleArea()}
+            <View style={styles.idleArea}>
+              {/* Native: Use CameraView for idle preview (supports Gemini scanning) */}
+              {Platform.OS !== 'web' && !isDirectCallActive && (
+                <View style={styles.idlePreview}>
+                  <CameraView
+                    ref={cameraRef}
+                    style={styles.idlePreviewRTC}
+                    facing="front"
+                    mode="video"
+                    mute={true}
+                    responsiveOrientationWhenInactive={true}
+                  />
+                </View>
+              )}
+              {/* On Web we still need a preview in the idle area if not native */}
+              {Platform.OS === 'web' && (
+                <View style={styles.idlePreview}>
+                  {localStream ? (
+                    <RTCView
+                      streamURL={typeof localStream.toURL === 'function' ? localStream.toURL() : undefined}
+                      style={styles.idlePreviewRTC}
+                      objectFit="cover"
+                      mirror={true}
+                      zOrder={1}
+                    />
+                  ) : (
+                    <View style={styles.idlePreviewPlaceholder}>
+                      <Video size={32} color="#555" />
+                      <Text style={{ color: '#555', fontSize: 11, marginTop: 6 }}>Camera</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
             <FemaleNotifyCard
               compact
               onSettingsPress={() => router.push('/notification-settings')}
@@ -452,34 +599,40 @@ export default function ChatScreen() {
         )}
         {callState === 'waiting' && renderWaitingArea()}
         {(callState === 'connecting' || callState === 'connected') && (
-          <ChatVideoArea
-            localStream={localStream}
-            remoteStream={remoteStream}
-            isVoiceMode={isVoiceMode}
-            isCameraOff={isCameraOff}
-            partnerIsVoiceMode={partnerIsVoiceMode}
-            remoteHasVideo={remoteHasVideo}
-            showVideo={showVideo}
-            videoOpacity={videoOpacity}
-            partnerGender={partnerGender}
-            partnerTopics={partnerTopics}
-            partnerPinnedTopics={partnerPinnedTopics}
-            pinnedTopicIds={pinnedTopicIds}
-            pinnedTopicNames={pinnedTopicNames}
-            partnerSocials={partnerSocials}
-            showGiftIcon={showGiftIcon && callState === 'connected'}
-            giftPulseAnim={giftPulseAnim}
-            profileGender={profile?.gender}
-            onReport={() => setShowReport(true)}
-            onSendCash={() => setShowGiftOverlay(true)}
-            onTopicsTabPress={() => setShowTopicsOverlay(true)}
-          />
+          <ViewShot ref={viewShotRef} style={{ flex: 1 }}>
+            <ChatVideoArea
+              localStream={localStream}
+              remoteStream={remoteStream}
+              isVoiceMode={isVoiceMode}
+              isCameraOff={isCameraOff}
+              partnerIsVoiceMode={partnerIsVoiceMode}
+              remoteHasVideo={remoteHasVideo}
+              showVideo={showVideo}
+              videoOpacity={videoOpacity}
+              partnerGender={partnerGender}
+              partnerTopics={partnerTopics}
+              partnerPinnedTopics={partnerPinnedTopics}
+              pinnedTopicIds={pinnedTopicIds}
+              pinnedTopicNames={pinnedTopicNames}
+              partnerSocials={partnerSocials}
+              showGiftIcon={showGiftIcon && callState === 'connected'}
+              giftPulseAnim={giftPulseAnim}
+              profileGender={profile?.gender}
+              onSendCash={() => setShowGiftOverlay(true)}
+              onTopicsTabPress={() => setShowTopicsOverlay(true)}
+              isBlurred={isBlurred}
+              onUnblur={handleUnblur}
+              isRestricted={isRestricted}
+              partnerLeft={partnerLeft}
+            />
+          </ViewShot>
         )}
       </View>
 
       {/* Bottom controls */}
       <ChatBottomControls
         callState={callState}
+        isStarting={isStarting}
         isMuted={isMuted}
         isCameraOff={isCameraOff}
         isVoiceMode={isVoiceMode}
@@ -494,8 +647,11 @@ export default function ChatScreen() {
         onToggleCamera={toggleCamera}
         onToggleVoiceMode={toggleVoiceMode}
         onReport={() => setShowReport(true)}
+        onMessageMe={handleMessageMe}
         onGenderPill={handleGenderPill}
         onTakeSelfie={() => setShowSelfieModal(true)}
+        userGender={profile?.gender}
+        partnerGender={partnerGender}
       />
 
       {/* ─── Overlays & Modals ──────────────────────────────────────────── */}
@@ -574,22 +730,29 @@ export default function ChatScreen() {
       <Modal visible={showRestrictionPopup} transparent animationType="fade" onRequestClose={() => setShowRestrictionPopup(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>🚫 Account Restricted</Text>
+            <Text style={styles.modalTitle}>⚠️ Safety Warning</Text>
             <Text style={styles.modalSubtitle}>
-              Your account has been restricted from starting calls. Please contact support if you believe this is a mistake.
+              Our AI has detected potential community rule violations. Your video will be forced-blurred for other users until your account is reviewed.
             </Text>
             <TouchableOpacity
               style={styles.modalRedBtn}
               onPress={() => {
                 setShowRestrictionPopup(false);
-                router.push('/rules');
+                handleStart(); // Let them start anyway
               }}
               activeOpacity={0.85}
             >
-              <Text style={styles.modalRedBtnText}>View Community Rules</Text>
+              <Text style={styles.modalRedBtnText}>Continue with Blur</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.modalGrayBtn} onPress={() => setShowRestrictionPopup(false)} activeOpacity={0.8}>
-              <Text style={styles.modalGrayBtnText}>Dismiss</Text>
+            <TouchableOpacity 
+              style={styles.modalGrayBtn} 
+              onPress={() => {
+                setShowRestrictionPopup(false);
+                router.push('/rules');
+              }} 
+              activeOpacity={0.8}
+            >
+              <Text style={styles.modalGrayBtnText}>View Rules</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -600,6 +763,58 @@ export default function ChatScreen() {
         recipientName={partnerName}
         onDismiss={() => setShowGiftCelebration(false)}
       />
+
+      {/* Safety Agreement Modal */}
+      <Modal
+        visible={showSafetyAgreement}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {}}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: '#1E1E38', borderRadius: 24, padding: 32, borderWidth: 1, borderColor: '#2A2A4A', width: '100%', maxWidth: 400, alignSelf: 'center' }}>
+            <View style={{ alignItems: 'center', marginBottom: 32 }}>
+              <RNText style={{ color: '#FFFFFF', fontSize: 24, fontWeight: '800', textAlign: 'center' }}>AI Safety Community</RNText>
+              <View style={{ height: 2, width: 40, backgroundColor: '#EF4444', marginTop: 12, borderRadius: 1 }} />
+            </View>
+            
+            <RNText style={{ color: '#A1A1AA', fontSize: 16, textAlign: 'center', marginBottom: 32, lineHeight: 24 }}>
+              We use real-time AI to keep our community safe. By continuing, you agree to:
+            </RNText>
+            
+            <View style={{ marginBottom: 32 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                <Check size={20} color="#22C55E" />
+                <RNText style={{ color: '#FFFFFF', fontSize: 16, marginLeft: 12, fontWeight: '500' }}>No nudity or sexual behavior</RNText>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                <Check size={20} color="#22C55E" />
+                <RNText style={{ color: '#FFFFFF', fontSize: 16, marginLeft: 12, fontWeight: '500' }}>No bullying or harassment</RNText>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                <Check size={20} color="#22C55E" />
+                <RNText style={{ color: '#FFFFFF', fontSize: 16, marginLeft: 12, fontWeight: '500' }}>I consent to AI safety scanning</RNText>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Check size={20} color="#22C55E" />
+                <RNText style={{ color: '#FFFFFF', fontSize: 16, marginLeft: 12, fontWeight: '500' }}>Must be 18 years or older</RNText>
+              </View>
+            </View>
+            
+            <RNText style={{ color: '#EF4444', fontSize: 14, fontWeight: '700', textAlign: 'center', marginBottom: 32, fontStyle: 'italic' }}>
+              Violations will result in a permanent ban.
+            </RNText>
+            
+            <TouchableOpacity 
+              style={{ backgroundColor: '#EF4444', paddingVertical: 18, borderRadius: 16, alignItems: 'center', shadowColor: '#EF4444', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 }}
+              onPress={handleAgreeSafety}
+              activeOpacity={0.8}
+            >
+              <RNText style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '900' }}>CONTINUE</RNText>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

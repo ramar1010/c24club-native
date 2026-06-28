@@ -2,7 +2,7 @@
  * useWebRTC.ts — Web-compatible WebRTC hook (matches native implementation)
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Platform } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import {

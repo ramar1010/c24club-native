@@ -191,8 +191,8 @@ export const CashoutChoiceModal: React.FC<CashoutChoiceModalProps> = ({
             <Text style={styles.subtitle}>You've won a premium item. Would you like to keep it or cash out?</Text>
 
             <View style={styles.previewCard}>
-              <Image
-                source={{ uri: reward.image_url || 'https://via.placeholder.com/150' }}
+              <Image 
+                source={reward.image_url ? { uri: reward.image_url } : require("@/assets/images/splash-icon.png")}
                 style={styles.previewImage}
               />
               <View>

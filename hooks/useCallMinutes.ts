@@ -2,7 +2,7 @@
  * useCallMinutes.ts — Matches web app's useCallMinutes.ts exactly.
  * Reports earned minutes every 60s via earn-minutes edge function.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Platform } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';

@@ -44,7 +44,7 @@ export const OutgoingCallModal = () => {
             <View style={styles.avatarWrapper}>
               <View style={styles.avatarPulsing}>
                  <Image 
-                   source={{ uri: invitee.image_url || 'https://via.placeholder.com/150' }} 
+                   source={invitee.image_url ? { uri: invitee.image_url } : require("@/assets/images/splash-icon.png")} 
                    style={styles.avatar} 
                  />
               </View>

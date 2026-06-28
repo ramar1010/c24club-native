@@ -8,10 +8,10 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
-import { Flag } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Text } from '@/components/ui/text';
 import { RTCView } from '@/lib/webrtc';
+import { BlurView } from 'expo-blur';
 import { PinnedSocialsDisplay } from '@/components/videocall/PinnedSocialsDisplay';
 import { VoiceModeAvatar } from './VoiceModeAvatar';
 import styles from './chat-styles';
@@ -39,8 +39,13 @@ interface ChatVideoAreaProps {
   giftPulseAnim: Animated.Value;
   // Profile
   profileGender: string | null | undefined;
+  // Blur
+  isBlurred?: boolean;
+  isRestricted?: boolean;
+  onUnblur?: () => void;
+  // Partner left indicator
+  partnerLeft?: boolean;
   // Callbacks
-  onReport: () => void;
   onSendCash: () => void;
   onTopicsTabPress: () => void;
 }
@@ -63,7 +68,10 @@ export function ChatVideoArea({
   showGiftIcon,
   giftPulseAnim,
   profileGender,
-  onReport,
+  isBlurred,
+  isRestricted,
+  onUnblur,
+  partnerLeft,
   onSendCash,
   onTopicsTabPress,
 }: ChatVideoAreaProps) {
@@ -72,6 +80,13 @@ export function ChatVideoArea({
 
   return (
     <View style={styles.videoArea}>
+      {/* Self-Blur Indicator (for restricted users) */}
+      {isRestricted && (
+        <View style={{ position: 'absolute', top: 8, alignSelf: 'center', backgroundColor: 'rgba(239, 68, 68, 0.8)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 100, zIndex: 100 }}>
+          <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '700' }}>⚠️ YOUR VIDEO IS BLURRED FOR OTHERS</Text>
+        </View>
+      )}
+
       {/* Remote video */}
       {effectivelyVoiceMode ? (
         <View style={styles.remoteVideoPlaceholder}>
@@ -113,6 +128,45 @@ export function ChatVideoArea({
         </View>
       )}
 
+      {/* Blur Overlay */}
+      {isBlurred && showVideo && !effectivelyVoiceMode && (
+        <View style={StyleSheet.absoluteFill}>
+          <BlurView intensity={Platform.OS === 'ios' ? 80 : 100} style={StyleSheet.absoluteFill} tint="dark" />
+          {/* Android Fallback: Add a darkened semi-transparent layer because BlurView can be flaky on some Android devices over RTCView */}
+          {Platform.OS === 'android' && (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.85)' }]} />
+          )}
+          <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 20 }]}>
+            <View style={{ alignItems: 'center', padding: 24, backgroundColor: 'rgba(30, 30, 58, 0.9)', borderRadius: 24, borderWidth: 1, borderColor: '#2A2A4A' }}>
+              <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '800', textAlign: 'center', marginBottom: 8 }}>
+                Video Blurred
+              </Text>
+              <Text style={{ color: '#A1A1AA', fontSize: 14, textAlign: 'center', marginBottom: 24, lineHeight: 20 }}>
+                This partner has a history of strikes or you are in safe-mode.
+              </Text>
+              <TouchableOpacity
+                style={{ backgroundColor: '#EF4444', borderRadius: 100, paddingVertical: 12, paddingHorizontal: 32 }}
+                onPress={onUnblur}
+              >
+                <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '700' }}>Unblur Video</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* ── Partner Left Overlay — shown instantly when partner disconnects ── */}
+      {partnerLeft && (
+        <View style={partnerLeftStyles.overlay}>
+          <View style={partnerLeftStyles.card}>
+            <Text style={partnerLeftStyles.wave}>👋</Text>
+            <Text style={partnerLeftStyles.title}>Partner left</Text>
+            <Text style={partnerLeftStyles.sub}>Finding your next match…</Text>
+            <ActivityIndicator size="small" color="#EF4444" style={{ marginTop: 12 }} />
+          </View>
+        </View>
+      )}
+
       {/* Partner topics (from useVideoChat hook — legacy) */}
       {partnerTopics.length > 0 && (
         <ScrollView
@@ -120,6 +174,7 @@ export function ChatVideoArea({
           showsHorizontalScrollIndicator={false}
           style={styles.topicsRow}
           contentContainerStyle={styles.topicsContent}
+          removeClippedSubviews={false}
         >
           {partnerTopics.map((topic, i) => (
             <View key={i} style={styles.topicChip}>
@@ -166,11 +221,6 @@ export function ChatVideoArea({
         )}
       </TouchableOpacity>
 
-      {/* Report button */}
-      <TouchableOpacity style={styles.reportBtn} onPress={onReport}>
-        <Flag size={18} color="#EF4444" />
-      </TouchableOpacity>
-
       {/* Partner's VIP pinned socials + Send Cash */}
       <PinnedSocialsDisplay
         socials={partnerSocials}
@@ -205,3 +255,40 @@ export function ChatVideoArea({
     </View>
   );
 }
+
+// ─── Partner Left Overlay Styles ──────────────────────────────────────────────
+const partnerLeftStyles = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 50,
+  },
+  card: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(20, 20, 40, 0.95)',
+    borderRadius: 24,
+    paddingVertical: 32,
+    paddingHorizontal: 40,
+    borderWidth: 1,
+    borderColor: '#2A2A4A',
+    gap: 4,
+  },
+  wave: {
+    fontSize: 48,
+    marginBottom: 8,
+  },
+  title: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  sub: {
+    color: '#A1A1AA',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+});

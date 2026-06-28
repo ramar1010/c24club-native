@@ -15,18 +15,15 @@ import { useRouter } from "expo-router";
 import { Eye, EyeOff } from "lucide-react-native";
 import { supabase } from "@/lib/supabase";
 import { generateNonce } from "@/lib/auth-utils";
-import { signInWithGoogleOAuth } from "@/lib/google-auth";
+import { signInWithGoogle } from "@/lib/google-auth";
 import FallingGifts from "@/components/FallingGifts";
 import { useAuth } from "@/contexts/AuthContext";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { FooterLinks } from "@/components/FooterLinks";
 import { Image } from "react-native";
 
-const GOOGLE_ICON = require("@/assets/images/2a5758d6-4edb-4047-87bb-e6b94dbbbab0-cover.png");
-
 export default function SignUpScreen() {
   const router = useRouter();
-  const { refreshProfile } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -70,51 +67,34 @@ export default function SignUpScreen() {
       });
 
       if (authError) {
-        setError(authError.message);
+        console.error("[SignUp] Auth error:", authError);
+        // Handle common Supabase errors with more user-friendly messages
+        if (authError.message.includes("Database error")) {
+          setError("Database error saving new user. This usually happens if the email system is temporarily down. Please try again in a few minutes.");
+        } else if (authError.message.toLowerCase().includes("network request failed")) {
+          setError("Network request failed. Please check your internet connection and try again.");
+        } else {
+          setError(authError.message);
+        }
         setLoading(false);
         return;
       }
 
-      if (authData?.user) {
-        console.log("[SignUp] Auth success, upserting member record...");
-        // Upsert the member row — use update after upsert to guarantee gender is written
-        // even if a DB trigger already created the row without gender.
-        const { error: upsertError } = await supabase.from("members").upsert({
-          id: authData.user.id,
-          name: name.trim(),
-          email: email.trim(),
-          gender: gender?.toLowerCase() || null,
-          membership: "Free",
-          image_status: "pending",
-        }, { onConflict: "id" });
-
-        if (upsertError) {
-          console.warn("[SignUp] Upsert error:", upsertError.message);
-          // Try a plain update as fallback in case of RLS conflict on insert
-          await supabase.from("members").update({
-            name: name.trim(),
-            gender: gender?.toLowerCase() || null,
-          }).eq("id", authData.user.id);
-        } else {
-          console.log("[SignUp] Member record upserted successfully");
-        }
-
-        // Re-fetch the profile so AuthContext has the gender-populated row,
-        // then navigate explicitly. This prevents both the stuck spinner and
-        // the missing-gender bug caused by onAuthStateChange racing the upsert.
-        try {
-          await refreshProfile();
-        } catch (e) {
-          console.warn("[SignUp] refreshProfile error (non-fatal):", e);
-        }
-
+      if (!authData.session) {
+        // Confirmation might be required
+        console.log("[SignUp] Signup successful, confirmation required.");
+        setLoading(false);
+        setError("Success! Please check your email to confirm your account before signing in.");
+        // Optional: clear form or redirect to login after a delay
+        setTimeout(() => {
+          router.replace("/(auth)/login");
+        }, 3000);
+      } else {
+        // Session exists — manually navigate to (tabs) to avoid hanging
+        console.log("[SignUp] Signup successful, session established. Navigating to (tabs)...");
         setLoading(false);
         router.replace("/(tabs)");
-        return;
       }
-
-      // No user returned — signup may require email confirmation
-      setLoading(false);
     } catch (err: any) {
       console.error("[SignUp] Unexpected error:", err);
       setError(err.message || "Something went wrong. Please try again.");
@@ -122,8 +102,28 @@ export default function SignUpScreen() {
     }
   };
 
-  const handleOAuth = async (provider: "google" | "apple") => {
+  const handleOAuth = async (provider: "apple" | "google") => {
     setError("");
+
+    if (provider === "google") {
+      setLoading(true);
+      try {
+        const data = await signInWithGoogle();
+        // AuthContext will handle navigation on session change
+
+        // If login successful and we have a gender selected, update the metadata
+        if (data && gender) {
+          await supabase.auth.updateUser({
+            data: { gender: gender.toLowerCase() }
+          });
+        }
+      } catch (err: any) {
+        setError(err.message || "Google Sign In failed");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
 
     // Native Apple Sign In (iOS only)
     if (provider === "apple") {
@@ -144,20 +144,20 @@ export default function SignUpScreen() {
           token: identityToken,
         });
         if (authError) setError(authError.message);
+
+        // If login successful and we have a gender selected, update the metadata
+        // The profile will be auto-created by AuthContext using this metadata
+        if (!authError && gender) {
+          await supabase.auth.updateUser({
+            data: { gender: gender.toLowerCase() }
+          });
+        }
       } catch (e: any) {
         if (e.code !== "ERR_REQUEST_CANCELED") {
           setError(e.message || "Apple Sign In failed");
         }
       }
       return;
-    }
-
-    // Browser-based Google OAuth — no nonce issues, no native SDK required
-    try {
-      const { error: authError } = await signInWithGoogleOAuth();
-      if (authError && authError !== "cancelled") setError(authError);
-    } catch (e: any) {
-      setError(e.message || "Google Sign In failed");
     }
   };
 
@@ -182,7 +182,7 @@ export default function SignUpScreen() {
               <Text style={styles.logoC24}>C24</Text>
               <Text style={styles.logoClub}> CLUB</Text>
             </View>
-            <Text style={styles.tagline}>The Omegle That Rewards You</Text>
+            <Text style={styles.tagline}>The Video Chat That Rewards You</Text>
             <Text style={styles.subtitle}>Create your account</Text>
           </View>
 
@@ -326,25 +326,39 @@ gender === option ? styles.genderButtonTextActive : undefined,
           </View>
 
           {/* OAuth Buttons */}
-          <View style={[styles.oauthRow, Platform.OS !== "ios" ? { flexDirection: "column" } : undefined]}>
-            <TouchableOpacity
-              style={styles.oauthButton}
-              onPress={() => handleOAuth("google")}
-              activeOpacity={0.8}
-            >
-              <View style={styles.oauthButtonContent}>
-                <Image source={GOOGLE_ICON} style={styles.googleIcon} resizeMode="contain" />
-                <Text style={styles.oauthText}>Google</Text>
-              </View>
-            </TouchableOpacity>
+          <View style={[styles.oauthRow, Platform.OS !== "ios" ? { flexDirection: "column" } : { justifyContent: "center" }]}>
             {Platform.OS === "ios" && (
               <AppleAuthentication.AppleAuthenticationButton
                 buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
                 buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE_OUTLINE}
                 cornerRadius={100}
-                style={[styles.oauthButton, { height: 50, borderWidth: 0 }]}
+                style={[styles.oauthButton, { height: 50, borderWidth: 0, width: "100%", flex: 0 }]}
                 onPress={() => handleOAuth("apple")}
               />
+            )}
+
+            {Platform.OS !== "ios" && (
+              <TouchableOpacity
+                style={[
+                  styles.oauthButton,
+                  { width: "100%", backgroundColor: "#FFFFFF", borderColor: "#FFFFFF" },
+                ]}
+                onPress={() => handleOAuth("google")}
+                activeOpacity={0.8}
+                disabled={loading}
+              >
+                <View style={styles.googleButtonContent}>
+                  <Image
+                    source={{
+                      uri: "https://authjs.dev/img/providers/google.svg",
+                    }}
+                    style={styles.googleIcon}
+                  />
+                  <Text style={styles.googleText}>
+                    Continue with Google
+                  </Text>
+                </View>
+              </TouchableOpacity>
             )}
           </View>
 
@@ -519,9 +533,9 @@ const styles = StyleSheet.create({
   },
   oauthRow: {
     flexDirection: "row",
-    justifyContent: "space-around",
+    gap: 12,
+    marginBottom: 32,
     alignItems: "center",
-    marginVertical: 16,
   },
   oauthButton: {
     flex: 1,
@@ -531,16 +545,22 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
+    height: 50,
   },
-  oauthButtonContent: {
+  googleButtonContent: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
   },
   googleIcon: {
-    width: 24,
-    height: 24,
-    marginRight: 12,
+    width: 20,
+    height: 20,
+    marginRight: 10,
+  },
+  googleText: {
+    color: "#000000",
+    fontSize: 15,
+    fontWeight: "700",
   },
   oauthText: {
     color: "#FFFFFF",

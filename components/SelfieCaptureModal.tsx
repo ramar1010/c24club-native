@@ -63,6 +63,7 @@ export default function SelfieCaptureModal({
   const [bio, setBio] = useState(profile?.bio || "");
   const [socials, setSocials] = useState<Record<string, string>>({});
   const [isUploading, setIsUploading] = useState(false);
+  const [moderationError, setModerationError] = useState<string | null>(null);
   
   const cameraRef = useRef<CameraView>(null);
 
@@ -119,20 +120,20 @@ export default function SelfieCaptureModal({
 
     setStep("uploading");
     setIsUploading(true);
+    setModerationError(null);
 
     try {
-      const fileName = `selfie.jpg`;
-      const filePath = `${user.id}/${fileName}`;
-      
       // Binary upload for native
       let fileData: Uint8Array | Blob;
+      let base64: string;
       
       if (Platform.OS === 'web') {
         const response = await fetch(photoUri);
         fileData = await response.blob();
+        // We don't easily have base64 on web here without more work, but this app is primarily native
+        base64 = ""; 
       } else {
-        // Use standard FileSystem.readAsStringAsync for compatibility
-        const base64 = await FileSystem.readAsStringAsync(photoUri, {
+        base64 = await FileSystem.readAsStringAsync(photoUri, {
           encoding: "base64",
         });
         const binary = atob(base64);
@@ -142,6 +143,44 @@ export default function SelfieCaptureModal({
         }
         fileData = bytes;
       }
+
+      // ─── AI Moderation Scan ──────────────────────────────────────────
+      if (Platform.OS !== 'web' && base64) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.access_token) {
+            const res = await fetch('https://ncpbiymnafxdfsvpxirb.supabase.co/functions/v1/moderate-frame', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({
+                frame: base64,
+                reported_user_id: user.id,
+                source: 'selfie_upload'
+              }),
+            });
+
+            if (res.ok) {
+              const scanResult = await res.json();
+              if (scanResult.flagged) {
+                setIsUploading(false);
+                setModerationError("Our AI detected inappropriate content in your selfie. Please upload a clear, appropriate photo of yourself.");
+                setStep("camera");
+                Alert.alert("Moderation Flag", "Your photo was flagged by our safety system. Please ensure your selfie is appropriate and shows your face clearly.");
+                return;
+              }
+            }
+          }
+        } catch (scanErr) {
+          console.error("[SelfieScan] Error:", scanErr);
+          // Continue if scan fails? Usually better to be safe, but we don't want to block legit users if the function is down
+        }
+      }
+
+      const fileName = `selfie.jpg`;
+      const filePath = `${user.id}/${fileName}`;
 
       // 1. Upload to Storage
       const { data: uploadData, error: uploadError } = await supabase.storage
@@ -224,7 +263,7 @@ export default function SelfieCaptureModal({
               style={styles.primaryButton}
               onPress={requestPermission}
             >
-              <Text style={styles.primaryButtonText}>Grant Access</Text>
+              <Text style={styles.primaryButtonText}>Continue</Text>
             </TouchableOpacity>
           </View>
         );

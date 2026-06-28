@@ -44,7 +44,7 @@ serve(async (req) => {
 
       const minCashout = settings?.min_cashout_minutes ?? 100;
       const maxCashout = settings?.max_cashout_minutes ?? 5000;
-      const ratePerMinute = settings?.rate_per_minute ?? 0.02;
+      const ratePerMinute = settings?.rate_per_minute ?? 0.01;
 
       if (minutes_amount < minCashout) {
         throw new Error(`Minimum cashout is ${minCashout} gifted minutes`);

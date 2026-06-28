@@ -29,3 +29,46 @@ yarn-error.*
 *.key
 *.mobileprovision
 *.pem
+
+# --- iOS production build (reduce upload size; avoid ENOSPC) ---
+# Non-runtime OpenAPI/schema artifacts
+/openapi*.json
+/full_openapi.json
+
+# Exclude most local images (keep only those referenced by code/config)
+/assets/images/*
+!/assets/images/icon.png
+!/assets/images/Icon.png
+!/assets/images/splash-icon.png
+!/assets/images/adaptive-icon.png
+!/assets/images/image 1347.png
+!/assets/images/adsdad.png
+!/assets/images/Group 140111195.png
+!/assets/images/f9f187e1b233e297e07f76993e51ba54-removebg-preview.png
+!/assets/images/3412476ba9d5bc62606c2dee9bc7972b-removebg-preview (2).png
+
+# Local DB/schema inspection & debugging scripts (not imported by the app)
+/check_*.js
+/check_*.ts
+/debug_*.js
+/deep_debug.js
+/diagnose_vip.js
+/inspect-db.js
+/probe_db.js
+/probe_schema.js
+/find_user*.js
+/get_schema.js
+/get_unique.js
+/list_*.js
+/make_request.js
+/my_query.js
+/q*.js
+/query*.js
+/run_queries.js
+/gather_hints*.js
+/update_*.js
+/verify_schema.js
+
+# Edge function source + SQL migrations (not needed to compile the app)
+/supabase/functions/
+/supabase/migrations/

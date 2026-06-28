@@ -262,11 +262,9 @@ export default function RewardsScreen() {
 
     setSelectedReward(item);
     
-    if (isRare || isLegendary) {
-      setShowSpinModal(true);
-    } else {
-      setShowShippingModal(true);
-    }
+    // Always show shipping modal first for all non-digital rewards
+    // If it's a rare/legendary, the spin modal will trigger AFTER shipping is confirmed
+    setShowShippingModal(true);
   };
 
   const handleGiftCardClick = (card: GiftCard) => {
@@ -401,6 +399,16 @@ export default function RewardsScreen() {
       return;
     }
 
+    const isRare = selectedReward.rarity === "rare";
+    const isLegendary = selectedReward.rarity === "legendary";
+
+    // If it's a spin-based reward, show the spin modal instead of finalizing now
+    if (isRare || isLegendary) {
+      setShowShippingModal(false);
+      setShowSpinModal(true);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       // 1. Update Profile if "Save as default" is checked
@@ -488,7 +496,7 @@ export default function RewardsScreen() {
       >
         <View style={styles.imageContainer}>
           <Image
-            source={{ uri: item.image_url || 'https://via.placeholder.com/400' }}
+            source={item.image_url ? { uri: item.image_url } : require("@/assets/images/splash-icon.png")}
             style={styles.cardImage}
             resizeMode="contain"
           />
@@ -717,6 +725,7 @@ isLocked ? styles.lockedButton : undefined,
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.pillsContainer}
         style={styles.pillsScroll}
+        removeClippedSubviews={false}
       >
         {["All", ...categories.map((c) => c.name)].map((cat) => (
           <TouchableOpacity
@@ -748,6 +757,7 @@ isLocked ? styles.lockedButton : undefined,
           columnWrapperStyle={styles.columnWrapper}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          removeClippedSubviews={false}
           ListHeaderComponent={
             <>
               {/* Gift Cards Section */}
@@ -900,39 +910,20 @@ isLocked ? styles.lockedButton : undefined,
       {selectedReward && (
         <RewardSpinModal
           isOpen={showSpinModal}
-          onClose={() => setShowSpinModal(false)}
-          reward={{
-            id: selectedReward.id,
-            name: selectedReward.title,
-            description: selectedReward.brief,
-            image_url: selectedReward.image_url,
-            minutes_cost: selectedReward.minutes_cost,
-            rarity: selectedReward.rarity || 'common',
-            cashout_value: selectedReward.cashout_value,
-            category_id: null,
-            stock_quantity: 1,
-            is_vip_only: selectedReward.is_vip_only,
-            target_gender: null,
-            type: selectedReward.type,
-            visible: selectedReward.visible,
+          onClose={() => {
+            setShowSpinModal(false);
+            setSelectedReward(null);
           }}
-          onWin={(redemptionId) => {
-            if (selectedReward.rarity === 'legendary') {
-              setWonRedemptionId(redemptionId);
-              setWonReward({
-                title: selectedReward.title,
-                image_url: selectedReward.image_url,
-                cashout_value: selectedReward.cashout_value,
-                requires_shipping: selectedReward.type === 'physical'
-              });
-              // Close spin modal and unmount it immediately
+          reward={selectedReward as any}
+          onWin={(id) => {
+            if (selectedReward?.rarity === 'legendary') {
+              setWonRedemptionId(id);
+              setWonReward(selectedReward);
               setShowSpinModal(false);
-              setSelectedReward(null);
               setShowCashoutModal(true);
-            } else if (selectedReward.type === 'physical') {
-              // Address form is now handled inside RewardSpinModal for wins
             }
           }}
+          shippingData={shippingAddress}
         />
       )}
 

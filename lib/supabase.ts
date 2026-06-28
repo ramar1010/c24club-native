@@ -18,7 +18,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     storage: storage as any,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: Platform.OS === "web",
+    detectSessionInUrl: false,
     ...(webLock ? { lock: webLock } : {}),
   },
 });

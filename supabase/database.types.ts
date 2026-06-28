@@ -35,12 +35,84 @@ export type Database = {
         }
         Relationships: []
       }
+      bounty_attributions: {
+        Row: {
+          expires_at: string
+          female_id: string
+          id: string
+          interaction_type: string
+          last_interaction_at: string
+          male_id: string
+        }
+        Insert: {
+          expires_at: string
+          female_id: string
+          id?: string
+          interaction_type: string
+          last_interaction_at?: string
+          male_id: string
+        }
+        Update: {
+          expires_at?: string
+          female_id?: string
+          id?: string
+          interaction_type?: string
+          last_interaction_at?: string
+          male_id?: string
+        }
+        Relationships: []
+      }
+      bounty_earnings: {
+        Row: {
+          amount_minutes: number
+          clawed_back: boolean
+          created_at: string
+          female_id: string
+          id: string
+          male_id: string
+          paid_out: boolean
+          source: string
+          stripe_subscription_id: string
+        }
+        Insert: {
+          amount_minutes: number
+          clawed_back?: boolean
+          created_at?: string
+          female_id: string
+          id?: string
+          male_id: string
+          paid_out?: boolean
+          source: string
+          stripe_subscription_id: string
+        }
+        Update: {
+          amount_minutes?: number
+          clawed_back?: boolean
+          created_at?: string
+          female_id?: string
+          id?: string
+          male_id?: string
+          paid_out?: boolean
+          source?: string
+          stripe_subscription_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bounty_earnings_male_id_fkey"
+            columns: ["male_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cashout_requests: {
         Row: {
           cash_amount: number | null
           created_at: string | null
           id: string
           minutes_amount: number | null
+          notes: string | null
           paypal_email: string | null
           status: string | null
           updated_at: string | null
@@ -51,6 +123,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           minutes_amount?: number | null
+          notes?: string | null
           paypal_email?: string | null
           status?: string | null
           updated_at?: string | null
@@ -61,6 +134,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           minutes_amount?: number | null
+          notes?: string | null
           paypal_email?: string | null
           status?: string | null
           updated_at?: string | null
@@ -102,6 +176,132 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      conversations: {
+        Row: {
+          created_at: string | null
+          id: string
+          last_message_at: string | null
+          participant_1: string
+          participant_2: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          last_message_at?: string | null
+          participant_1: string
+          participant_2: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          last_message_at?: string | null
+          participant_1?: string
+          participant_2?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_participant_1_fkey"
+            columns: ["participant_1"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_participant_2_fkey"
+            columns: ["participant_2"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      direct_call_invites: {
+        Row: {
+          created_at: string | null
+          expires_at: string
+          id: string
+          invitee_id: string
+          inviter_id: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          invitee_id: string
+          inviter_id: string
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          invitee_id?: string
+          inviter_id?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "direct_call_invites_invitee_id_fkey"
+            columns: ["invitee_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "direct_call_invites_inviter_id_fkey"
+            columns: ["inviter_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dm_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string | null
+          id: string
+          read_at: string | null
+          sender_id: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string | null
+          id?: string
+          read_at?: string | null
+          sender_id: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string | null
+          id?: string
+          read_at?: string | null
+          sender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dm_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dm_messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       email_send_log: {
         Row: {
@@ -159,7 +359,8 @@ export type Database = {
           cash_value: number | null
           created_at: string | null
           id: string
-          minutes: number | null
+          minutes_amount: number | null
+          price_cents: number | null
           recipient_id: string | null
           sender_id: string | null
           status: string | null
@@ -171,7 +372,8 @@ export type Database = {
           cash_value?: number | null
           created_at?: string | null
           id?: string
-          minutes?: number | null
+          minutes_amount?: number | null
+          price_cents?: number | null
           recipient_id?: string | null
           sender_id?: string | null
           status?: string | null
@@ -183,7 +385,8 @@ export type Database = {
           cash_value?: number | null
           created_at?: string | null
           id?: string
-          minutes?: number | null
+          minutes_amount?: number | null
+          price_cents?: number | null
           recipient_id?: string | null
           sender_id?: string | null
           status?: string | null
@@ -207,6 +410,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      iap_purchases: {
+        Row: {
+          action: string | null
+          created_at: string
+          id: string
+          original_transaction_id: string | null
+          platform: string
+          purchase_token_hash: string | null
+          sku: string
+          subscription_end: string | null
+          user_id: string
+          vip_tier: string | null
+        }
+        Insert: {
+          action?: string | null
+          created_at?: string
+          id?: string
+          original_transaction_id?: string | null
+          platform: string
+          purchase_token_hash?: string | null
+          sku: string
+          subscription_end?: string | null
+          user_id: string
+          vip_tier?: string | null
+        }
+        Update: {
+          action?: string | null
+          created_at?: string
+          id?: string
+          original_transaction_id?: string | null
+          platform?: string
+          purchase_token_hash?: string | null
+          sku?: string
+          subscription_end?: string | null
+          user_id?: string
+          vip_tier?: string | null
+        }
+        Relationships: []
       }
       male_search_batch_log: {
         Row: {
@@ -290,7 +532,11 @@ export type Database = {
           id: string
           is_frozen: boolean | null
           is_vip: boolean | null
+          last_streak_login_at: string | null
+          login_streak: number
           minutes: number | null
+          nsfw_strikes: number
+          subscription_end: string | null
           updated_at: string | null
           user_id: string | null
           vip_tier: string | null
@@ -310,7 +556,11 @@ export type Database = {
           id?: string
           is_frozen?: boolean | null
           is_vip?: boolean | null
+          last_streak_login_at?: string | null
+          login_streak?: number
           minutes?: number | null
+          nsfw_strikes?: number
+          subscription_end?: string | null
           updated_at?: string | null
           user_id?: string | null
           vip_tier?: string | null
@@ -330,7 +580,11 @@ export type Database = {
           id?: string
           is_frozen?: boolean | null
           is_vip?: boolean | null
+          last_streak_login_at?: string | null
+          login_streak?: number
           minutes?: number | null
+          nsfw_strikes?: number
+          subscription_end?: string | null
           updated_at?: string | null
           user_id?: string | null
           vip_tier?: string | null
@@ -342,6 +596,89 @@ export type Database = {
             foreignKeyName: "member_minutes_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: true
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      member_redemptions: {
+        Row: {
+          cashout_amount: number | null
+          cashout_paypal: string | null
+          cashout_status: string | null
+          created_at: string
+          id: string
+          minutes_cost: number | null
+          notes: string | null
+          reward_id: string
+          reward_image_url: string | null
+          reward_rarity: string | null
+          reward_title: string
+          reward_type: string | null
+          selected_color: string | null
+          shipping_address: string | null
+          shipping_city: string | null
+          shipping_country: string | null
+          shipping_name: string | null
+          shipping_state: string | null
+          shipping_tracking_url: string | null
+          shipping_zip: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          cashout_amount?: number | null
+          cashout_paypal?: string | null
+          cashout_status?: string | null
+          created_at?: string
+          id?: string
+          minutes_cost?: number | null
+          notes?: string | null
+          reward_id: string
+          reward_image_url?: string | null
+          reward_rarity?: string | null
+          reward_title: string
+          reward_type?: string | null
+          selected_color?: string | null
+          shipping_address?: string | null
+          shipping_city?: string | null
+          shipping_country?: string | null
+          shipping_name?: string | null
+          shipping_state?: string | null
+          shipping_tracking_url?: string | null
+          shipping_zip?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          cashout_amount?: number | null
+          cashout_paypal?: string | null
+          cashout_status?: string | null
+          created_at?: string
+          id?: string
+          minutes_cost?: number | null
+          notes?: string | null
+          reward_id?: string
+          reward_image_url?: string | null
+          reward_rarity?: string | null
+          reward_title?: string
+          reward_type?: string | null
+          selected_color?: string | null
+          shipping_address?: string | null
+          shipping_city?: string | null
+          shipping_country?: string | null
+          shipping_name?: string | null
+          shipping_state?: string | null
+          shipping_tracking_url?: string | null
+          shipping_zip?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_redemptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "members"
             referencedColumns: ["id"]
           },
@@ -470,6 +807,93 @@ export type Database = {
         }
         Relationships: []
       }
+      room_signals: {
+        Row: {
+          created_at: string | null
+          id: string
+          payload: Json
+          room_id: string
+          sender_channel: string
+          signal_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          payload: Json
+          room_id: string
+          sender_channel: string
+          signal_type: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          payload?: Json
+          room_id?: string
+          sender_channel?: string
+          signal_type?: string
+        }
+        Relationships: []
+      }
+      rooms: {
+        Row: {
+          channel1: string | null
+          channel2: string | null
+          connected_at: string | null
+          created_at: string | null
+          id: string
+          member1: string | null
+          member1_gender: string | null
+          member1_voice_mode: boolean | null
+          member2: string | null
+          member2_gender: string | null
+          member2_voice_mode: boolean | null
+          status: string | null
+        }
+        Insert: {
+          channel1?: string | null
+          channel2?: string | null
+          connected_at?: string | null
+          created_at?: string | null
+          id?: string
+          member1?: string | null
+          member1_gender?: string | null
+          member1_voice_mode?: boolean | null
+          member2?: string | null
+          member2_gender?: string | null
+          member2_voice_mode?: boolean | null
+          status?: string | null
+        }
+        Update: {
+          channel1?: string | null
+          channel2?: string | null
+          connected_at?: string | null
+          created_at?: string | null
+          id?: string
+          member1?: string | null
+          member1_gender?: string | null
+          member1_voice_mode?: boolean | null
+          member2?: string | null
+          member2_gender?: string | null
+          member2_voice_mode?: boolean | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rooms_member1_fkey"
+            columns: ["member1"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rooms_member2_fkey"
+            columns: ["member2"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_bans: {
         Row: {
           ban_source: string | null
@@ -574,11 +998,55 @@ export type Database = {
           },
         ]
       }
+      waiting_queue: {
+        Row: {
+          channel_id: string
+          created_at: string | null
+          id: string
+          member_gender: string | null
+          member_id: string
+          voice_mode: boolean | null
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string | null
+          id?: string
+          member_gender?: string | null
+          member_id: string
+          voice_mode?: boolean | null
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string | null
+          id?: string
+          member_gender?: string | null
+          member_id?: string
+          voice_mode?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waiting_queue_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: true
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      award_bounty_for_subscription: {
+        Args: {
+          p_is_renewal: boolean
+          p_male_id: string
+          p_stripe_subscription_id: string
+          p_tier: string
+        }
+        Returns: Json
+      }
       delete_my_account: { Args: never; Returns: Json }
       delete_user_account_data: {
         Args: { target_user_id: string }
@@ -588,9 +1056,15 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: undefined
       }
+      get_bounty_summary: { Args: never; Returns: Json }
+      get_partner_nsfw_strikes: { Args: { _user_id: string }; Returns: number }
       get_partner_pinned_socials: {
         Args: { p_partner_id: string }
         Returns: string[]
+      }
+      get_user_free_msg_status: {
+        Args: { target_user_id: string }
+        Returns: Json
       }
       increment_male_search_count: {
         Args: { p_female_id: string }
@@ -601,6 +1075,10 @@ export type Database = {
         Returns: undefined
       }
       is_blocked_by: { Args: { partner_id: string }; Returns: boolean }
+      record_bounty_interaction: {
+        Args: { p_interaction_type: string; p_male_id: string }
+        Returns: boolean
+      }
       send_vip_gifting_reminders: { Args: never; Returns: undefined }
     }
     Enums: {

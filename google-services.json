@@ -18,7 +18,15 @@
           "client_type": 1,
           "android_info": {
             "package_name": "com.c24club.app",
-            "certificate_hash": "8613b97393be2176cb2e05b32a61e646a3b37197"
+            "certificate_hash": "2fd5298f348e9d1d49a961f44fa4235e938fb7d5"
+          }
+        },
+        {
+          "client_id": "212900711433-dvgehjcs0qvcbmumd19ai6d2c2e6dolg.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.c24club.app",
+            "certificate_hash": "63dacf30b61e2c7c97d698f8921c7354b7eded4c"
           }
         },
         {

@@ -30,14 +30,14 @@ import { Platform } from 'react-native';
 import { supabase } from '@/lib/supabase';
 
 const SUPABASE_URL = 'https://ncpbiymnafxdfsvpxirb.supabase.co';
-const SCAN_INTERVAL_MS = 20_000; // 20 seconds
+const SCAN_INTERVAL_MS = 20_000; // 20 seconds (safer for mobile hardware to avoid preview flicker)
 
 interface UseCameraPreviewScanOptions {
   /** Ref to an expo-camera CameraView instance (same as usePreCallScan) */
   cameraRef: React.RefObject<any>;
   /** Current authenticated user's ID */
   userId: string | null | undefined;
-  /** Whether we should be actively scanning (true = idle state, camera preview showing) */
+  /** Whether we should be actively scanning (true = idle state) */
   active: boolean;
   /** Called if a scan detects inappropriate content */
   onFlagged: () => void;
@@ -52,12 +52,13 @@ export function useCameraPreviewScan({
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isScanning = useRef(false);
 
-  const runScan = useCallback(async () => {
+  const runScan = useCallback(async (isManual = false) => {
     if (Platform.OS === 'web') return;
-    if (!cameraRef.current || !userId || isScanning.current) return;
+    if (!cameraRef.current || !userId || (isScanning.current && !isManual)) return;
 
     isScanning.current = true;
     try {
+      console.log('[CameraPreviewScan] Attempting picture capture...');
       const photo = await cameraRef.current.takePictureAsync({
         base64: true,
         quality: 0.35,        // lower quality = smaller payload, faster
@@ -65,7 +66,12 @@ export function useCameraPreviewScan({
         exif: false,
       });
 
-      if (!photo?.base64) return;
+      if (!photo?.base64) {
+        console.warn('[CameraPreviewScan] Capture failed: no base64 data');
+        return;
+      }
+
+      console.log('[CameraPreviewScan] Capture success, sending to moderation...');
 
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) return;
@@ -79,6 +85,7 @@ export function useCameraPreviewScan({
         body: JSON.stringify({
           frame: photo.base64,
           reported_user_id: userId,
+          source: 'periodic_scan',
         }),
       });
 
@@ -107,18 +114,16 @@ export function useCameraPreviewScan({
       return;
     }
 
-    // Run an initial scan after a short delay (camera preview needs a moment to start)
-    const initialDelay = setTimeout(() => runScan(), 4000);
-
     // Then scan on the regular interval
     intervalRef.current = setInterval(runScan, SCAN_INTERVAL_MS);
 
     return () => {
-      clearTimeout(initialDelay);
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
     };
   }, [active, runScan]);
+
+  return { runScan };
 }

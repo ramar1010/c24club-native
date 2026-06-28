@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Image,
   ScrollView,
@@ -17,6 +17,8 @@ import { Check, X, User as UserIcon, Sparkles, Video, MessageCircle, Gift, Link2
 import { flattenStyle } from '@/utils/flatten-style';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
+import { useFocusEffect } from '@react-navigation/native';
 import { FemaleVipBanner } from '@/components/FemaleVipBanner';
 import { FemaleNotifyCard } from '@/components/FemaleNotifyCard';
 import { supabase } from '@/lib/supabase';
@@ -25,10 +27,12 @@ import { UserCard } from '@/components/UserCard';
 import { GiftModal } from '@/components/modals/GiftModal';
 import { useCall } from '@/contexts/CallContext';
 import { Instagram, Music, DollarSign } from 'lucide-react-native';
-import { Alert, Linking } from 'react-native';
+import { Alert, Linking, Platform } from 'react-native';
 import { notifyGiftAttempt } from '@/lib/gift-utils';
 import { GiftCelebration } from '@/components/GiftCelebration';
 import { FooterLinks } from '@/components/FooterLinks';
+import { BountyGuideModal } from '@/components/modals/BountyGuideModal';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 // Use same card size as discover
@@ -44,7 +48,7 @@ const STEPS = [
   {
     image: CHAT_IMG,
     title: 'Chat',
-    desc: 'Video chat 1-on-1 with strangers. Earn minutes per chat!',
+    desc: 'Video chat 1-on-1 with other members. Earn minutes per chat!',
   },
   {
     emoji: '⏩',
@@ -147,7 +151,7 @@ const GUIDE_SECTIONS = [
     title: '⭐  VIP Membership',
     items: [
       { q: 'What are the VIP tiers?', a: 'There are two VIP tiers — Basic VIP and Premium VIP. Both give access to gender filters, higher minute caps, and exclusive features. Premium VIP also includes a free re-spin on Legendary items & much more!' },
-      { q: 'What are gender filters?', a: 'VIP members can filter who they match with in random video chats — choose Male, Female, or Both. Free users are matched randomly.' },
+      { q: 'What are gender filters?', a: 'VIP members can filter who they match with in video chats — choose Male, Female, or Both. Free users are matched within the active community.' },
       { q: 'What is Minute Unfreezing?', a: 'If your minute collection is frozen due to skipping too fast, VIP members can unfreeze their balance instantly instead of having a slow earn rate.' },
     ],
   },
@@ -186,8 +190,9 @@ export default function HomeScreen() {
   const CARD_WIDTH = windowWidth > 600 ? 180 : (windowWidth - 16 * 2 - 12) / 2.2;
   const CARD_HEIGHT = CARD_WIDTH * (4 / 3);
 
-  const { user, profile, loading, minutes } = useAuth();
+  const { user, profile, loading, minutes, refreshProfile } = useAuth();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { startCall, activeInvite } = useCall();
   const [warningDismissed, setWarningDismissed] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
@@ -210,6 +215,10 @@ export default function HomeScreen() {
   const [selectedRecipient, setSelectedRecipient] = useState<DiscoverMember | null>(null);
   const [showGiftCelebration, setShowGiftCelebration] = useState(false);
   const [socialsSheet, setSocialsSheet] = useState<{ name: string; socials: string[] } | null>(null);
+
+  // Bounty guide modal (female users only)
+  const [showBountyGuide, setShowBountyGuide] = useState(false);
+  const isFemale = profile?.gender?.toLowerCase() === 'female';
 
   const fetchVipSpotlight = useCallback(async () => {
     setVipLoading(true);
@@ -298,9 +307,11 @@ export default function HomeScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchVipSpotlight();
-  }, [fetchVipSpotlight]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchVipSpotlight();
+    }, [fetchVipSpotlight])
+  );
 
   const handleDirectCall = async (member: DiscoverMember) => {
     if (!user) {
@@ -388,6 +399,7 @@ export default function HomeScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        removeClippedSubviews={false}
       >
         {/* Header */}
         <View style={styles.header}>
@@ -400,7 +412,7 @@ export default function HomeScreen() {
               <Text style={styles.welcomeText}>Welcome back, {profile.name}!</Text>
             </View>
           ) : (
-            <Text style={styles.tagline}>The Omegle Alternative That Rewards You!</Text>
+            <Text style={styles.tagline}>The Video Chat That Rewards You!</Text>
           )}
         </View>
 
@@ -469,6 +481,23 @@ export default function HomeScreen() {
               {user ? 'Start Chatting Now →' : 'Get Started Now →'}
             </Text>
           </TouchableOpacity>
+
+          {isFemale && (
+            <TouchableOpacity
+              style={styles.earnButton}
+              activeOpacity={0.85}
+              onPress={() => setShowBountyGuide(true)}
+            >
+              <LinearGradient
+                colors={['#EC4899', '#A855F7']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.earnGradient}
+              >
+                <Text style={styles.earnText}>💰 Earn Money DMing Guys</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={styles.rulesButton}
@@ -554,6 +583,7 @@ export default function HomeScreen() {
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.vipListContent}
+              removeClippedSubviews={false}
               renderItem={({ item }) => (
                 <View style={{ marginRight: 12 }}>
                   <UserCard
@@ -656,8 +686,8 @@ export default function HomeScreen() {
       <GiftModal
         isOpen={showGiftModal}
         onClose={() => setShowGiftModal(false)}
-        recipientId={selectedRecipient?.id || ''}
-        recipientName={selectedRecipient?.name || ''}
+        recipientId={selectedRecipient?.id || ""}
+        recipientName={selectedRecipient?.name || ""}
         recipientIsVip={
           selectedRecipient
             ? vipIds.has(selectedRecipient.id) || adminIds.has(selectedRecipient.id)
@@ -666,6 +696,10 @@ export default function HomeScreen() {
         onGiftSent={() => {
           setShowGiftModal(false);
           setShowGiftCelebration(true);
+          // Invalidate gift history and minutes queries
+          queryClient.invalidateQueries({ queryKey: ["gift_history"] });
+          queryClient.invalidateQueries({ queryKey: ["gifted_minutes"] });
+          refreshProfile();
         }}
       />
 
@@ -777,6 +811,12 @@ export default function HomeScreen() {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* Bounty guide — female users only */}
+      <BountyGuideModal
+        isOpen={showBountyGuide}
+        onClose={() => setShowBountyGuide(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -968,6 +1008,22 @@ const styles = StyleSheet.create({
   ctaText: {
     color: '#FFFFFF',
     fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  earnButton: {
+    borderRadius: 100,
+    overflow: 'hidden',
+    marginTop: 12,
+  },
+  earnGradient: {
+    paddingVertical: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  earnText: {
+    color: '#FFFFFF',
+    fontSize: 16,
     fontWeight: '800',
     letterSpacing: 0.3,
   },

@@ -33,17 +33,15 @@ export function useNsfwRestriction(userId: string | null | undefined): UseNsfwRe
     }
 
     try {
-      const { data, error } = await supabase
-        .from('members')
-        .select('nsfw_strike_count')
-        .eq('id', userId)
-        .single();
+      const { data, error } = await supabase.rpc('get_partner_nsfw_strikes', {
+        _user_id: userId
+      });
 
       if (error) {
         console.warn('[useNsfwRestriction] fetch error:', error.message);
         setIsRestricted(false);
       } else {
-        const strikes = (data as any)?.nsfw_strike_count ?? 0;
+        const strikes = data ?? 0;
         setIsRestricted(strikes >= 1);
       }
     } catch (err) {

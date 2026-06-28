@@ -163,7 +163,7 @@ export default function ProductDetailScreen() {
     if (selectedColorIndex !== null && colors[selectedColorIndex]?.image_url) {
       return colors[selectedColorIndex].image_url;
     }
-    return images[activeImageIndex] || 'https://via.placeholder.com/400';
+    return images[activeImageIndex] || null;
   }, [selectedColorIndex, colors, images, activeImageIndex]);
 
   useEffect(() => {
@@ -256,11 +256,9 @@ export default function ProductDetailScreen() {
       return;
     }
 
-    if (isRare || isLegendary) {
-      setShowSpinModal(true);
-    } else {
-      setShowShippingModal(true);
-    }
+    // Always show shipping modal first for all non-digital rewards
+    // If it's a rare/legendary, the spin modal will trigger AFTER shipping is confirmed
+    setShowShippingModal(true);
   };
 
   const finalizeRedeem = async () => {
@@ -275,6 +273,16 @@ export default function ProductDetailScreen() {
           </Toast>
         ),
       });
+      return;
+    }
+
+    const isRare = item.rarity === 'rare';
+    const isLegendary = item.rarity === 'legendary';
+
+    // If it's a spin-based reward, show the spin modal instead of finalizing now
+    if (isRare || isLegendary) {
+      setShowShippingModal(false);
+      setShowSpinModal(true);
       return;
     }
 
@@ -382,11 +390,17 @@ export default function ProductDetailScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* Image Carousel */}
         <View style={styles.carouselContainer}>
-          <Image 
-            source={{ uri: displayImage }} 
-            style={styles.mainImage}
-            resizeMode="cover"
-          />
+          {displayImage ? (
+            <Image 
+              source={{ uri: displayImage }} 
+              style={styles.mainImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.mainImage, { backgroundColor: '#1E1E38', justifyContent: 'center', alignItems: 'center' }]}>
+              <Image source={require("@/assets/images/splash-icon.png")} style={{ width: 120, height: 120 }} resizeMode="contain" />
+            </View>
+          )}
           
           {images.length > 1 && (
             <>
@@ -618,9 +632,11 @@ export default function ProductDetailScreen() {
         onWin={(redemptionId) => {
           setWonRedemptionId(redemptionId);
           if (item.rarity === 'legendary') {
+            setShowSpinModal(false);
             setShowCashoutModal(true);
           }
         }}
+        shippingData={shippingAddress}
       />
 
       {wonRedemptionId && (

@@ -15,12 +15,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Eye, EyeOff } from "lucide-react-native";
 import { supabase } from "@/lib/supabase";
-import { signInWithGoogleOAuth } from "@/lib/google-auth";
 import FallingGifts from "@/components/FallingGifts";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { FooterLinks } from "@/components/FooterLinks";
-
-const GOOGLE_ICON = require("@/assets/images/2a5758d6-4edb-4047-87bb-e6b94dbbbab0-cover.png");
+import { signInWithGoogle } from "@/lib/google-auth";
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -58,8 +56,21 @@ export default function LoginScreen() {
     }
   };
 
-  const handleOAuth = async (provider: "google" | "apple") => {
+  const handleOAuth = async (provider: "apple" | "google") => {
     setError("");
+
+    if (provider === "google") {
+      setLoading(true);
+      try {
+        await signInWithGoogle();
+        // AuthContext will handle navigation on session change
+      } catch (err: any) {
+        setError(err.message || "Google Sign In failed");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
 
     // Native Apple Sign In (iOS only)
     if (provider === "apple") {
@@ -87,14 +98,6 @@ export default function LoginScreen() {
       }
       return;
     }
-
-    // Browser-based Google OAuth
-    try {
-      const { error: authError } = await signInWithGoogleOAuth();
-      if (authError && authError !== "cancelled") setError(authError);
-    } catch (e: any) {
-      setError(e.message || "Google Sign In failed");
-    }
   };
 
   return (
@@ -118,7 +121,7 @@ export default function LoginScreen() {
               <Text style={styles.logoC24}>C24</Text>
               <Text style={styles.logoClub}> CLUB</Text>
             </View>
-            <Text style={styles.tagline}>The Omegle That Rewards You</Text>
+            <Text style={styles.tagline}>The Video Chat That Rewards You</Text>
             <Text style={styles.subtitle}>Sign in to your account</Text>
           </View>
 
@@ -203,39 +206,47 @@ export default function LoginScreen() {
 
           {/* OAuth Buttons */}
           <View
-            style={
-              Platform.OS !== "ios"
-                ? styles.oauthRowColumn
-                : styles.oauthRow
-            }
+            style={[
+              styles.oauthRow,
+              Platform.OS !== "ios" ? { flexDirection: "column" } : { justifyContent: "center" },
+            ]}
           >
-            <TouchableOpacity
-              style={styles.oauthButton}
-              onPress={() => handleOAuth("google")}
-              activeOpacity={0.8}
-            >
-              <View style={styles.oauthButtonContent}>
-                <Image
-                  source={GOOGLE_ICON}
-                  style={styles.googleIcon}
-                  resizeMode="contain"
-                />
-                <Text style={styles.oauthText}>Google</Text>
-              </View>
-            </TouchableOpacity>
             {Platform.OS === "ios" && (
               <AppleAuthentication.AppleAuthenticationButton
                 buttonType={
-                  AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN
+                  AppleAuthentication.AppleAuthenticationButtonType.CONTINUE
                 }
                 buttonStyle={
-                  AppleAuthentication.AppleAuthenticationButtonStyle
-                    .WHITE_OUTLINE
+                  AppleAuthentication.AppleAuthenticationButtonStyle.WHITE_OUTLINE
                 }
                 cornerRadius={100}
-                style={styles.appleButton}
+                style={[styles.oauthButton, { height: 50, borderWidth: 0, width: "100%", flex: 0 }]}
                 onPress={() => handleOAuth("apple")}
               />
+            )}
+
+            {Platform.OS !== "ios" && (
+              <TouchableOpacity
+                style={[
+                  styles.oauthButton,
+                  { width: "100%", backgroundColor: "#FFFFFF", borderColor: "#FFFFFF" },
+                ]}
+                onPress={() => handleOAuth("google")}
+                activeOpacity={0.8}
+                disabled={loading}
+              >
+                <View style={styles.googleButtonContent}>
+                  <Image
+                    source={{
+                      uri: "https://authjs.dev/img/providers/google.svg",
+                    }}
+                    style={styles.googleIcon}
+                  />
+                  <Text style={styles.googleText}>
+                    Continue with Google
+                  </Text>
+                </View>
+              </TouchableOpacity>
             )}
           </View>
 
@@ -390,16 +401,9 @@ const styles = StyleSheet.create({
   },
   oauthRow: {
     flexDirection: "row",
-    justifyContent: "space-around",
+    gap: 12,
+    marginBottom: 32,
     alignItems: "center",
-    marginVertical: 16,
-    gap: 12,
-  },
-  oauthRowColumn: {
-    flexDirection: "column",
-    alignItems: "stretch",
-    marginVertical: 16,
-    gap: 12,
   },
   oauthButton: {
     flex: 1,
@@ -409,26 +413,27 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
+    height: 50,
   },
-  oauthButtonContent: {
+  googleButtonContent: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
   },
   googleIcon: {
-    width: 24,
-    height: 24,
-    marginRight: 12,
+    width: 20,
+    height: 20,
+    marginRight: 10,
+  },
+  googleText: {
+    color: "#000000",
+    fontSize: 15,
+    fontWeight: "700",
   },
   oauthText: {
     color: "#FFFFFF",
     fontSize: 15,
     fontWeight: "700",
-  },
-  appleButton: {
-    flex: 1,
-    height: 50,
-    borderRadius: 100,
   },
   bottomLink: {
     flexDirection: "row",

@@ -1,6 +1,6 @@
 // Web-only WebRTC — Metro picks this file on web automatically
 import React from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native-web';
 
 const RTCPeerConnection =
   typeof window !== 'undefined' ? (window as any).RTCPeerConnection : null;

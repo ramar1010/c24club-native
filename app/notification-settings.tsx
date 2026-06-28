@@ -226,7 +226,7 @@ export default function NotificationSettingsScreen() {
               <Text style={styles.sectionLabel}>CHAT NOTIFICATIONS</Text>
             </View>
             <Text style={styles.chatNotifySubtitle}>
-              How often do you want to be notified when guys start searching?
+              How often do you want to be notified when other members start searching?
             </Text>
             <View style={styles.modeOptionsContainer}>
               {/* Every time */}
@@ -274,7 +274,7 @@ export default function NotificationSettingsScreen() {
                       Batched
                     </Text>
                     <Text style={styles.modeOptionDesc}>
-                      Summary every 30 min (e.g. &apos;5 guys searched&apos;)
+                      Summary every 30 min (e.g. &apos;5 members searched&apos;)
                     </Text>
                   </View>
                 </View>

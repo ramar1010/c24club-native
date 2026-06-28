@@ -6,7 +6,7 @@ This file provides guidance to CatDoes (catdoes.com) when working with code in t
 
 Expo (SDK 54) + React Native mobile app template using file-based routing (expo-router), NativeWind v4 for styling, and gluestack-ui v3 for the component library. Targets iOS, Android, and web. React Native New Architecture is enabled.
 
-**App:** C24 Club — an Omegle-style video chat app where users earn reward minutes by chatting and can redeem them in a reward store. Connected to an existing Supabase backend from the lovable web app.
+**App:** C24 Club — a moderated social video community where users earn reward minutes by chatting and can redeem them in a reward store. Connected to an existing Supabase backend from the lovable web app.
 
 ## Commands
 
@@ -26,11 +26,11 @@ File-based routing via expo-router. All routes live in `app/`.
 **App Screens:**
 - `app/(tabs)/_layout.tsx` — Bottom tab navigator: Home, Chat, Discover, Messages, Profile
 - `app/(tabs)/index.tsx` — Home screen (Hero, How It Works, Comparison, CTA)
-- `app/(tabs)/chat.tsx` — Random match video chat (uses useWebRTC and room_signals)
+- `app/(tabs)/chat.tsx` — Community connection video chat (uses useWebRTC and room_signals)
 - `app/(tabs)/rewards.tsx` — Reward store (pulls from Supabase rewards table)
 - `app/(tabs)/discover.tsx` — Real-time member list (direct calls, DMs, interests, selfie capture)
 - `app/(tabs)/messages.tsx` — Conversation list (DMs)
-- `app/(tabs)/profile.tsx` — User profile (VIP status, minutes, redemptions, stats)
+- `app/(tabs)/profile.tsx` — User profile (VIP status, minutes, redemptions, stats, bounty history)
 - `app/(auth)/` — Login, Signup, Forgot Password
 - `app/messages/[id].tsx` — Direct messaging thread
 - `app/video-call.tsx` — Direct video call session (handshake via room_signals)
@@ -63,6 +63,11 @@ File-based routing via expo-router. All routes live in `app/`.
   - This unblocks users who see "Already Owned" errors and ensures recipients get credited even if the app crashes.
 - **StoreKit 2**: Uses `purchaseToken` as the primary identifier on iOS.
 
+### Auth & Profile Creation
+
+- `contexts/AuthContext.tsx` handles automatic profile (`members`) and minutes (`member_minutes`) creation on the `SIGNED_IN` event.
+- Signup screens should NOT manually create profile rows; they should pass metadata (`name`, `gender`) in the `signUp` options and let the context handle the rest to avoid race conditions.
+
 ### Notifications
 
 - `lib/usePushNotifications.ts` — Custom hook for registering push tokens and handling foreground/tapped events.
@@ -72,9 +77,12 @@ File-based routing via expo-router. All routes live in `app/`.
 
 ### Backend: Supabase
 
+**Supabase backend:** `ncpbiymnafxdfsvpxirb` (Managed by Lovable)
+
 The app connects to the same Supabase instance as the web app.
 - `lib/supabase.ts` — Central client with AsyncStorage persistence
 - `contexts/AuthContext.tsx` — Central state for session, profile (members), and minutes (member_minutes)
+- **Bounty System**: Female users earn bounties when partners they chatted with purchase VIP. History is fetched via `get_bounty_summary()` RPC to handle server-side joins and auth filtering reliably.
 
 ### Data Models (Lovable Schema)
 
@@ -93,11 +101,13 @@ The app connects to the same Supabase instance as the web app.
 - `male_search_batch_log` — Tracks male joins for female batch notifications.
 - `user_bans` — Active/inactive ban records; read-only from app (admins write via web panel)
 - `user_reports` — Support/appeal messages; app inserts for ban appeals
+- `bounty_earnings` — Records of earned minutes for female users.
+- `bounty_attributions` — Maps interactions between users for future bounty awarding.
 
 ### Signaling Logic
 
 The app uses `room_signals` table for WebRTC signaling.
-Both Random Match (`useWebRTC`) and Direct Calls (`video-call.tsx`) are consistent.
+Both Community Match (`useWebRTC`) and Direct Calls (`video-call.tsx`) are consistent.
 `sender_channel` is used to filter signals from self vs partner.
 
 ### WebRTC Shims
@@ -121,7 +131,12 @@ Both Random Match (`useWebRTC`) and Direct Calls (`video-call.tsx`) are consiste
 - Direct calls require VIP status for male users when calling female users.
 - Ban check runs on every auth state change — never cached. Banned users see `BannedScreen` and cannot access any app route.
 - The `unban-payment` Edge Function at `https://ncpbiymnafxdfsvpxirb.supabase.co/functions/v1/unban-payment` handles all Stripe logic. App only sends `action: "create-checkout"` or `action: "verify-payment"`.
-- **VIP Pinned Socials** (`hooks/usePinnedSocials.ts` + `components/videocall/PinnedSocialsDisplay.tsx`): When a random match connects, the current user's partner's VIP status is checked via `member_minutes` (`is_vip` OR `admin_granted_vip`). If VIP, `vip_settings.pinned_socials` (text array of `"platform:username"` strings) is fetched and rendered as tappable overlay badges below the report button in `chat.tsx`. Supported platforms: cashapp, tiktok, instagram, snapchat, discord (no link), venmo, paypal. Usernames are sanitized (leading `@`, `$`, `/` stripped). Socials clear automatically on disconnect/next.
+- **VIP Pinned Socials** (`hooks/usePinnedSocials.ts` + `components/videocall/PinnedSocialsDisplay.tsx`): When a community match connects, the current user's partner's VIP status is checked via `member_minutes` (`is_vip` OR `admin_granted_vip`). If VIP, `vip_settings.pinned_socials` (text array of `"platform:username"` strings) is fetched and rendered as tappable overlay badges below the report button in `chat.tsx`. Supported platforms: cashapp, tiktok, instagram, snapchat, discord (no link), venmo, paypal. Usernames are sanitized (leading `@`, `$`, `/` stripped). Socials clear automatically on disconnect/next.
+
+## Moderation Features
+
+- **Gemini Flash Pre-Call Scan**: The app performs a mandatory AI safety check (Gemini Flash 2.0) before entering the chat queue and periodically while idle in the chat preview.
+- **Sticky Blur**: Partners with NSFW strikes remain blurred unless the user manually unblurs them.
 
 ## Key Files
 
@@ -132,3 +147,6 @@ Both Random Match (`useWebRTC`) and Direct Calls (`video-call.tsx`) are consiste
 
 - **expo-notifications**: Configured for C24 Club notifications.
 - **withAndroidAdiRegistration**: Custom plugin to include `adi-registration.properties` for Google Play verification.
+- **Version 2.0.15** (iOS Build 152, Android code 110) reverts the periodic in-call Gemini scanning to prioritize connection stability and fix the "black screen" issue for partners. It retains Gemini scanning for the pre-call and idle preview stages.
+- **Stability Fixes (v2.0.16)**: Added semi-transparent fallback for Android blur, 300ms hardware release delay on Android, increased WebRTC grace period (10s), and explicit "partner-disconnected" signaling for faster "Next" button response.
+- **IAP Compatibility Fixes (v2.0.23)**: Switched to native `requestSubscription` for v14+ compat (fixing "Item Unavailable" on M3 iPads), added localized price fetching, and disabled purchase buttons if products are missing from store cache.

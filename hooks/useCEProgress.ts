@@ -22,14 +22,22 @@ export const useCEProgress = () => {
   const { total_minutes, ce_minutes_checkpoint = 0, is_vip = false, chance_enhancer = 0 } = minutes;
   const threshold = is_vip ? 150 : 200;
   const cap = is_vip ? 45 : 25;
-  
-  const earnedSinceCheckpoint = Math.max(0, total_minutes - ce_minutes_checkpoint);
+
+  // Use default 0 for total_minutes to avoid NaN calculations
+  const currentMinutes = total_minutes ?? 0;
+  const earnedSinceCheckpoint = Math.max(0, currentMinutes - ce_minutes_checkpoint);
   const progress = Math.min(earnedSinceCheckpoint, threshold);
   const remaining = Math.max(0, threshold - progress);
   const isMaxed = chance_enhancer >= cap;
-  
+
   // Progress towards next boost
-  const percentage = isMaxed ? 100 : Math.min(100, (progress / threshold) * 100);
+  let percentage = 0;
+  if (isMaxed) {
+    percentage = 100;
+  } else {
+    const calculated = (progress / threshold) * 100;
+    percentage = isNaN(calculated) ? 0 : Math.min(100, calculated);
+  }
 
   return {
     currentCE: chance_enhancer,

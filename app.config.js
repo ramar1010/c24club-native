@@ -5,6 +5,7 @@ const path = require('path');
 const pluginsDir = path.resolve(__dirname, 'plugins');
 const withAndroidAdiRegistration = require(path.join(pluginsDir, 'withAndroidAdiRegistration.js'));
 const withTikTokSDK = require(path.join(pluginsDir, 'withTikTokSDK.js'));
+const withModularHeaders = require(path.join(pluginsDir, 'withModularHeaders.js'));
 
 // Read .env file at build time so values get baked into the build
 function loadEnv() {
@@ -24,7 +25,7 @@ function loadEnv() {
       const value = trimmed
         .slice(eqIndex + 1)
         .trim()
-        .replace(/^["']|["']$/g, '');
+        .replace(/^['"]|['"]$/g, '');
 
       result[key] = value;
     }
@@ -44,7 +45,7 @@ module.exports = ({ config }) => ({
   // Expo project slug
   slug: 'cclub',
   name: 'C24 Club',
-  version: '2.0.0',
+  version: '2.0.50',
   orientation: 'portrait',
   icon: './assets/images/icon.png',
   // scheme drives deep links; target name comes from package.json name ('c24-club' → 'c24club')
@@ -57,7 +58,7 @@ module.exports = ({ config }) => ({
     googleServicesFile: './GoogleService-Info.plist',
     usesAppleSignIn: true,
     usesApplePushNotifications: true,
-    buildNumber: '133',
+    buildNumber: '191',
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
       CFBundleDisplayName: 'C24 Club',
@@ -70,7 +71,7 @@ module.exports = ({ config }) => ({
   android: {
     package: 'com.c24club.app',
     googleServicesFile: './google-services.json',
-    versionCode: 86,
+    versionCode: 143,
     permissions: [
       'android.permission.CAMERA',
       'android.permission.RECORD_AUDIO',
@@ -99,8 +100,10 @@ module.exports = ({ config }) => ({
     'expo-web-browser',
     'expo-apple-authentication',
     'expo-notifications',
+    '@react-native-google-signin/google-signin',
     withAndroidAdiRegistration,
     [withTikTokSDK, { appId: '7632014615634804757' }],
+    withModularHeaders,
     [
       'expo-splash-screen',
       {

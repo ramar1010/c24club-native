@@ -40,3 +40,25 @@ yarn-error.*
 .catdoes/
 
 app-example
+core
+
+# Local diagnostic scripts and large JSON outputs
+scripts/diagnostics/
+*_output.json
+openapi*.json
+full_openapi.json
+make_request.js
+get_schema.js
+get_unique.js
+fetch_data.js
+run_queries.js
+inspect-db.js
+list_tables.js
+list_columns.js
+verify_schema.js
+fix-user.js
+hello.js
+q.js
+q1.js
+q2.js
+q3.js

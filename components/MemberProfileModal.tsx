@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -21,12 +22,17 @@ import {
   MessageSquare,
   Music,
   Shield,
+  ShieldOff,
+  Flag,
   Sparkles,
   Video,
   X,
 } from "lucide-react-native";
 import { DiscoverMember } from "@/types/members";
 import { getTimeAgo, isEffectivelyOnline } from "@/utils/member-utils";
+import { supabase } from "@/lib/supabase";
+import { flattenStyle } from "@/utils/flatten-style";
+import { useAuth } from "@/contexts/AuthContext";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -73,10 +79,73 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
   onMessage,
   onGift,
 }) => {
+  const { profile } = useAuth();
+
+  // ── Report / Block state ────────────────────────────────────────────────
+  const [showReportModal, setShowReportModal] = React.useState(false);
+  const [reportReason, setReportReason] = React.useState('');
+  const [reportDetails, setReportDetails] = React.useState('');
+  const [reportSubmitted, setReportSubmitted] = React.useState(false);
+  const [reportSubmitting, setReportSubmitting] = React.useState(false);
+  const [isBlocked, setIsBlocked] = React.useState(false);
+  const [blockLoading, setBlockLoading] = React.useState(false);
+
+  // Check block status when member changes
+  React.useEffect(() => {
+    if (!profile?.id || !member?.id) return;
+    supabase
+      .from('blocked_users')
+      .select('id')
+      .eq('blocker_id', profile.id)
+      .eq('blocked_id', member.id)
+      .maybeSingle()
+      .then(({ data }) => setIsBlocked(!!data));
+  }, [profile?.id, member?.id]);
+
+  const handleBlock = async () => {
+    if (!profile?.id) return;
+    setBlockLoading(true);
+    if (isBlocked) {
+      await supabase
+        .from('blocked_users')
+        .delete()
+        .eq('blocker_id', profile.id)
+        .eq('blocked_id', member.id);
+      setIsBlocked(false);
+    } else {
+      await supabase
+        .from('blocked_users')
+        .insert({ blocker_id: profile.id, blocked_id: member.id });
+      setIsBlocked(true);
+    }
+    setBlockLoading(false);
+  };
+
+  const submitReport = async () => {
+    if (!reportReason || !profile?.id) return;
+    setReportSubmitting(true);
+    const { error } = await supabase.from('user_reports').insert({
+      reporter_id: profile.id,
+      reported_user_id: member.id,
+      reason: reportReason,
+      details: reportDetails || null,
+    });
+    setReportSubmitting(false);
+    if (!error) {
+      setReportSubmitted(true);
+      setTimeout(() => {
+        setShowReportModal(false);
+        setReportSubmitted(false);
+        setReportReason('');
+        setReportDetails('');
+      }, 2000);
+    }
+  };
+
   if (!member) return null;
 
-  const online = isEffectivelyOnline(member.id, member.gender, member.last_active_at);
   const isFemale = member.gender?.toLowerCase() === "female";
+  const online = isEffectivelyOnline(member.id, member.gender, member.last_active_at);
   const isRecipientVip = isVip || isAdmin;
 
   const placeholderBg = isFemale
@@ -88,6 +157,7 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
   const initial = member.name?.[0]?.toUpperCase() ?? "?";
 
   return (
+    <>
     <Modal
       visible={visible}
       transparent
@@ -118,7 +188,7 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
                   resizeMode="cover"
                 />
               ) : (
-                <View style={[styles.photo, { backgroundColor: placeholderBg, alignItems: "center", justifyContent: "center" }]}>
+                <View style={flattenStyle([styles.photo, { backgroundColor: placeholderBg, alignItems: "center", justifyContent: "center" }])}>
                   <Text style={styles.placeholderInitial}>{initial}</Text>
                 </View>
               )}
@@ -172,7 +242,7 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
                   <Text style={styles.metaText}>{member.gender.charAt(0).toUpperCase() + member.gender.slice(1)}</Text>
                 ) : null}
                 {member.gender && <Text style={styles.metaDot}>·</Text>}
-                <Text style={[styles.metaText, online && { color: "#22C55E" }]}>
+                <Text style={flattenStyle([styles.metaText, online && { color: "#22C55E" }])}>
                   {online ? "Online" : getTimeAgo(member.last_active_at)}
                 </Text>
               </View>
@@ -206,13 +276,13 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
                     return (
                       <TouchableOpacity
                         key={i}
-                        style={[styles.socialRow, { backgroundColor: cfg.color + "22" }]}
+                        style={flattenStyle([styles.socialRow, { backgroundColor: cfg.color + "22" }])}
                         activeOpacity={cfg.url ? 0.7 : 1}
                         onPress={() => {
                           if (cfg.url) Linking.openURL(cfg.url(handle)).catch(() => {});
                         }}
                       >
-                        <View style={[styles.socialIcon, { backgroundColor: cfg.color }]}>
+                        <View style={flattenStyle([styles.socialIcon, { backgroundColor: cfg.color }])}>
                           <Icon size={16} color={isSnapchat ? "#000" : "#FFF"} />
                         </View>
                         <View style={{ flex: 1 }}>
@@ -230,16 +300,37 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
 
           {/* ── Action Buttons ── */}
           <View style={styles.actionsBar}>
-            {/* Interest */}
+            {/* Report button */}
             <TouchableOpacity
-              style={[styles.actionChip, isInterested ? styles.actionChipActive : undefined]}
+              style={styles.safetyBtn}
+              activeOpacity={0.8}
+              onPress={() => setShowReportModal(true)}
+            >
+              <Flag size={16} color="#EF4444" />
+            </TouchableOpacity>
+
+            {/* Block button */}
+            <TouchableOpacity
+              style={flattenStyle([styles.safetyBtn, isBlocked ? styles.safetyBtnActive : undefined])}
+              activeOpacity={0.8}
+              onPress={handleBlock}
+              disabled={blockLoading}
+            >
+              {blockLoading ? (
+                <ActivityIndicator size="small" color="#EF4444" />
+              ) : (
+                <ShieldOff size={16} color={isBlocked ? "#FFFFFF" : "#EF4444"} />
+              )}
+            </TouchableOpacity>
+
+            {/* Interest (Heart Only for Space) */}
+            <TouchableOpacity
+              style={flattenStyle([styles.actionChip, { flex: 0, width: 64 }, isInterested ? styles.actionChipActive : undefined])}
               activeOpacity={0.8}
               onPress={onInterest}
               disabled={isInterested}
             >
-              <Text style={styles.actionChipText}>
-                <Text style={{ fontSize: 14, lineHeight: 18, includeFontPadding: false }}>💚</Text> {isInterested ? "Interested" : "Interest"}
-              </Text>
+              <Text style={{ fontSize: 20, textAlign: 'center' }}>💚</Text>
             </TouchableOpacity>
 
             {/* Video call */}
@@ -258,7 +349,7 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
 
             {/* Message */}
             <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: "rgba(59,130,246,0.9)" }]}
+              style={flattenStyle([styles.actionBtn, { backgroundColor: "rgba(59,130,246,0.9)" }])}
               activeOpacity={0.8}
               onPress={() => { onMessage(member); onClose(); }}
             >
@@ -267,16 +358,92 @@ export const MemberProfileModal: React.FC<MemberProfileModalProps> = ({
 
             {/* Gift — always shown; modal handles locked state for non-VIP recipients */}
             <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: "rgba(245,158,11,0.9)" }]}
+              style={flattenStyle([styles.actionBtn, { backgroundColor: "rgba(245,158,11,0.9)" }])}
               activeOpacity={0.8}
               onPress={() => { onGift(member); onClose(); }}
             >
               <Gift size={18} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
+
+          {/* ── Report Modal Overlay ── */}
+          {showReportModal && (
+            <View style={[StyleSheet.absoluteFillObject, { zIndex: 100 }]}>
+              <TouchableOpacity 
+                style={styles.reportOverlay} 
+                activeOpacity={1} 
+                onPress={() => setShowReportModal(false)}
+              >
+                <View style={styles.reportSheet}>
+                  <View style={styles.reportHeader}>
+                    <Text style={styles.reportTitle}>Report User</Text>
+                    <TouchableOpacity onPress={() => setShowReportModal(false)}>
+                      <X size={22} color="#A1A1AA" />
+                    </TouchableOpacity>
+                  </View>
+
+                  {reportSubmitted ? (
+                    <View style={styles.reportSuccess}>
+                      <Text style={styles.reportSuccessText}>✅ Report submitted. Thank you!</Text>
+                    </View>
+                  ) : (
+                    <>
+                      <View style={styles.reportGrid}>
+                        {[
+                          'Underage User',
+                          'Inappropriate Behavior',
+                          'Nudity / Sexual Content',
+                          'Harassment / Bullying',
+                          'Hate Speech / Discrimination',
+                          'Spam / Scam',
+                          'Violence / Threats',
+                          'Other',
+                        ].map((reason) => (
+                          <TouchableOpacity
+                            key={reason}
+                            style={reportReason === reason ? styles.reportReasonBtnActive : styles.reportReasonBtn}
+                            onPress={() => setReportReason(reason)}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={reportReason === reason ? styles.reportReasonTextActive : styles.reportReasonText}>
+                              {reason}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+
+                      <TextInput
+                        style={styles.reportDetailsInput}
+                        placeholder="Additional details..."
+                        placeholderTextColor="#555"
+                        multiline
+                        maxLength={500}
+                        value={reportDetails}
+                        onChangeText={setReportDetails}
+                      />
+
+                      <TouchableOpacity
+                        style={!reportReason ? styles.reportSubmitBtnDisabled : styles.reportSubmitBtn}
+                        onPress={submitReport}
+                        activeOpacity={0.85}
+                        disabled={!reportReason || reportSubmitting}
+                      >
+                        {reportSubmitting ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <Text style={styles.reportSubmitBtnText}>Submit Report</Text>
+                        )}
+                      </TouchableOpacity>
+                    </>
+                  )}
+                </View>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </View>
     </Modal>
+    </>
   );
 };
 
@@ -485,6 +652,20 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#1E1E38",
   },
+  safetyBtn: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "rgba(239,68,68,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  safetyBtnActive: {
+    backgroundColor: "#EF4444",
+    borderColor: "#EF4444",
+  },
   actionChip: {
     flex: 1,
     backgroundColor: "rgba(34,197,94,0.15)",
@@ -511,5 +692,99 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(16,185,129,0.85)",
     alignItems: "center",
     justifyContent: "center",
+  },
+  // ── Report modal styles ────────────────────────────────────────────────
+  reportOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.85)",
+    justifyContent: "flex-end",
+  },
+  reportSheet: {
+    backgroundColor: "#1A1A2E",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 36,
+  },
+  reportHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  reportTitle: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  reportSuccess: {
+    paddingVertical: 24,
+    alignItems: "center",
+  },
+  reportSuccessText: {
+    color: "#22C55E",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  reportGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 14,
+  },
+  reportReasonBtn: {
+    backgroundColor: "#1E1E38",
+    borderWidth: 1,
+    borderColor: "#2A2A4A",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  reportReasonBtnActive: {
+    backgroundColor: "rgba(239,68,68,0.15)",
+    borderWidth: 1,
+    borderColor: "#EF4444",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  reportReasonText: {
+    color: "#A1A1AA",
+    fontSize: 13,
+  },
+  reportReasonTextActive: {
+    color: "#EF4444",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  reportDetailsInput: {
+    backgroundColor: "#111111",
+    borderRadius: 10,
+    padding: 12,
+    color: "#FFFFFF",
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: "#2A2A4A",
+    minHeight: 70,
+    textAlignVertical: "top",
+    marginBottom: 14,
+  },
+  reportSubmitBtn: {
+    backgroundColor: "#EF4444",
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  reportSubmitBtnDisabled: {
+    backgroundColor: "#EF4444",
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: "center",
+    opacity: 0.4,
+  },
+  reportSubmitBtnText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
   },
 });

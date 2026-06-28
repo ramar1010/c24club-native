@@ -181,7 +181,7 @@ serve(async (req) => {
       // Credit recipient: full calling minutes + only cashable gifted minutes
       const { data: recipientMinutes } = await supabaseAdmin
         .from("member_minutes")
-        .select("minutes, gifted_minutes")
+        .select("gifted_minutes")
         .eq("user_id", recipientId)
         .single();
 
@@ -189,26 +189,9 @@ serve(async (req) => {
         await supabaseAdmin
           .from("member_minutes")
           .update({
-            minutes: (recipientMinutes.minutes || 0) + totalMinutesForRecipient,
             gifted_minutes: (recipientMinutes.gifted_minutes || 0) + cashableGiftedMinutes,
           })
           .eq("user_id", recipientId);
-      }
-
-      // Credit sender bonus if applicable
-      if (senderBonus > 0) {
-        const { data: senderMinutes } = await supabaseAdmin
-          .from("member_minutes")
-          .select("minutes")
-          .eq("user_id", gift.sender_id)
-          .single();
-
-        if (senderMinutes) {
-          await supabaseAdmin
-            .from("member_minutes")
-            .update({ minutes: (senderMinutes.minutes || 0) + senderBonus })
-            .eq("user_id", gift.sender_id);
-        }
       }
 
       // Mark gift as completed
@@ -216,6 +199,75 @@ serve(async (req) => {
         .from("gift_transactions")
         .update({ status: "completed", updated_at: new Date().toISOString() })
         .eq("id", giftId);
+
+      // Send push notification and DM to recipient
+      try {
+        const { data: recipientMember } = await supabaseAdmin
+          .from("members")
+          .select("name, email")
+          .eq("id", recipientId)
+          .single();
+
+        const { data: senderMember } = await supabaseAdmin
+          .from("members")
+          .select("name")
+          .eq("id", gift.sender_id)
+          .single();
+
+        if (recipientMember) {
+          const senderName = senderMember?.name || "Someone";
+          const amountText = `$${totalCashValue.toFixed(2)}`;
+
+          // 1. Send Push Notification
+          await supabaseAdmin.functions.invoke("send-push-notification", {
+            body: {
+              user_id: recipientId,
+              title: "🎁 Gift Received!",
+              body: `${senderName} just sent you a ${amountText} gift! 💖`,
+              data: {
+                screen: "/(tabs)/profile",
+                type: "gift_received",
+              },
+              notification_type: "gift_received",
+              cooldown_minutes: 0,
+            },
+          });
+
+          // 2. Find or Create Conversation
+          let { data: convo } = await supabaseAdmin
+            .from("conversations")
+            .select("id")
+            .or(`and(participant_1.eq.${gift.sender_id},participant_2.eq.${recipientId}),and(participant_1.eq.${recipientId},participant_2.eq.${gift.sender_id})`)
+            .maybeSingle();
+
+          if (!convo) {
+            const { data: newConvo } = await supabaseAdmin
+              .from("conversations")
+              .insert({ participant_1: gift.sender_id, participant_2: recipientId })
+              .select("id")
+              .single();
+            convo = newConvo;
+          }
+
+          // 3. Insert DM Message
+          if (convo) {
+            await supabaseAdmin
+              .from("dm_messages")
+              .insert({
+                conversation_id: convo.id,
+                sender_id: gift.sender_id,
+                content: `🎁 [System] I just sent you a ${amountText} gift!`,
+              });
+            
+            await supabaseAdmin
+              .from("conversations")
+              .update({ last_message_at: new Date().toISOString() })
+              .eq("id", convo.id);
+          }
+        }
+      } catch (err) {
+        console.error("Gift push/DM error:", err);
+      }
 
       // Send gift notification email to recipient
       try {
@@ -325,34 +377,34 @@ p{color:#52525b;font-size:15px;line-height:1.6;margin:0 0 12px}
       // Check sender balance
       const { data: senderMinutes } = await supabaseAdmin
         .from("member_minutes")
-        .select("total_minutes, gifted_minutes")
+        .select("minutes, gifted_minutes")
         .eq("user_id", user.id)
         .single();
 
-      if (!senderMinutes || senderMinutes.total_minutes < giftMinutes) {
+      if (!senderMinutes || senderMinutes.minutes < giftMinutes) {
         throw new Error("Insufficient minutes balance");
       }
 
       // Deduct from sender (reduce gifted_minutes proportionally)
       const senderGifted = senderMinutes.gifted_minutes ?? 0;
-      const newSenderTotal = senderMinutes.total_minutes - giftMinutes;
-      const newSenderGifted = Math.min(Math.max(0, senderGifted - giftMinutes), newSenderTotal);
+      const newSenderTotal = senderMinutes.minutes - giftMinutes;
+      const newSenderGifted = Math.max(0, senderGifted - giftMinutes);
       await supabaseAdmin
         .from("member_minutes")
-        .update({ total_minutes: newSenderTotal, gifted_minutes: newSenderGifted })
+        .update({ minutes: newSenderTotal, gifted_minutes: newSenderGifted })
         .eq("user_id", user.id);
 
       // Credit recipient
       const { data: recipientMins } = await supabaseAdmin
         .from("member_minutes")
-        .select("total_minutes")
+        .select("minutes")
         .eq("user_id", recipient_id)
         .single();
 
       if (recipientMins) {
         await supabaseAdmin
           .from("member_minutes")
-          .update({ total_minutes: recipientMins.total_minutes + giftMinutes })
+          .update({ minutes: recipientMins.minutes + giftMinutes })
           .eq("user_id", recipient_id);
       }
 
@@ -364,6 +416,75 @@ p{color:#52525b;font-size:15px;line-height:1.6;margin:0 0 12px}
         price_cents: 0,
         status: "completed",
       });
+
+      // Send push notification and DM to recipient
+      try {
+        const { data: recipientMember } = await supabaseAdmin
+          .from("members")
+          .select("name")
+          .eq("id", recipient_id)
+          .single();
+
+        const { data: senderMember } = await supabaseAdmin
+          .from("members")
+          .select("name")
+          .eq("id", user.id)
+          .single();
+
+        if (recipientMember) {
+          const senderName = senderMember?.name || "Someone";
+          const amountText = `${giftMinutes} minutes`;
+
+          // 1. Send Push Notification
+          await supabaseAdmin.functions.invoke("send-push-notification", {
+            body: {
+              user_id: recipient_id,
+              title: "🎁 Gift Received!",
+              body: `${senderName} just gifted you ${amountText}! 💖`,
+              data: {
+                screen: "/(tabs)/profile",
+                type: "gift_received",
+              },
+              notification_type: "gift_received",
+              cooldown_minutes: 0,
+            },
+          });
+
+          // 2. Find or Create Conversation
+          let { data: convo } = await supabaseAdmin
+            .from("conversations")
+            .select("id")
+            .or(`and(participant_1.eq.${user.id},participant_2.eq.${recipient_id}),and(participant_1.eq.${recipient_id},participant_2.eq.${user.id})`)
+            .maybeSingle();
+
+          if (!convo) {
+            const { data: newConvo } = await supabaseAdmin
+              .from("conversations")
+              .insert({ participant_1: user.id, participant_2: recipient_id })
+              .select("id")
+              .single();
+            convo = newConvo;
+          }
+
+          // 3. Insert DM Message
+          if (convo) {
+            await supabaseAdmin
+              .from("dm_messages")
+              .insert({
+                conversation_id: convo.id,
+                sender_id: user.id,
+                content: `🎁 [System] I just gifted you ${amountText}!`,
+              });
+            
+            await supabaseAdmin
+              .from("conversations")
+              .update({ last_message_at: new Date().toISOString() })
+              .eq("id", convo.id);
+          }
+        }
+      } catch (err) {
+        console.error("Balance gift push/DM error:", err);
+      }
 
       // Send gift notification email to recipient
       try {

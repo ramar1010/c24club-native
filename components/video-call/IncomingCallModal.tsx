@@ -38,7 +38,7 @@ export const IncomingCallModal = () => {
             <View style={styles.avatarWrapper}>
               <View style={styles.avatarPulsing}>
                  <Image 
-                   source={{ uri: inviter.image_url || 'https://via.placeholder.com/150' }} 
+                   source={inviter.image_url ? { uri: inviter.image_url } : require("@/assets/images/splash-icon.png")} 
                    style={styles.avatar} 
                  />
               </View>

@@ -24,6 +24,28 @@ export const IAP_SUBSCRIPTIONS = {
   }),
 };
 
+/**
+ * Maps subscription product IDs (across both iOS and Android) to their VIP tier.
+ * The bounty webhook edge functions perform the authoritative tier mapping
+ * server-side; this client-side map is provided for parity and UI logic.
+ */
+export type VipTier = 'basic' | 'premium';
+
+export const VIP_PRODUCT_MAP: Record<string, VipTier> = {
+  basicvip: 'basic',
+  c24_basic_vip: 'basic',
+  premiumvip: 'premium',
+  c24_premium_vip: 'premium',
+};
+
+/**
+ * Resolve the VIP tier for a given product ID (case-insensitive).
+ * Defaults to 'basic' when the SKU is not a recognized premium product,
+ * matching the edge functions' fallback behavior.
+ */
+export const getVipTier = (productId: string): VipTier =>
+  VIP_PRODUCT_MAP[productId?.toLowerCase()] ?? 'basic';
+
 export const MINUTE_BUNDLES = [
   { sku: IAP_PRODUCTS.GIFT_100_MINUTES, minutes: 100, price: '$1.99', label: '100 Minutes' },
   { sku: IAP_PRODUCTS.GIFT_400_MINUTES, minutes: 400, price: '$4.99', label: '400 Minutes' },

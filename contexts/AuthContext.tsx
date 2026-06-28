@@ -51,7 +51,8 @@ export interface MemberMinutes {
   id: string;
   user_id: string;
   minutes: number;
-  total_minutes: number; // For compatibility with existing components
+  total_minutes: number; // TOTAL SPENDABLE BALANCE (minutes + gifted + ad)
+  lifetime_earned: number; // LIFETIME CHATTING MINUTES EARNED
   ad_points: number;
   gifted_minutes: number;
   is_vip: boolean;
@@ -105,6 +106,7 @@ interface AuthContextType {
   updateMinutes: (updates: Partial<MemberMinutes>) => Promise<void>;
   updateProfile: (updates: Partial<MemberProfile>) => Promise<void>;
   syncVipStatus: () => Promise<void>;
+  updateMinutesFromRow: (row: any) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -120,6 +122,7 @@ const AuthContext = createContext<AuthContextType>({
   updateMinutes: async () => {},
   updateProfile: async () => {},
   syncVipStatus: async () => {},
+  updateMinutesFromRow: () => {},
 });
 
 export function useAuth() {
@@ -226,8 +229,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (currentUser && (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "USER_UPDATED")) {
            console.log(`[AuthProvider] Fetching data for ${event}...`);
            setLoading(true); // Ensure loading is true when fetching data
-           fetchUserData(currentUser.id, currentUser).finally(() => {
-             if (isMounted) setLoading(false);
+
+           // Add a safety timeout to ensure loading state doesn't hang forever on slow connections
+           const fetchPromise = fetchUserData(currentUser.id, currentUser);
+           const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 15000));
+
+           Promise.race([fetchPromise, timeoutPromise]).finally(() => {
+             if (isMounted) {
+               console.log(`[AuthProvider] Finalizing loading for ${event}`);
+               setLoading(false);
+             }
            });
         } else if (event === "SIGNED_OUT") {
            // Double-check that the session is truly gone before clearing data.
@@ -260,15 +271,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const fetchUserData = useCallback(async (userId: string, authUser?: User | null) => {
+    if (!userId) return;
+    
     try {
       addLog(`Fetch start UID: ${userId.slice(0, 8)}...`);
       console.log(`[AuthProvider] fetchUserData for ${userId}`);
       
-      // Lovable typically uses 'members' table
+      // 1. Fetch Profile
       const { data: profileData, error: profileError } = await supabase
         .from("members")
         .select("*")
-        .eq("id", userId) // Fixed from user_id to id
+        .eq("id", userId)
         .maybeSingle();
 
       if (profileError) {
@@ -277,17 +290,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (profileData) {
-        addLog(`Profile OK: ${profileData.name || profileData.email}`);
         console.log("[AuthProvider] Profile found:", profileData.id);
-        setProfile(profileData as MemberProfile);
+        
+        // If profile exists but gender is missing, and we have it in metadata, update it.
+        // This handles cases where a DB trigger created the row without metadata.
+        const metadataGender = (authUser?.user_metadata?.gender as string)?.toLowerCase() || null;
+        if (!profileData.gender && metadataGender) {
+          console.log("[AuthProvider] Gender missing in profile, updating from metadata:", metadataGender);
+          const { data: updatedProfile } = await supabase
+            .from("members")
+            .update({ gender: metadataGender })
+            .eq("id", userId)
+            .select()
+            .maybeSingle();
+          
+          if (updatedProfile) {
+            setProfile(updatedProfile as MemberProfile);
+          } else {
+            setProfile(profileData as MemberProfile);
+          }
+        } else {
+          setProfile(profileData as MemberProfile);
+        }
+        
         await loadLocalAddress(profileData as MemberProfile);
       } else {
-        addLog("No profile found.");
-        console.warn("[AuthProvider] No profile row found for user:", userId, "Creating one...");
-        
+        console.log("[AuthProvider] No profile found, auto-creating...");
         // Auto-create profile if missing
         const metadataGender = (authUser?.user_metadata?.gender as string)?.toLowerCase() || null;
-        console.log("[AuthProvider] Auto-creating profile with gender:", metadataGender);
         
         const { data: newProfile, error: createError } = await supabase
           .from("members")
@@ -304,50 +334,110 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (createError) {
           console.error("[AuthProvider] Error creating profile:", createError.message);
+          // If we fail to create (e.g. race condition), try one more select
+          const { data: retryProfile } = await supabase
+            .from("members")
+            .select("*")
+            .eq("id", userId)
+            .maybeSingle();
+          if (retryProfile) setProfile(retryProfile as MemberProfile);
         } else if (newProfile) {
-          console.log("[AuthProvider] Profile created successfully. Gender:", newProfile.gender);
           setProfile(newProfile as MemberProfile);
           await loadLocalAddress(newProfile as MemberProfile);
         }
       }
       
-      // Fetch minutes - Lovable uses 'member_minutes'
-      const { data: minutesData, error: minError } = await supabase
-        .from("member_minutes")
-        .select("*")
-        .eq("user_id", userId)
-        .maybeSingle();
+      // 2. Fetch Minutes (Source of truth: earn-minutes edge function)
+      try {
+        const { data: balanceData, error: balanceError } = await supabase.functions.invoke("earn-minutes", {
+          body: { type: "get_balance", userId },
+        });
 
-      if (minError) {
-        console.warn("[AuthProvider] Minutes fetch error:", minError.message);
-        addLog(`Minutes Error: ${minError.message}`);
-      }
+        if (!balanceError && balanceData?.success) {
+          console.log("[AuthProvider] Balance fetched from edge function:", balanceData);
+          
+          // Fetch the actual row to get other fields (vip status, etc.)
+          const { data: minutesData } = await supabase
+            .from("member_minutes")
+            .select("*")
+            .eq("user_id", userId)
+            .maybeSingle();
 
-      if (minutesData) {
-        addLog("Minutes OK");
-        console.log("[AuthProvider] Minutes found for user:", userId);
-        const transformedData = {
-          ...minutesData,
-          total_minutes: (minutesData.minutes || 0) + (minutesData.ad_points || 0) + (minutesData.gifted_minutes || 0),
-        };
-        setMinutes(transformedData as MemberMinutes);
-      } else {
-        addLog("Creating minutes row...");
-        console.log("[AuthProvider] Creating missing minutes row for user:", userId);
-        const { data: newMin } = await supabase
-          .from("member_minutes")
-          .insert({ user_id: userId, minutes: 0 })
-          .select()
-          .maybeSingle();
-        
-        if (newMin) {
-          addLog("Minutes created OK");
-          const transformedData = {
-            ...newMin,
-            total_minutes: (newMin.minutes || 0) + (newMin.ad_points || 0) + (newMin.gifted_minutes || 0),
-          };
-          setMinutes(transformedData as MemberMinutes);
+          if (minutesData) {
+            const transformedData = {
+              ...minutesData,
+              // If the API provides totalMinutes, it's the lifetime total.
+              // The current spendable balance in DB is minutesData.minutes.
+              lifetime_earned: balanceData.totalMinutes ?? minutesData.total_minutes ?? 0,
+              minutes: balanceData.currentMinutes ?? balanceData.minutes ?? minutesData.minutes ?? 0,
+              gifted_minutes: balanceData.giftedMinutes ?? minutesData.gifted_minutes ?? 0,
+              // total_minutes is used in store/modals as the total spendable balance
+              total_minutes: (balanceData.currentMinutes ?? balanceData.minutes ?? minutesData.minutes ?? 0) + 
+                             (balanceData.giftedMinutes ?? minutesData.gifted_minutes ?? 0) + 
+                             (minutesData.ad_points || 0),
+              is_frozen: balanceData.isFrozen ?? minutesData.is_frozen ?? false,
+            };
+            setMinutes(transformedData as MemberMinutes);
+
+            // Sync membership title
+            if (transformedData.is_vip && transformedData.vip_tier) {
+              const newMembership = transformedData.vip_tier.charAt(0).toUpperCase() + transformedData.vip_tier.slice(1);
+              setProfile(prev => prev ? { ...prev, membership: newMembership } : null);
+            } else if (!transformedData.is_vip) {
+              setProfile(prev => prev ? { ...prev, membership: 'Free' } : null);
+            }
+          } else {
+            // Create row if missing, using balance from edge function
+            const { data: newMin } = await supabase
+              .from("member_minutes")
+              .insert({ 
+                user_id: userId, 
+                minutes: balanceData.totalMinutes,
+                total_minutes: balanceData.totalMinutes,
+                gifted_minutes: balanceData.giftedMinutes ?? 0,
+                is_frozen: balanceData.isFrozen ?? false
+              })
+              .select()
+              .maybeSingle();
+            
+            if (newMin) {
+              setMinutes({
+                ...newMin,
+                lifetime_earned: balanceData.totalMinutes,
+                total_minutes: (balanceData.totalMinutes || 0) + (balanceData.giftedMinutes ?? 0),
+              } as MemberMinutes);
+            }
+          }
+        } else {
+          // Fallback to direct table query if edge function fails
+          console.warn("[AuthProvider] Fallback to direct minutes fetch:", balanceError?.message);
+          const { data: minutesData } = await supabase
+            .from("member_minutes")
+            .select("*")
+            .eq("user_id", userId)
+            .maybeSingle();
+
+          if (minutesData) {
+            const transformedData = {
+              ...minutesData,
+              lifetime_earned: minutesData.total_minutes ?? 0,
+              total_minutes: (minutesData.minutes || 0) + (minutesData.ad_points || 0) + (minutesData.gifted_minutes || 0),
+            };
+            setMinutes(transformedData as MemberMinutes);
+          } else {
+            // Auto-create
+            const { data: newMin } = await supabase
+              .from("member_minutes")
+              .insert({ user_id: userId, minutes: 0 })
+              .select()
+              .maybeSingle();
+            if (newMin) {
+              setMinutes({ ...newMin, total_minutes: 0, lifetime_earned: 0 } as MemberMinutes);
+            }
+          }
         }
+      } catch (err) {
+        console.error("[AuthProvider] Minutes fetch fatal error:", err);
       }
 
       // Fetch freeze settings
@@ -401,6 +491,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (data) {
         const transformedData = {
           ...data,
+          lifetime_earned: data.total_minutes ?? 0,
           total_minutes: (data.minutes || 0) + (data.ad_points || 0) + (data.gifted_minutes || 0),
         };
         setMinutes(transformedData as MemberMinutes);
@@ -409,6 +500,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setMinutes(prev => prev ? {
           ...prev,
           ...updates,
+          lifetime_earned: updates.total_minutes ?? prev.lifetime_earned ?? 0,
           total_minutes: (prev.minutes || 0) + (prev.ad_points || 0) + (prev.gifted_minutes || 0),
         } : prev);
       }
@@ -418,8 +510,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user]);
 
-  const updateProfile = useCallback(async (updates: Partial<MemberProfile>) => {
-    if (!user?.id || !profile?.id) return;
+  const updateMinutesFromRow = useCallback((row: any) => {
+    if (!row) return;
+    const transformedData = {
+      ...row,
+      lifetime_earned: row.total_minutes ?? 0,
+      total_minutes: (row.minutes || 0) + (row.ad_points || 0) + (row.gifted_minutes || 0),
+    };
+    setMinutes(transformedData as MemberMinutes);
+  }, []);
+
+  const updateProfile = useCallback(async (updates: Partial<MemberProfile>, skipSync = false) => {
+    if (!user?.id || !profile) return;
     try {
       console.log("[AuthContext] updateProfile start for user_id:", user.id, "updates:", updates);
       
@@ -472,7 +574,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           throw error;
         }
         
-        if (data) {
+        if (data && !skipSync) {
           console.log("[AuthContext] updateProfile success:", data.id);
           // Merge local updates back into profile state
           setProfile(prev => prev ? { ...prev, ...data, ...localUpdates } : null);
@@ -496,17 +598,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const syncVipStatus = useCallback(async () => {
     if (!user?.id) return;
     try {
-      const { data: updatedMinutes, error: updateError } = await supabase
-        .from('member_minutes')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      if (updateError) throw updateError;
-      if (updatedMinutes) setMinutes(updatedMinutes as MemberMinutes);
+      // Use fetchUserData to get the latest from edge function and DB in one go
+      await fetchUserData(user.id, user);
     } catch (err) {
       console.error("Error syncing VIP status:", err);
     }
-  }, [user]);
+  }, [user, fetchUserData]);
 
   const signOut = useCallback(async () => {
     try {
@@ -531,6 +628,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         updateMinutes,
         updateProfile,
         syncVipStatus,
+        updateMinutesFromRow,
       }}
     >
       {children}

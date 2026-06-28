@@ -1,4 +1,5 @@
-import { Platform } from 'react-native';
+import { supabase } from "@/lib/supabase";
+import { Platform } from "react-native";
 
 export const getTimeAgo = (dateStr: string | null): string => {
   if (!dateStr) return 'Offline';

@@ -24,11 +24,12 @@ import {
   getProducts,
 } from '@/lib/iap-import';
 import { supabase } from '@/lib/supabase';
-import { invokeIAP } from '@/lib/iap-supabase';
+import { invokeIAP, invokeBountyWebhook, getIAPOriginalTransactionId, getIAPSubscriptionEnd } from '@/lib/iap-supabase';
 import { IAP_SUBSCRIPTIONS, IAP_PRODUCTS, MINUTE_BUNDLES } from '@/lib/iap';
 import { useAuth } from '@/contexts/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { resolveGiftPurchase, hasActiveGiftResolver } from '@/lib/gift-utils';
+import { useQueryClient } from '@tanstack/react-query';
 
 const ALL_SUBSCRIPTION_SKUS = [
   IAP_SUBSCRIPTIONS.BASIC_VIP,
@@ -54,10 +55,11 @@ const LOCALLY_HANDLED_SKUS = [
 const PENDING_GIFT_KEY = "pending_gift_recipient";
 
 export function useIAPListener() {
-  const { user, refreshProfile } = useAuth();
+  const { user, refreshProfile, syncVipStatus, updateMinutesFromRow, minutes, updateProfile } = useAuth();
   const offerTokensRef = useRef<Record<string, string>>({});
   // Track processed transaction IDs to avoid double-processing
   const processedRef = useRef<Set<string>>(new Set());
+  const queryClient = useQueryClient();
 
   const verifyAndFinish = useCallback(async (purchase: any) => {
     const { productId, transactionId, transactionReceipt, purchaseToken } = purchase as any;
@@ -135,12 +137,38 @@ export function useIAPListener() {
       // ── Subscription (VIP) ──────────────────────────────────────────────
       const isSubscription = ALL_SUBSCRIPTION_SKUS.some(sku => sku.toLowerCase() === productIdLower);
       if (isSubscription) {
-        console.log('[IAP] Verifying subscription with backend:', productId);
-        const { data, error } = await invokeIAP({
+        console.log('[IAP] Verifying VIP subscription:', productId);
+        
+        // 1. Primary VIP activation via verify-subscription
+        const { data: verifyData, error: verifyError } = await invokeIAP({
           action: 'verify-subscription',
           sku: productId,
           purchaseToken: token,
           platform: Platform.OS,
+          transactionId,
+        });
+
+        if (verifyError) {
+          console.error('[IAP] verify-subscription error:', verifyError);
+          // We continue to bounty webhook even if this fails, as bounty might succeed 
+          // and it also updates VIP status.
+        }
+
+        // After IAP success, POST the receipt to the corresponding Bounty webhook
+        // (apple-bounty-webhook on iOS, google-bounty-webhook on Android). These
+        // bounty-aware endpoints verify the receipt, upgrade VIP status, and award
+        // referral bounties for male subscribers. `token` is the JWS receipt on iOS
+        // and the purchase token on Android.
+        console.log('[IAP] Verifying subscription with bounty webhook:', productId);
+        const originalTransactionId = getIAPOriginalTransactionId(purchase as Record<string, unknown>);
+        const subscriptionEnd = getIAPSubscriptionEnd(purchase as Record<string, unknown>);
+        const { data, error } = await invokeBountyWebhook(Platform.OS, {
+          sku: productId,
+          purchaseToken: token,
+          platform: Platform.OS,
+          transactionId,
+          original_transaction_id: originalTransactionId,
+          subscription_end: subscriptionEnd,
         });
         if (error) {
           console.error('[IAP] Edge function error:', error);
@@ -149,29 +177,68 @@ export function useIAPListener() {
         
         console.log('[IAP] Backend verification response:', data);
         
-        if (data?.success) {
+        // If either the primary verify or the bounty webhook succeeded, we're good
+        if (verifyData?.success || data?.success) {
           await finishTransaction({ purchase, isConsumable: false });
           
-          // Poll for profile refresh — sometimes DB takes a moment to update
-          let refreshAttempts = 0;
-          const pollRefresh = async () => {
-            await refreshProfile();
-            // If still not VIP, try again in 2 seconds (up to 3 times)
-            // Note: we can't easily check isVip here without looking at AuthContext state
-            // so we'll just do a guaranteed second refresh after a delay.
-            if (refreshAttempts < 2) {
-              refreshAttempts++;
-              setTimeout(pollRefresh, 2000);
+          // 1. Clear any local VIP caches (AsyncStorage + React Query)
+          if (user?.id) {
+            try {
+              await AsyncStorage.removeItem(`vip_status_${user.id}`);
+              console.log('[IAP] Local VIP cache cleared for:', user.id);
+              
+              // Invalidate discover_members cache to show VIP badge immediately
+              queryClient.invalidateQueries({ queryKey: ["discover_members", user.id] });
+              console.log('[IAP] React Query cache invalidated for discover_members');
+            } catch (e) {
+              console.warn('[IAP] Failed to clear VIP cache:', e);
             }
-          };
+          }
+
+          // 2. Update local state immediately from response (FAST SYNC)
+          const resultData = verifyData?.success ? verifyData : data;
+          if (resultData.member_minutes) {
+            console.log('[IAP] Updating minutes immediately from backend response row');
+            updateMinutesFromRow(resultData.member_minutes);
+            
+            // 1.5 Update profile membership locally and in DB
+            if (resultData.member_minutes.is_vip && resultData.member_minutes.vip_tier) {
+              const tier = resultData.member_minutes.vip_tier;
+              const newMembership = tier.charAt(0).toUpperCase() + tier.slice(1);
+              console.log('[IAP] Updating profile membership to:', newMembership);
+              updateProfile({ membership: newMembership }, true);
+            }
+
+            // Proactively trigger a full sync to update profile membership too
+            syncVipStatus();
+          } else {
+            // Fallback: trigger a manual check-subscription if the row is missing
+            console.log('[IAP] No member_minutes in response, calling check-subscription as fallback...');
+            invokeIAP({ action: 'check-subscription' }).then(({ data: syncData }) => {
+              if (syncData?.member_minutes) {
+                updateMinutesFromRow(syncData.member_minutes);
+              } else {
+                syncVipStatus();
+              }
+            }).catch(() => syncVipStatus());
+          }
+
+          // 3. Immediate and follow-up refreshes
+          await refreshProfile();
           
-          await pollRefresh();
+          // Second safety refresh after a short delay to catch everything
+          setTimeout(() => refreshProfile(), 2000);
+
           console.log('[IAP] VIP subscription verified and finished:', productId);
-          Alert.alert('🎉 Welcome to VIP!', 'Your subscription is now active. If you don\'t see the features yet, try restarting the app.');
+          
+          // Only show alert if user isn't already VIP (avoid duplicate alerts)
+          if (!minutes?.is_vip) {
+            Alert.alert('🎉 Welcome to VIP!', 'Your subscription is now active. Enjoy your VIP perks!');
+          }
         } else {
-          console.error('[IAP] Backend verification failed:', data);
-          const errorMsg = data?.error || 'Subscription verification failed';
-          const debugMsg = data?.debugInfo ? `\n\nDebug: ${data.debugInfo}` : '';
+          console.error('[IAP] Backend verification failed:', verifyData?.error || data?.error);
+          const errorMsg = verifyData?.error || data?.error || 'Subscription verification failed';
+          const debugMsg = (verifyData?.debugInfo || data?.debugInfo) ? `\n\nDebug: ${verifyData?.debugInfo || data?.debugInfo}` : '';
           throw new Error(`${errorMsg}${debugMsg}`);
         }
         return;

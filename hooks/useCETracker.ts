@@ -55,14 +55,14 @@ export const useCETracker = () => {
         updates.last_streak_login_at = now.toISOString();
       } else {
         // Missed ≥1 day — apply decay for each missed day, reset streak
-        let decayed = chance_enhancer;
+        let decayed = Number(chance_enhancer) || minCE;
         const missedDays = dayDiff - 1; // days with no login
         for (let i = 0; i < missedDays; i++) {
           decayed = decayed * (1 - decayFactor);
         }
         // Enforce floor after decay
-        decayed = Math.max(minCE, Math.round(decayed * 10) / 10);
-        updates.chance_enhancer = decayed;
+        const finalDecayed = Math.max(minCE, Math.round(decayed * 10) / 10);
+        updates.chance_enhancer = isNaN(finalDecayed) ? minCE : finalDecayed;
         updates.login_streak = 1;
         updates.last_streak_login_at = now.toISOString();
       }
@@ -73,8 +73,8 @@ export const useCETracker = () => {
     }
 
     // Enforce minimum CE floor regardless (in case they were at 0)
-    const currentCE = (updates.chance_enhancer ?? chance_enhancer);
-    if (currentCE < minCE) {
+    const currentCE = Number(updates.chance_enhancer ?? chance_enhancer);
+    if (isNaN(currentCE) || currentCE < minCE) {
       updates.chance_enhancer = minCE;
     }
 

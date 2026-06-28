@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.get_user_free_msg_status(uuid) TO anon, authenticated;

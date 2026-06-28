@@ -68,6 +68,22 @@ Deno.serve(async (req) => {
             connected_at: new Date().toISOString(),
           });
 
+          // Create bounty attribution if it's a Male-Female pair
+          const maleId = partner.member_gender?.toLowerCase() === "male" ? partner.member_id : (memberGender?.toLowerCase() === "male" ? memberId : null);
+          const femaleId = partner.member_gender?.toLowerCase() === "female" ? partner.member_id : (memberGender?.toLowerCase() === "female" ? memberId : null);
+
+          if (maleId && femaleId) {
+            const expiresAt = new Date();
+            expiresAt.setDate(expiresAt.getDate() + 30); // 30 day window
+            
+            await supabase.from("bounty_attributions").upsert({
+              male_id: maleId,
+              female_id: femaleId,
+              last_interaction_at: new Date().toISOString(),
+              expires_at: expiresAt.toISOString(),
+            }, { onConflict: "male_id,female_id" });
+          }
+
           return new Response(
             JSON.stringify({
               success: true,
@@ -131,6 +147,22 @@ Deno.serve(async (req) => {
           status: "connected",
           connected_at: new Date().toISOString(),
         });
+
+        // Create bounty attribution if it's a Male-Female pair
+        const maleIdMatched = partner.member_gender?.toLowerCase() === "male" ? partner.member_id : (memberGender?.toLowerCase() === "male" ? memberId : null);
+        const femaleIdMatched = partner.member_gender?.toLowerCase() === "female" ? partner.member_id : (memberGender?.toLowerCase() === "female" ? memberId : null);
+
+        if (maleIdMatched && femaleIdMatched) {
+          const expiresAtMatched = new Date();
+          expiresAtMatched.setDate(expiresAtMatched.getDate() + 30); // 30 day window
+          
+          await supabase.from("bounty_attributions").upsert({
+            male_id: maleIdMatched,
+            female_id: femaleIdMatched,
+            last_interaction_at: new Date().toISOString(),
+            expires_at: expiresAtMatched.toISOString(),
+          }, { onConflict: "male_id,female_id" });
+        }
 
         return new Response(
           JSON.stringify({

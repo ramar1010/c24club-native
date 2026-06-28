@@ -323,27 +323,50 @@ export default function DiscoverScreen() {
         member: membersMap.get(item.user_id)
       }));
 
-      const IS_NEW_MS = 48 * 60 * 60 * 1000;
+      // --- SORTING LOGIC START ---
+      // Priority 1 & 2: Admin/Mod Role
+      // Priority 3: Activity Bucket (0-4)
+      // Priority 4: VIP status (only within bucket)
+      // Priority 5: last_active_at (Tiebreaker)
 
-      const getPriority = (m: any) => {
-        if (adminIds.has(m.id)) return 0;
-        if (modIds.has(m.id)) return 1;
-        if (vipIds.has(m.id)) return 2;
-        if (Date.now() - new Date(m.created_at).getTime() < IS_NEW_MS) return 3;
+      const getActivityBucket = (lastActive: string | null) => {
+        if (!lastActive) return 4;
+        const diff = Date.now() - new Date(lastActive).getTime();
+        const mins = diff / 60000;
+        if (mins <= 5) return 0;
+        if (mins <= 60) return 1;
+        if (mins <= 1440) return 2; // 24h
+        if (mins <= 10080) return 3; // 7d
         return 4;
       };
 
-      // Sort: Admin(0) → Mod(1) → VIP(2) → New(3) → Regular(4)
-      // Within each tier, sort by last_active_at descending
       const sorted = [...raw].sort((a, b) => {
-        const pa = getPriority(a);
-        const pb = getPriority(b);
-        if (pa !== pb) return pa - pb;
-        return (
-          new Date(b.last_active_at || 0).getTime() -
-          new Date(a.last_active_at || 0).getTime()
-        );
+        // 1. Admins at the top
+        const aAdmin = adminIds.has(a.id);
+        const bAdmin = adminIds.has(b.id);
+        if (aAdmin !== bAdmin) return aAdmin ? -1 : 1;
+
+        // 2. Moderators next
+        const aMod = modIds.has(a.id);
+        const bMod = modIds.has(b.id);
+        if (aMod !== bMod) return aMod ? -1 : 1;
+
+        // 3. Activity Buckets
+        const aBucket = getActivityBucket(a.last_active_at);
+        const bBucket = getActivityBucket(b.last_active_at);
+        if (aBucket !== bBucket) return aBucket - bBucket;
+
+        // 4. VIP status (within same bucket)
+        const aVip = vipIds.has(a.id);
+        const bVip = vipIds.has(b.id);
+        if (aVip !== bVip) return aVip ? -1 : 1;
+
+        // 5. Tiebreaker: last_active_at descending
+        const aTime = new Date(a.last_active_at || 0).getTime();
+        const bTime = new Date(b.last_active_at || 0).getTime();
+        return bTime - aTime;
       });
+      // --- SORTING LOGIC END ---
 
       return {
         members: sorted,
@@ -821,7 +844,7 @@ export default function DiscoverScreen() {
                     <TextInput
                       style={styles.socialEditInput}
                       value={myPinnedSocials[platform] ?? ""}
-                      onChangeText={(val) =>
+                      onChangeText={(val: string) =>
                         setMyPinnedSocials((prev) => ({ ...prev, [platform]: val }))
                       }
                       placeholder={`username`}
@@ -1016,7 +1039,7 @@ filter === pill ? styles.filterPillTextActive : null,
                 <Text style={styles.badgeCountText}>{gifted}</Text>
               </View>
             )}
-            <Text style={styles.giftedButtonText}>Cash Out</Text>
+            <Text style={styles.giftedButtonText}>Redeem</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.dmsButton} activeOpacity={0.8} onPress={() => router.push("/(tabs)/messages")}>
             <MessageSquare size={14} color="#3B82F6" />
@@ -1054,6 +1077,7 @@ filter === pill ? styles.filterPillTextActive : null,
         ListHeaderComponent={renderHeader}
         contentContainerStyle={styles.gridContent}
         columnWrapperStyle={styles.columnWrapper}
+        removeClippedSubviews={false}
         renderItem={({ item }) => (
           <UserCard
             member={item}
@@ -1149,6 +1173,10 @@ filter === pill ? styles.filterPillTextActive : null,
         onGiftSent={() => {
           setShowGiftModal(false);
           setShowGiftCelebration(true);
+          // Invalidate gift history and minutes queries
+          queryClient.invalidateQueries({ queryKey: ["gift_history"] });
+          queryClient.invalidateQueries({ queryKey: ["gifted_minutes"] });
+          refreshProfile(); // Also refresh local auth state
         }}
       />
 

@@ -135,6 +135,18 @@ export const createGiftCheckout = (
       return;
     }
 
+    // Safety timeout: if no result in 45s, resolve with error to unblock UI
+    const timeout = setTimeout(() => {
+      _giftResolvers.delete(tier.sku.toLowerCase());
+      resolve({ success: false, error: "Transaction timed out. Please check your App Store history or try again." });
+    }, 45000);
+
+    const originalResolve = resolve;
+    const resolveWithTimeout = (res: GiftResult) => {
+      clearTimeout(timeout);
+      originalResolve(res);
+    };
+
     try {
       // 1. Store recipient for crash recovery (global listener reads this on restart)
       await AsyncStorage.setItem(
@@ -144,7 +156,7 @@ export const createGiftCheckout = (
 
       // 2. Register our resolver — global listener will call resolveGiftPurchase()
       //    when the transaction is verified and finished.
-      registerGiftResolver(tier.sku, resolve);
+      registerGiftResolver(tier.sku, resolveWithTimeout);
 
       // 3. Prefetch SKU so StoreKit 2 recognizes it before purchase
       console.log(`[createGiftCheckout] Prefetching SKU: ${tier.sku}`);
@@ -157,7 +169,7 @@ export const createGiftCheckout = (
           apple: { sku: tier.sku, quantity: 1 },
           android: { skus: [tier.sku] },
         },
-        type: 'inapp',
+        type: 'in-app',
       });
 
     } catch (err: any) {
@@ -167,6 +179,7 @@ export const createGiftCheckout = (
 
       // Clean up resolver since we're resolving here
       _giftResolvers.delete(tier.sku.toLowerCase());
+      clearTimeout(timeout);
 
       if (code === "E_USER_CANCELLED" || code === "2") {
         await AsyncStorage.removeItem(`${PENDING_GIFT_KEY}_${tier.sku.toLowerCase()}`);
@@ -300,7 +313,7 @@ export const purchaseUnfreeze = (): Promise<{ success: boolean; error?: string }
           apple: { sku, quantity: 1 },
           android: { skus: [sku] },
         },
-        type: 'inapp',
+        type: 'in-app',
       });
     } catch (err: any) {
       resolve({ success: false, error: err.message });

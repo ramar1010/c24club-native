@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import { Alert, Linking, Platform, DeviceEventEmitter } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
-import { Alert, Linking, Platform, DeviceEventEmitter } from 'react-native';
 import { dlog, markSession } from '@/lib/debug-log';
 
 export type InviteStatus = 'pending' | 'accepted' | 'declined' | 'expired' | 'hangup';

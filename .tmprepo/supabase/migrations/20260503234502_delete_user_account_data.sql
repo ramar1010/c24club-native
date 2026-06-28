@@ -1,0 +1,29 @@
+CREATE OR REPLACE FUNCTION public.delete_user_account_data(target_user_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  -- Delete from tables that reference the user
+  DELETE FROM public.member_interests WHERE user_id = target_user_id OR interested_in_user_id = target_user_id;
+  DELETE FROM public.gift_transactions WHERE sender_id = target_user_id OR recipient_id = target_user_id;
+  DELETE FROM public.cashout_requests WHERE user_id = target_user_id;
+  DELETE FROM public.user_bans WHERE user_id = target_user_id;
+  DELETE FROM public.user_reports WHERE reporter_id = target_user_id OR reported_user_id = target_user_id;
+  DELETE FROM public.push_notification_log WHERE user_id = target_user_id;
+  DELETE FROM public.male_search_batch_log WHERE female_user_id = target_user_id;
+  DELETE FROM public.blocked_users WHERE blocker_id = target_user_id OR blocked_id = target_user_id;
+  
+  -- The following have ON DELETE CASCADE to members(id) or auth.users(id)
+  -- but we'll delete them explicitly just in case or to be thorough
+  DELETE FROM public.member_minutes WHERE user_id = target_user_id;
+  DELETE FROM public.vip_settings WHERE user_id = target_user_id;
+  
+  -- Finally delete the member record
+  DELETE FROM public.members WHERE id = target_user_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.delete_user_account_data(uuid) TO service_role;
+GRANT EXECUTE ON FUNCTION public.delete_user_account_data(uuid) TO authenticated;

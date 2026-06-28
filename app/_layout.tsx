@@ -4,7 +4,7 @@ import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect } from "react";
-import "react-native-reanimated";
+// import "react-native-reanimated"; // Removed to fix web preview error
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as Notifications from "expo-notifications";
 import { Platform, Pressable, Text, View, DeviceEventEmitter } from "react-native";
@@ -22,7 +22,9 @@ import { useDmToast } from "@/hooks/useDmToast";
 import { useGiftToast } from "@/hooks/useGiftToast";
 import { useBanCheck } from "@/hooks/useBanCheck";
 import { useIAPListener } from "@/hooks/useIAPListener";
+import { useHeartbeat } from "@/hooks/useHeartbeat";
 import BannedScreen from "@/components/BannedScreen";
+import MissingGenderScreen from "@/components/MissingGenderScreen";
 import BatteryOptimizationPrompt from "@/components/BatteryOptimizationPrompt";
 import { useRedemptionNotifications } from "@/hooks/useRedemptionNotifications";
 import { Modal } from "react-native";
@@ -133,7 +135,7 @@ const queryClient = new QueryClient({
 
 function RootLayoutInner({ colorScheme, loaded }: { colorScheme: any; loaded: boolean }) {
   const auth = useAuth();
-  const { session, loading } = auth || { session: null, loading: true };
+  const { session, profile, loading } = auth || { session: null, profile: null, loading: true };
   const segments = useSegments();
   const router = useRouter();
   const { directCallInviteId, clearDirectCall } = useCall();
@@ -151,6 +153,9 @@ function RootLayoutInner({ colorScheme, loaded }: { colorScheme: any; loaded: bo
 
   // Global IAP listener — catches unfinished transactions on every app open
   useIAPListener();
+
+  // Activity heartbeat — updates last_active_at every 5 minutes while in foreground
+  useHeartbeat();
 
   // Register push notifications once auth is loaded and a session exists
   usePushNotifications();
@@ -189,6 +194,16 @@ function RootLayoutInner({ colorScheme, loaded }: { colorScheme: any; loaded: bo
         <BannedScreen ban={banData} onUnbanned={() => { clearBan(); recheckBan(); }} />
         <StatusBar style="auto" />
         <Toast config={toastConfig} />
+      </GluestackInitializer>
+    );
+  }
+
+  // ── Missing Gender overlay ────────────────────────────────────────────────
+  if (!loading && session && profile && !profile.gender) {
+    return (
+      <GluestackInitializer colorScheme={colorScheme}>
+        <MissingGenderScreen />
+        <StatusBar style="auto" />
       </GluestackInitializer>
     );
   }

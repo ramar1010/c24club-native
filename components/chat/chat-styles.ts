@@ -252,17 +252,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  reportBtn: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   localPip: {
     position: 'absolute',
     bottom: 12,
@@ -334,7 +323,7 @@ const styles = StyleSheet.create({
   topicsTab: {
     position: 'absolute',
     left: -28,
-    top: '28%',
+    top: '50%',
     backgroundColor: 'rgba(0,0,0,0.75)',
     paddingVertical: 8,
     paddingHorizontal: 12,
@@ -374,11 +363,18 @@ const styles = StyleSheet.create({
   // ─── Gender filter ────────────────────────────────────────────────────────
   genderFilterRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 12,
+    marginHorizontal: 16,
+  },
+  genderFilterSegmented: {
+    flex: 1,
+    flexDirection: 'row',
     backgroundColor: '#2A2A4A',
     borderRadius: 50,
     padding: 5,
-    marginBottom: 12,
-    marginHorizontal: 16,
   },
   genderPill: {
     flex: 1,
@@ -400,6 +396,48 @@ const styles = StyleSheet.create({
   genderPillTextActive: {
     color: '#FFFFFF',
     fontWeight: '900',
+  },
+  genderCircleBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#2A2A4A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#3A3A5A',
+  },
+  genderCircleBtnActive: {
+    backgroundColor: '#EF4444',
+    borderColor: '#EF4444',
+  },
+  genderOptionList: {
+    gap: 12,
+    marginTop: 8,
+  },
+  genderOptionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#2A2A4A',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#3A3A5A',
+  },
+  genderOptionBtnActive: {
+    borderColor: '#EF4444',
+    backgroundColor: 'rgba(239,68,68,0.1)',
+  },
+  genderOptionText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  genderOptionTextActive: {
+    color: '#EF4444',
+    fontWeight: '800',
   },
 
   // ─── Bottom bar ───────────────────────────────────────────────────────────
@@ -786,6 +824,54 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
     marginTop: 12,
+  },
+
+  // ─── Message Me Button & Prompt ───────────────────────────────────────────
+  messageMeBtn: {
+    flex: 1,
+    backgroundColor: '#FACC15',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 0,
+    marginHorizontal: 0,
+    borderWidth: 2,
+    borderColor: '#EAB308',
+    elevation: 4,
+    shadowColor: '#FACC15',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+  },
+  messageMeBtnText: {
+    color: '#000000',
+    fontSize: 15,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  femalePromptContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(236, 72, 153, 0.15)',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#EC4899',
+    marginBottom: 0,
+    marginHorizontal: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
+  },
+  femalePromptText: {
+    color: '#EC4899',
+    fontSize: 12,
+    fontWeight: '800',
+    textAlign: 'center',
   },
 });
 

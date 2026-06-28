@@ -83,6 +83,14 @@ interface RewardSpinModalProps {
   onWin?: (redemptionId: string) => void;
   selectedSize?: string | null;
   selectedColor?: string | null;
+  shippingData?: {
+    name: string;
+    street: string;
+    city: string;
+    state: string;
+    zip: string;
+    country: string;
+  } | null;
 }
 
 export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
@@ -92,6 +100,7 @@ export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
   onWin,
   selectedSize,
   selectedColor,
+  shippingData,
 }) => {
   const { user, profile, minutes, refreshProfile, updateProfile } = useAuth();
   useCETracker();
@@ -298,6 +307,13 @@ export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
             minutes_cost: isSecondChance ? 0 : reward.minutes_cost,
             selected_color: selectedColor ?? null,
             status: 'processing',
+            // Pass the pre-collected shipping data directly to the new record
+            shipping_name: shippingData?.name ?? null,
+            shipping_address: shippingData?.street ?? null,
+            shipping_city: shippingData?.city ?? null,
+            shipping_state: shippingData?.state ?? null,
+            shipping_zip: shippingData?.zip ?? null,
+            shipping_country: shippingData?.country ?? null,
           }).select('id').single();
 
           if (data?.id) {
@@ -308,9 +324,10 @@ export const RewardSpinModal: React.FC<RewardSpinModalProps> = ({
           console.error('Error creating redemption:', e);
         }
 
-        // For physical rewards, show shipping form.
+        // For physical rewards, show shipping form if NOT pre-collected.
+        // If we already have shippingData from the parent, we don't need to show the form.
         if (winItem.type === 'physical') {
-          if (winItem.rarity !== 'legendary') {
+          if (winItem.rarity !== 'legendary' && !shippingData) {
             setShowShippingForm(true);
           }
         }

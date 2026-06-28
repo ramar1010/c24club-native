@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>212900711433-81ll0bcmetnektpaaqks8mr0l8ou09fi.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.212900711433-81ll0bcmetnektpaaqks8mr0l8ou09fi</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>212900711433-dvgehjcs0qvcbmumd19ai6d2c2e6dolg.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyB7EgiH2nide7MSZH_dYn31onsHFwf9cr4</string>
+	<key>GCM_SENDER_ID</key>
+	<string>212900711433</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.c24club.app</string>
+	<key>PROJECT_ID</key>
+	<string>c24club-lovable</string>
+	<key>STORAGE_BUCKET</key>
+	<string>c24club-lovable.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:212900711433:ios:fc2a1264bf29f576bf7cd8</string>
+</dict>
+</plist>
