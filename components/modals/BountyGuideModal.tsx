@@ -49,7 +49,7 @@ const STEPS: Step[] = [
     color: "#F59E0B",
     tint: "rgba(245, 158, 11, 0.12)",
     title: "Convince them to subscribe",
-    desc: "Encourage the guys you talk to to upgrade to Basic or Premium VIP membership.",
+    desc: "Guys can only send 3 free messages before they must buy VIP to keep chatting. Encourage them to upgrade to Basic or Premium VIP — a flirty follow-up often converts!",
   },
   {
     icon: Star,
@@ -140,7 +140,7 @@ export const BountyGuideModal: React.FC<BountyGuideModalProps> = ({
           </View>
           <Text style={styles.title}>Earn Money DMing Guys</Text>
           <Text style={styles.subtitle}>
-            Get paid in cash when the guys you chat with go VIP.
+            Get paid in cash when the guys you chat with go VIP. Guys can only send 3 free messages before they must buy VIP to keep chatting — so a flirty follow-up often converts.
           </Text>
         </View>
 

@@ -495,6 +495,7 @@ export default function HomeScreen() {
                 style={styles.earnGradient}
               >
                 <Text style={styles.earnText}>💰 Earn Money DMing Guys</Text>
+                <Text style={styles.earnSubText}>Guys get 3 free messages before needing VIP — a flirty follow-up converts!</Text>
               </LinearGradient>
             </TouchableOpacity>
           )}
@@ -1026,6 +1027,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
     letterSpacing: 0.3,
+  },
+  earnSubText: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
+    textAlign: 'center',
+    paddingHorizontal: 16,
   },
   rulesButton: {
     paddingVertical: 12,
